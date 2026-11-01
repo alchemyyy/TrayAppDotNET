@@ -341,6 +341,8 @@ Zoom changes the text size of the rows; stretch changes the space between them. 
 
 The baseline is what "reset" goes back to. By default that's a zoom of 12 and a stretch of 3.5.
 
+Each of these briefly shows the result in a small card at the bottom of the sidebar, above **Settings** (and above **Update** when an update is available): **Zoom 104%**, **Stretch 129%**, **Zoom baseline 100%**, etc. The percentage is relative to the defaults, so 100% is a zoom of 12 or a stretch of 3.5. The newest gesture replaces what the card shows, and it disappears 2 seconds after the last one. With the sidebar collapsed it shows only the percentage.
+
 **Note**: over the table, ++shift++ + scroll wheel stretches instead of scrolling sideways. Use the scroll bar to scroll horizontally.
 
 Zoom only affects the rows. The column headers keep their size.

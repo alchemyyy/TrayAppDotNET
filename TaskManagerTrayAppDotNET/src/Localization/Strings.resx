@@ -765,6 +765,18 @@
   <data name="Window_ExpandNavigation" xml:space="preserve">
     <value>Expand navigation</value>
   </data>
+  <data name="Window_GridMetric_Zoom" xml:space="preserve">
+    <value>Zoom</value>
+  </data>
+  <data name="Window_GridMetric_Stretch" xml:space="preserve">
+    <value>Stretch</value>
+  </data>
+  <data name="Window_GridMetric_ZoomBaseline" xml:space="preserve">
+    <value>Zoom baseline</value>
+  </data>
+  <data name="Window_GridMetric_StretchBaseline" xml:space="preserve">
+    <value>Stretch baseline</value>
+  </data>
   <data name="Window_RestartExplorer_Title" xml:space="preserve">
     <value>Restart Windows Explorer?</value>
   </data>

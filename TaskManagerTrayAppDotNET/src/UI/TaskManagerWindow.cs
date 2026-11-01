@@ -272,6 +272,9 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         return [updateButton];
     }
 
+    protected override Control? CreateSidebarFooterStatus(SettingsPalette palette) =>
+        new TaskManagerGridMetricCard(palette, _taskManagerResources);
+
     protected override void UpdateSidebarNavigationActions(
         IReadOnlyList<SettingsNavItem> navigationActions,
         bool isCollapsed)
@@ -290,6 +293,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         string navigationText = isCollapsed ? ExpandNavigationText : CollapseNavigationText;
         TrayAppDotNETToolTip.SetTip(sidebarCollapseButton, navigationText);
         AutomationProperties.SetName(sidebarCollapseButton, navigationText);
+        (SidebarFooterStatus as TaskManagerGridMetricCard)?.SetCompact(isCollapsed, CollapsedSidebarWidth);
     }
 
     protected override void OnOpened(EventArgs eventArgs)
@@ -660,10 +664,12 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 
         page.AttachedToVisualTree += OnPageAttached;
         page.DetachedFromVisualTree += OnPageDetached;
+        page.GridMetricChanged += OnPageGridMetricChanged;
         AddPageCleanup(() =>
         {
             page.AttachedToVisualTree -= OnPageAttached;
             page.DetachedFromVisualTree -= OnPageDetached;
+            page.GridMetricChanged -= OnPageGridMetricChanged;
             DeactivatePage();
         });
         return OwnPageResource(page);
@@ -695,6 +701,9 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         void OnPageDetached(object? sender, VisualTreeAttachmentEventArgs eventArgs) =>
             DeactivatePage();
     }
+
+    private void OnPageGridMetricChanged(TaskManagerGridMetric metric) =>
+        (SidebarFooterStatus as TaskManagerGridMetricCard)?.Show(metric);
 
     private bool ShouldEnableActivePageWork() =>
         !_allowClose && IsVisible && WindowState != WindowState.Minimized;

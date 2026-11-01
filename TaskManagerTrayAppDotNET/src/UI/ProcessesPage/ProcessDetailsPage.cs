@@ -667,18 +667,21 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             AppSettings.GridFontSizeMinimum,
             AppSettings.GridFontSizeMaximum);
         ApplyGridTypography(fontSize, currentRowSpacing);
+        ReportGridMetric(TaskManagerGridMetricKind.Zoom, fontSize);
     }
 
     private void OnGridZoomResetRequested()
     {
         (_, double currentRowSpacing) = ResolveCurrentGridTypography();
         ApplyGridTypography(_settings.GridFontSizeBaseline, currentRowSpacing);
+        ReportGridMetric(TaskManagerGridMetricKind.Zoom, _settings.GridFontSizeBaseline);
     }
 
     private void OnGridZoomBaselineRequested()
     {
         (double currentFontSize, _) = ResolveCurrentGridTypography();
         _settings.UpdateGridFontSizeBaseline(currentFontSize);
+        ReportGridMetric(TaskManagerGridMetricKind.ZoomBaseline, _settings.GridFontSizeBaseline);
     }
 
     private void OnGridRowSpacingRequested(int direction)
@@ -691,18 +694,21 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
             AppSettings.GridRowSpacingMinimum,
             AppSettings.GridRowSpacingMaximum);
         ApplyGridTypography(currentFontSize, rowSpacing);
+        ReportGridMetric(TaskManagerGridMetricKind.Stretch, rowSpacing);
     }
 
     private void OnGridRowSpacingResetRequested()
     {
         (double currentFontSize, _) = ResolveCurrentGridTypography();
         ApplyGridTypography(currentFontSize, _settings.GridRowSpacingBaseline);
+        ReportGridMetric(TaskManagerGridMetricKind.Stretch, _settings.GridRowSpacingBaseline);
     }
 
     private void OnGridRowSpacingBaselineRequested()
     {
         (_, double currentRowSpacing) = ResolveCurrentGridTypography();
         _settings.UpdateGridRowSpacingBaseline(currentRowSpacing);
+        ReportGridMetric(TaskManagerGridMetricKind.StretchBaseline, _settings.GridRowSpacingBaseline);
     }
 
     /// <summary>Returns the rendered typography, which Debug AXAML reloads can move away from settings.</summary>

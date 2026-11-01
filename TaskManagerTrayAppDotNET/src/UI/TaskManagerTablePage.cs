@@ -384,12 +384,20 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
             AppSettings.GridFontSizeMinimum,
             AppSettings.GridFontSizeMaximum);
         ApplyGridTypography(fontSize, _settings.GridRowSpacing);
+        ReportGridMetric(TaskManagerGridMetricKind.Zoom, fontSize);
     }
 
-    private void OnGridZoomResetRequested() =>
+    private void OnGridZoomResetRequested()
+    {
         ApplyGridTypography(_settings.GridFontSizeBaseline, _settings.GridRowSpacing);
+        ReportGridMetric(TaskManagerGridMetricKind.Zoom, _settings.GridFontSizeBaseline);
+    }
 
-    private void OnGridZoomBaselineRequested() => _settings.UpdateGridFontSizeBaseline(_settings.GridFontSize);
+    private void OnGridZoomBaselineRequested()
+    {
+        _settings.UpdateGridFontSizeBaseline(_settings.GridFontSize);
+        ReportGridMetric(TaskManagerGridMetricKind.ZoomBaseline, _settings.GridFontSizeBaseline);
+    }
 
     private void OnGridRowSpacingRequested(int direction)
     {
@@ -400,13 +408,20 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
             AppSettings.GridRowSpacingMinimum,
             AppSettings.GridRowSpacingMaximum);
         ApplyGridTypography(_settings.GridFontSize, rowSpacing);
+        ReportGridMetric(TaskManagerGridMetricKind.Stretch, rowSpacing);
     }
 
-    private void OnGridRowSpacingResetRequested() =>
+    private void OnGridRowSpacingResetRequested()
+    {
         ApplyGridTypography(_settings.GridFontSize, _settings.GridRowSpacingBaseline);
+        ReportGridMetric(TaskManagerGridMetricKind.Stretch, _settings.GridRowSpacingBaseline);
+    }
 
-    private void OnGridRowSpacingBaselineRequested() =>
+    private void OnGridRowSpacingBaselineRequested()
+    {
         _settings.UpdateGridRowSpacingBaseline(_settings.GridRowSpacing);
+        ReportGridMetric(TaskManagerGridMetricKind.StretchBaseline, _settings.GridRowSpacingBaseline);
+    }
 
     private void ApplyGridTypography(double fontSize, double rowSpacing)
     {

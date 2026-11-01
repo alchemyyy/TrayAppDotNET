@@ -348,6 +348,9 @@
   `TaskManagerTrayAppDotNET/src/Services/InteractiveUserLauncher.cs` (Windows Task Manager's
   `\Microsoft\Windows\Task Manager\Interactive` task through wdc.dll `WdcRunTaskAsInteractiveUser`; no Explorer
   dependency); the restart itself is `CriticalProcessActions.RestartExplorer`
+- Sidebar zoom/stretch indicator: `TaskManagerTrayAppDotNET/src/UI/TaskManagerGridMetricCard.cs`, fed by
+  `TaskManagerPageLayout.GridMetricChanged` from the table pages' zoom/stretch handlers and placed above the Update
+  and Settings rows through `SettingsWindowCommon.CreateSidebarFooterStatus`
 - Tests: `TaskManagerTrayAppDotNET/tests/TaskManagerTrayAppDotNET.Tests`
 
 ## Build And Packaging Files

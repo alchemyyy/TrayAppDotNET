@@ -121,6 +121,9 @@ internal class TaskManagerPageLayout : Grid
     /// <summary>Gets the control rendered in the shell-level title-bar overlay.</summary>
     internal virtual Control? PageOverlay => null;
 
+    /// <summary>Raised after a table zoom or stretch gesture sets the grid typography.</summary>
+    internal event Action<TaskManagerGridMetric>? GridMetricChanged;
+
 #if DEBUG
     /// <summary>Applies shared Task Manager page resources without replacing page-owned runtime state.</summary>
     internal virtual void ApplyAXAMLResources(TaskManagerWindowResources resources)
@@ -148,6 +151,10 @@ internal class TaskManagerPageLayout : Grid
     internal virtual void SetPageActive(bool isActive)
     {
     }
+
+    /// <summary>Reports the typography value a table zoom or stretch gesture just set.</summary>
+    protected void ReportGridMetric(TaskManagerGridMetricKind kind, double value) =>
+        GridMetricChanged?.Invoke(new TaskManagerGridMetric(kind, value));
 
     /// <summary>Gets the main-content top edge in another control's coordinate space.</summary>
     internal bool TryGetMainContentTop(Control relativeTo, out double contentTop)

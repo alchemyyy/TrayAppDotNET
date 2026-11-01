@@ -12,6 +12,9 @@ public abstract class TimeConstants : CommonTimeConstants
     // Bounds the handoff delay when AsyncThrottler reports newer Task Manager grid zoom work
     public const int TaskManagerGridZoomReplacementPollMilliseconds = 8;
 
+    // How long the sidebar's zoom and stretch indicator stays up after the last table zoom or stretch gesture
+    public const int GridMetricIndicatorDecayMilliseconds = 2_000;
+
     public new const int DrainPollIntervalMs = CommonTimeConstants.DrainPollIntervalMs;
     public new const int SettingsSaveDebounceMs = CommonTimeConstants.SettingsSaveDebounceMs;
     public new const int UpdateCheckIntervalDefaultMs = CommonTimeConstants.UpdateCheckIntervalDefaultMs;
