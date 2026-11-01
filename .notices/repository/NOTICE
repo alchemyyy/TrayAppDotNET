@@ -1,0 +1,43 @@
+TRAYAPPDOTNET REPOSITORY TOOLS AND BUILD-ONLY COMPONENTS
+
+The source repository carries or uses these components. No release archive
+includes them.
+
+PlantUML MIT distribution, 1.2026.2
+  Copyright (c) 2009-2026 Arnaud Roques.
+  License: MIT.
+  Source: https://github.com/plantuml/plantuml/tree/v1.2026.2
+  Notice: .notices/repository/PlantUML-MIT.txt
+  The checked-in JAR (documentation/plantuml-mit-1.2026.2.jar) has the
+  official release SHA-256 digest:
+    397fe169dd408b0f039e8b7be2a12c2d52d35a3399802921b8c84f29cf39e45a
+  PlantUML-generated diagrams are owned and licensed according to their PUML
+  source, not by PlantUML.
+
+Zensical documentation generator
+  Copyright (c) 2025-2026 Zensical and contributors.
+  License: MIT.
+  Source: https://github.com/zensical/zensical
+  `documentation/pyproject.toml` and `documentation/uv.lock` install it and
+  its Python dependencies into a local uv environment that builds the
+  documentation site. None of it is tracked or included in release archives.
+
+HotAvalonia, 3.1.1, and Fody, 6.9.2
+  These MIT-licensed packages are Debug/build-time dependencies and are not
+  included in Release Native AOT output.
+  Notices:
+    .notices/repository/HotAvalonia-MIT.txt
+    .notices/repository/Fody-MIT.txt
+
+Aga.Controls
+  Copyright (c) 2009 Andrey Gliznetsov.
+  License: BSD.
+  Source: the LibreHardwareMonitor submodule's Windows Forms application,
+  which TrayAppDotNET neither builds nor ships (LibreHardwareMonitorLib does
+  not reference it).
+  Notice: .notices/repository/Aga.Controls-BSD.txt
+
+Roslyn, xUnit, Microsoft test packages, Cloudflare development packages, and
+the remaining package-lock dependencies are build, test, or deployment tools.
+They are not copied into TrayAppDotNET release archives. Their package
+manifests retain their upstream license metadata.

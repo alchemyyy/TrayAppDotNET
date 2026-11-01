@@ -119,7 +119,8 @@ during this refactor; deletion should be a separate cleanup.
   - `FanControlTrayAppDotNET/src/Constants.cs` (`FanFontRelativePath`)
   - `BrightnessTrayAppDotNET/src/BrightnessTrayAppDotNET.csproj`
   - `FanControlTrayAppDotNET/src/FanControlTrayAppDotNET.csproj`
-  - `NOTICE` (the map and fan artwork file paths)
+  - `.notices/BrightnessTrayAppDotNET/NOTICE` (the map file path) and
+    `.notices/FanControlTrayAppDotNET/NOTICE` (the fan artwork file paths)
 
 ### 7. Update Tests and Documentation
 

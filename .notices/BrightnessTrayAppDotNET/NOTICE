@@ -1,0 +1,26 @@
+BRIGHTNESSTRAYAPPDOTNET THIRD-PARTY NOTICES
+
+BrightnessTrayAppDotNET ships these components in addition to the ones the
+root NOTICE lists.
+
+COMPONENTS
+==========
+
+sunrise-sunset-js, ported to C# (BrightnessTrayAppDotNET/src/SunriseSunset)
+  Copyright (c) Aleksei Udivankin.
+  License: ISC.
+  Source: https://github.com/udivankin/sunrise-sunset-js
+  Notice: .notices/BrightnessTrayAppDotNET/sunrise-sunset-js-ISC.txt
+
+
+ASSETS
+======
+
+World SVG map
+  Copyright (c) Fla-shop.com.
+  License: CC-BY-4.0.
+  Creator and source: https://www.fla-shop.com
+  License: https://creativecommons.org/licenses/by/4.0/
+  Repository file:
+    BrightnessTrayAppDotNET/src/Visuals/map_fla-shop.com_ccby4.0.svg
+  No modifications to the map artwork are asserted by this repository.

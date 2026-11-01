@@ -979,22 +979,47 @@ class PublishScriptTests(unittest.TestCase):
                 fan_notices,
             )
 
-    def test_third_party_notice_references_every_notice_file(self) -> None:
-        notice_text = (PUBLISH.REPO_ROOT / "NOTICE").read_text(
-            encoding="utf-8"
-        )
-        notice_paths = [
-            path for path in PUBLISH.THIRD_PARTY_NOTICE_DIRECTORY.rglob("*") if path.is_file()
+    def test_every_notice_file_is_listed_by_the_notice_that_ships_with_it(self) -> None:
+        # The root NOTICE lists the shared texts, and the NOTICE in an app or repository folder lists that folder's texts
+        license_paths = [
+            path
+            for path in PUBLISH.THIRD_PARTY_NOTICE_DIRECTORY.rglob("*")
+            if path.is_file() and path.name != "NOTICE"
         ]
 
-        self.assertTrue(notice_paths)
-        for path in notice_paths:
-            archive_name = (
-                PUBLISH.THIRD_PARTY_NOTICE_ARCHIVE_PREFIX
-                + path.relative_to(PUBLISH.THIRD_PARTY_NOTICE_DIRECTORY).as_posix()
+        self.assertTrue(license_paths)
+        for path in license_paths:
+            relative_path = path.relative_to(PUBLISH.THIRD_PARTY_NOTICE_DIRECTORY)
+            listing_path = (
+                PUBLISH.REPO_ROOT / "NOTICE"
+                if len(relative_path.parts) == 1
+                else PUBLISH.THIRD_PARTY_NOTICE_DIRECTORY / relative_path.parts[0] / "NOTICE"
             )
+            archive_name = PUBLISH.THIRD_PARTY_NOTICE_ARCHIVE_PREFIX + relative_path.as_posix()
             with self.subTest(notice=archive_name):
-                self.assertIn(archive_name, notice_text)
+                self.assertTrue(listing_path.is_file(), f"{listing_path} must exist to list {archive_name}")
+                self.assertIn(archive_name, listing_path.read_text(encoding="utf-8"))
+
+    def test_package_notices_list_nothing_from_another_package(self) -> None:
+        # A package carries the root NOTICE and its app's own NOTICE. Neither may name another app or a notice file
+        # the package does not carry.
+        notice_names = {
+            PUBLISH.THIRD_PARTY_NOTICE_ARCHIVE_PREFIX + path.relative_to(PUBLISH.THIRD_PARTY_NOTICE_DIRECTORY).as_posix()
+            for path in PUBLISH.THIRD_PARTY_NOTICE_DIRECTORY.rglob("*")
+            if path.is_file() and path.name != "NOTICE"
+        }
+        app_names = {app.name for app in PUBLISH.APPS}
+
+        for app in PUBLISH.APPS:
+            notice_text = "\n".join(
+                path.read_text(encoding="utf-8")
+                for path in (PUBLISH.REPO_ROOT / "NOTICE", PUBLISH.THIRD_PARTY_NOTICE_DIRECTORY / app.name / "NOTICE")
+                if path.is_file()
+            )
+            foreign_notice_names = notice_names - set(PUBLISH.third_party_notice_archive_files(app.name))
+            with self.subTest(app=app.name):
+                self.assertEqual([], sorted(name for name in app_names - {app.name} if name in notice_text))
+                self.assertEqual([], sorted(name for name in foreign_notice_names if name in notice_text))
 
     def test_notice_subfolders_are_catalog_apps_or_the_repository_set(self) -> None:
         allowed = {app.name for app in PUBLISH.APPS} | {PUBLISH.REPOSITORY_NOTICE_DIRECTORY_NAME}

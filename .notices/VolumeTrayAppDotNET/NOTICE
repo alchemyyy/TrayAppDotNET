@@ -1,0 +1,37 @@
+VOLUMETRAYAPPDOTNET THIRD-PARTY NOTICES
+
+VolumeTrayAppDotNET ships these components in addition to the ones the root
+NOTICE lists.
+
+COMPONENTS
+==========
+
+Microsoft.Diagnostics.Tracing.TraceEvent, 3.1.16
+  Copyright (c) Microsoft Corporation.
+  License: MIT.
+  Source: https://github.com/microsoft/perfview/tree/53b9a9da15f57af15ce7d53f53a06daf4f80cef2
+  Notice: .notices/VolumeTrayAppDotNET/TraceEvent-MIT.txt
+
+Microsoft.Diagnostics.NETCore.Client, 0.2.510501
+  Copyright (c) Microsoft Corporation and .NET Foundation contributors.
+  License: MIT.
+  Source: https://github.com/dotnet/diagnostics/tree/8c08c89a0643d31db91e119b1adb463be3e0ffe5
+  Notice: .notices/dotnet-runtime-MIT.txt
+
+Microsoft.Extensions packages, 6.0.0
+  Copyright (c) Microsoft Corporation and .NET Foundation contributors.
+  License: MIT.
+  Source: https://github.com/dotnet/runtime/tree/4822e3c3aa77eb82b2fb33c9321f923cf11ddde6
+  Notice: .notices/dotnet-runtime-MIT.txt
+
+System.Reflection.TypeExtensions, 4.7.0
+  Copyright (c) Microsoft Corporation and .NET Foundation contributors.
+  License: MIT.
+  Source: https://github.com/dotnet/corefx/tree/0f7f38c4fd323b26da10cce95f857f77f0f09b48
+  Notice: .notices/dotnet-runtime-MIT.txt
+
+System.Windows.Extensions, 10.0.9
+  Copyright (c) Microsoft Corporation and .NET Foundation contributors.
+  License: MIT.
+  Source: https://github.com/dotnet/dotnet/tree/901ca941248413c79832d2fdbd709da0c4386353
+  Notice: .notices/dotnet-runtime-MIT.txt

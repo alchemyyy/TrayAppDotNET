@@ -1,0 +1,115 @@
+FANCONTROLTRAYAPPDOTNET THIRD-PARTY NOTICES
+
+FanControlTrayAppDotNET ships these components in addition to the ones the
+root NOTICE lists.
+
+COMPONENTS
+==========
+
+LibreHardwareMonitor, pinned commit 30770e0371bb359d1432cfa2447ef3082871af8f
+  License: MPL-2.0.
+  Source: FanControlTrayAppDotNET/vendor/LibreHardwareMonitor
+  Notice: .notices/FanControlTrayAppDotNET/MPL-2.0.txt
+
+DiskInfoToolkit, pinned commit 66aa99f2750c843fd11280398c2cf1ff4a41ef09
+  Copyright (c) Florian K.
+  License: MPL-2.0.
+  Source: FanControlTrayAppDotNET/vendor/DiskInfoToolkit
+  Notice: .notices/FanControlTrayAppDotNET/MPL-2.0.txt
+
+PCI ID database (pci.ids), embedded in DiskInfoToolkit
+  Copyright (c) Martin Mares and Albert Pool.
+  License: GPL-2.0-or-later or BSD-3-Clause; redistributed under BSD-3-Clause.
+  Source: https://pci-ids.ucw.cz/
+  Notice: .notices/FanControlTrayAppDotNET/pci.ids-BSD-3-Clause.txt
+
+USB ID database (usb.ids), embedded in DiskInfoToolkit
+  Copyright (c) Stephen J. Gowdy.
+  License: GPL-2.0-or-later or BSD-3-Clause; redistributed under BSD-3-Clause.
+  Source: http://www.linux-usb.org/usb-ids.html
+  Notice: .notices/FanControlTrayAppDotNET/usb.ids-BSD-3-Clause.txt
+
+BlackSharp.Core, 1.1.0
+  Copyright (c) Florian K.
+  License: MPL-2.0.
+  Source: https://github.com/Blacktempel/BlackSharp/tree/35f908a3d5cefaf8d4557709273d25e166593109
+  Notice: .notices/FanControlTrayAppDotNET/MPL-2.0.txt
+
+HIDSharp, pinned commit abab3fcca7657a4b4f56a505d99b93ebc1179e68
+  Copyright 2010-2019 James F. Bellinger.
+  License: Apache-2.0.
+  Source: FanControlTrayAppDotNET/vendor/HIDSharp
+  Notices:
+    .notices/FanControlTrayAppDotNET/HIDSharp-Apache-2.0.txt
+    .notices/FanControlTrayAppDotNET/HIDSharp-NOTICE.txt
+
+NCalc, pinned commit ddaaf5ba0fa2c8b06dd6fdcbb3cddc502432465b
+  Copyright (c) 2011 Sebastien Ros and contributors.
+  Copyright (c) 2025 Eugene Mayevski (Allied Bits).
+  License: MIT.
+  Source: FanControlTrayAppDotNET/vendor/NCalc
+  Notice: .notices/FanControlTrayAppDotNET/NCalc-MIT.txt
+
+AlliedBits.Parlot, 1.5.7
+  Copyright (c) 2020 Sebastien Ros.
+  License: BSD-3-Clause.
+  Source: https://github.com/Allied-Bits-Ltd/parlot/tree/2e9a962fe1d49992008c1cc93669975bcc02e241
+  Notice: .notices/FanControlTrayAppDotNET/Parlot-BSD-3-Clause.txt
+
+ExtendedNumerics.BigDecimal, 3003.2.0.161
+  Copyright (c) 2024 Adam White.
+  License: MIT.
+  Source: https://github.com/AdamWhiteHat/BigDecimal/tree/d9d2bd4dfc67fd297310a05a085087bb6e98cde8
+  Notice: .notices/FanControlTrayAppDotNET/BigDecimal-MIT.txt
+
+Microsoft.Extensions packages, 10.0.0
+  Copyright (c) Microsoft Corporation and .NET Foundation contributors.
+  License: MIT.
+  Source: https://github.com/dotnet/dotnet/tree/b0f34d51fccc69fd334253924abd8d6853fad7aa
+  Notice: .notices/dotnet-runtime-MIT.txt
+
+Mono.Posix.NETStandard, 1.0.0
+  Copyright (c) Mono contributors.
+  License: primarily MIT and BSD for the redistributed runtime and class
+  library portions; see the complete upstream license inventory.
+  Source: https://github.com/mono/mono/tree/b9fb4d885725514cacb8b7732cac6f8b3fa83645/mcs/class/Mono.Posix
+  Notice: .notices/FanControlTrayAppDotNET/Mono-LICENSE.txt
+
+System.IO.FileSystem.AccessControl, 5.0.0
+  Copyright (c) Microsoft Corporation and .NET Foundation contributors.
+  License: MIT.
+  Source: https://github.com/dotnet/runtime/tree/cf258a14b70ad9069470a108f13765e0e5988f51
+  Notice: .notices/dotnet-runtime-MIT.txt
+
+System.IO.Ports, 10.0.9
+  Copyright (c) Microsoft Corporation and .NET Foundation contributors.
+  License: MIT.
+  Source: https://github.com/dotnet/dotnet/tree/901ca941248413c79832d2fdbd709da0c4386353
+  Notice: .notices/dotnet-runtime-MIT.txt
+
+PawnIO modules included by LibreHardwareMonitor
+  License: LGPL-2.1-or-later.
+  Source: https://github.com/namazso/PawnIO.Modules/tree/0.1.6
+  Notice: .notices/FanControlTrayAppDotNET/PawnIO-Modules-LGPL-2.1.txt
+
+PawnIO Setup is not distributed by TrayAppDotNET. When PawnIO is absent, the
+Fan Control app downloads the official 2.1.0 installer from its publisher and
+accepts it only if its SHA-256 digest is
+a3a46226c5e2824f4cdd42be0eecbabfc672c86f7889710f5ab1e6ad385b47a0.
+The PawnIO driver is GPL-2.0-or-later with an exception for independent
+programs communicating only through the device IO control interface.
+  Installer: https://github.com/namazso/PawnIO.Setup/releases/tag/2.1.0
+  Driver source: https://github.com/namazso/PawnIO/tree/2.1.0
+
+
+ASSETS
+======
+
+Custom fan artwork and font
+  Copyright (C) 2026 alchemyyy.
+  License: GPL-3.0-or-later.
+  Files: FanControlTrayAppDotNET/font/*.svg,
+    FanControlTrayAppDotNET/src/Visuals/FanFont.ttf, and
+    FanControlTrayAppDotNET/src/Visuals/FAN_GLYPH.png
+  FontForge was used to create the fan font. See:
+    FanControlTrayAppDotNET/font/README.md
