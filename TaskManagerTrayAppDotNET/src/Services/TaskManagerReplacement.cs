@@ -1,17 +1,4 @@
-using System.ComponentModel;
-using System.Diagnostics;
-using TrayAppDotNETCommon.Services.Ipc;
-
 namespace TaskManagerTrayAppDotNET.Services;
-
-/// <summary>The outcome of an elevated request to enable or disable Task Manager replacement.</summary>
-internal enum TaskManagerReplacementResult
-{
-    Enabled,
-    Disabled,
-    Declined,
-    Failed
-}
 
 /// <summary>Reflects what the machine-wide taskmgr.exe redirect currently points at.</summary>
 internal readonly record struct TaskManagerReplacementState(
@@ -33,9 +20,9 @@ internal readonly record struct TaskManagerReplacementState(
 /// another copy (or another tool) owns.
 ///
 /// Writing and removing the value needs administrator rights (HKLM), so the settings toggle relaunches
-/// this executable elevated with <see cref="ConfigureModeArgument"/>; that relaunch performs the
-/// registry change and exits without starting the UI. Redirected taskmgr launches arrive with the
-/// original image path as the first argument and are handed off to any running instance.
+/// this executable elevated with <see cref="ConfigureModeArgument"/> (see <see cref="ElevatedSettingChange"/>);
+/// that relaunch performs the registry change and exits without starting the UI. Redirected taskmgr launches arrive
+/// with the original image path as the first argument and are handed off to any running instance.
 /// </summary>
 internal static class TaskManagerReplacement
 {
@@ -44,11 +31,7 @@ internal static class TaskManagerReplacement
 
     // Elevated self-relaunch mode that performs the HKLM write or removal, then exits
     public const string ConfigureModeArgument = "--set-taskmgr-replacement";
-    private const string EnableToken = "on";
-    private const string DisableToken = "off";
 
-    private const int ConfigureSuccessExitCode = 0;
-    private const int ConfigureFailureExitCode = 2;
     private const int ActivationTimeoutMilliseconds = 1_500;
 
     /// <summary>Reads the current redirect state from the registry.</summary>
@@ -103,16 +86,8 @@ internal static class TaskManagerReplacement
     }
 
     /// <summary>Returns true when this launch is the elevated taskmgr.exe redirect change.</summary>
-    public static bool IsElevatedConfigureLaunch(string[] arguments)
-    {
-        ArgumentNullException.ThrowIfNull(arguments);
-        return FindConfigureModeIndex(arguments) >= 0;
-    }
-
-    private static int FindConfigureModeIndex(string[] arguments) =>
-        Array.FindIndex(
-            arguments,
-            argument => string.Equals(argument, ConfigureModeArgument, StringComparison.OrdinalIgnoreCase));
+    public static bool IsElevatedConfigureLaunch(string[] arguments) =>
+        ElevatedSettingChange.FindModeArgument(arguments, ConfigureModeArgument) >= 0;
 
     /// <summary>
     /// Performs the elevated registry change when launched with <see cref="ConfigureModeArgument"/>.
@@ -122,77 +97,28 @@ internal static class TaskManagerReplacement
     /// </summary>
     public static bool TryHandleElevatedConfigure(string[] arguments, out int exitCode)
     {
-        ArgumentNullException.ThrowIfNull(arguments);
-        exitCode = ConfigureSuccessExitCode;
-
-        int modeIndex = FindConfigureModeIndex(arguments);
+        exitCode = ElevatedSettingChange.SuccessExitCode;
+        int modeIndex = ElevatedSettingChange.FindModeArgument(arguments, ConfigureModeArgument);
         if (modeIndex < 0) return false;
 
-        string? mode = modeIndex + 1 < arguments.Length ? arguments[modeIndex + 1] : null;
-        bool enable = string.Equals(mode, EnableToken, StringComparison.OrdinalIgnoreCase);
-        bool disable = string.Equals(mode, DisableToken, StringComparison.OrdinalIgnoreCase);
-        if (!enable && !disable)
+        if (!ElevatedSettingChange.TryReadToggle(arguments, modeIndex, out bool enable))
         {
-            TADNLog.Log($"TaskManagerReplacement: '{ConfigureModeArgument}' requires '{EnableToken}' or '{DisableToken}'.");
-            exitCode = ConfigureFailureExitCode;
+            TADNLog.Log($"TaskManagerReplacement: '{ConfigureModeArgument}' requires 'on' or 'off'.");
+            exitCode = ElevatedSettingChange.FailureExitCode;
             return true;
         }
 
         bool succeeded = enable ? EnableRedirection() : DisableRedirection();
-        exitCode = succeeded ? ConfigureSuccessExitCode : ConfigureFailureExitCode;
+        exitCode = succeeded ? ElevatedSettingChange.SuccessExitCode : ElevatedSettingChange.FailureExitCode;
         return true;
     }
 
     /// <summary>Relaunches this executable elevated to apply the change, returning the observed outcome.</summary>
-    public static async Task<TaskManagerReplacementResult> SetEnabledElevatedAsync(bool enable)
-    {
-        string? sourceExecutable = Environment.ProcessPath;
-        if (string.IsNullOrEmpty(sourceExecutable))
-        {
-            TADNLog.Log("TaskManagerReplacement.SetEnabledElevatedAsync: the process path is unavailable.");
-            return TaskManagerReplacementResult.Failed;
-        }
-
-        string arguments = $"{ConfigureModeArgument} {(enable ? EnableToken : DisableToken)}";
-        return await Task.Run(() =>
-        {
-            try
-            {
-                ProcessStartInfo startInfo = new()
-                {
-                    FileName = sourceExecutable,
-                    Arguments = arguments,
-                    UseShellExecute = true,
-                    Verb = "runas",
-                    CreateNoWindow = true,
-                    WindowStyle = ProcessWindowStyle.Hidden
-                };
-                using Process? process = Process.Start(startInfo);
-                if (process == null) return TaskManagerReplacementResult.Failed;
-
-                process.WaitForExit();
-                if (process.ExitCode != ConfigureSuccessExitCode)
-                {
-                    // The elevated configure process writes no log file; its exit code is the whole report
-                    TADNLog.Log(
-                        $"TaskManagerReplacement.SetEnabledElevatedAsync: the elevated change exited with code {process.ExitCode}.");
-                    return TaskManagerReplacementResult.Failed;
-                }
-
-                return enable ? TaskManagerReplacementResult.Enabled : TaskManagerReplacementResult.Disabled;
-            }
-            catch (Win32Exception exception) when (TrayAppDotNETElevatedLaunch.IsUserCancelled(exception))
-            {
-                // The user declined the UAC prompt
-                return TaskManagerReplacementResult.Declined;
-            }
-            catch (Exception exception)
-            {
-                TADNLog.Log($"TaskManagerReplacement.SetEnabledElevatedAsync: {exception}");
-                return TaskManagerReplacementResult.Failed;
-            }
-        }).ConfigureAwait(true);
-    }
+    public static Task<ElevatedSettingChangeResult> SetEnabledElevatedAsync(bool enable) =>
+        ElevatedSettingChange.RunElevatedAsync(
+            ConfigureModeArgument,
+            enable,
+            logSource: "TaskManagerReplacement.SetEnabledElevatedAsync");
 
     /// <summary>
     /// Removes the redirect during uninstall so Ctrl+Shift+Esc never points at a deleted executable. Only a

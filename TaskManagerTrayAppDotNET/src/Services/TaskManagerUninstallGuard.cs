@@ -25,10 +25,16 @@ internal static class TaskManagerUninstallGuard
 
     /// <summary>
     /// Runs in the uninstall helper before anything is removed: removes a redirect to the copy being removed, and
-    /// stops the uninstall when that removal fails.
+    /// stops the uninstall when that removal fails. A system uninstall that goes ahead also deletes every account's
+    /// Always run as administrator task, which only ever starts the system install.
     /// </summary>
-    public static string? BeforePrepare(InstallScope scope) =>
-        TaskManagerReplacement.RemoveForUninstall(scope) ? null : BlockedMessage;
+    public static string? BeforePrepare(InstallScope scope)
+    {
+        if (!TaskManagerReplacement.RemoveForUninstall(scope)) return BlockedMessage;
+
+        ElevatedStartTask.RemoveForUninstall(scope);
+        return null;
+    }
 
     /// <summary>
     /// Whether the uninstall helper runs elevated: a Program Files uninstall always asks for it, and a helper started

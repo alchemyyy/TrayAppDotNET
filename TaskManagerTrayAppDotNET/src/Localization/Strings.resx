@@ -99,10 +99,10 @@
   <data name="Settings_General_ReplaceWindowsTaskManager_AnotherProgram" xml:space="preserve">
     <value>another program</value>
   </data>
-  <data name="Settings_General_ReplaceWindowsTaskManager_Declined" xml:space="preserve">
+  <data name="Settings_General_ElevatedChange_Declined" xml:space="preserve">
     <value>Administrator approval was declined, so nothing changed.</value>
   </data>
-  <data name="Settings_General_ReplaceWindowsTaskManager_Failed" xml:space="preserve">
+  <data name="Settings_General_ElevatedChange_Failed" xml:space="preserve">
     <value>The change could not be applied. See the Task Manager log for details.</value>
   </data>
   <data name="Uninstall_TaskManagerRedirectBlocks" xml:space="preserve">
@@ -110,6 +110,27 @@
   </data>
   <data name="Settings_General_AdministratorActions_Header" xml:space="preserve">
     <value>Administrator actions</value>
+  </data>
+  <data name="Settings_General_AlwaysRunAsAdministrator_Title" xml:space="preserve">
+    <value>Always run as administrator</value>
+  </data>
+  <data name="Settings_General_AlwaysRunAsAdministrator_SearchKeywords" xml:space="preserve">
+    <value>always run as administrator elevated elevation admin UAC prompt without asking approval scheduled task highest privileges</value>
+  </data>
+  <data name="Settings_General_AlwaysRunAsAdministrator_Description" xml:space="preserve">
+    <value>Start this app as administrator every time, without asking for administrator approval, through a scheduled task for your account. Any program you run can then start this app as administrator too. Changing this needs administrator approval.</value>
+  </data>
+  <data name="Settings_General_AlwaysRunAsAdministrator_EnabledDescription_Format" xml:space="preserve">
+    <value>On. Every start of this app runs it as administrator, without asking for approval, through the scheduled task {0}. Changing this needs administrator approval.</value>
+  </data>
+  <data name="Settings_General_AlwaysRunAsAdministrator_NeedsRepairDescription_Format" xml:space="preserve">
+    <value>On, but the scheduled task {0} was changed or disabled outside this app, so the app starts without administrator rights. Turn this off and on again to restore it.</value>
+  </data>
+  <data name="Settings_General_AlwaysRunAsAdministrator_RequiresSystemInstall" xml:space="preserve">
+    <value>Unavailable: only the system install in Program Files can do this, because any program you run could replace a copy in your user folder. Install this app for all users, then change this setting in that copy.</value>
+  </data>
+  <data name="Settings_General_AlwaysRunAsAdministrator_RequiresAdministrator" xml:space="preserve">
+    <value>Unavailable: your account isn't an administrator.</value>
   </data>
   <data name="Settings_General_ElevatedTerminationOnStartup_Title" xml:space="preserve">
     <value>Enable elevated termination at startup</value>

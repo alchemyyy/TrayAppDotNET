@@ -18,7 +18,8 @@ internal static class AppServices
         UninstallHook = new TrayAppDotNETUninstallHook
         {
             // Ctrl+Shift+Esc must never point at a deleted exe: clear the taskmgr.exe redirect before removal, and stop
-            // the uninstall when it cannot be cleared
+            // the uninstall when it cannot be cleared. A system uninstall also deletes the Always run as administrator
+            // tasks
             CheckUninstall = TaskManagerUninstallGuard.CheckUninstall,
             BeforePrepare = static (scope, _) => TaskManagerUninstallGuard.BeforePrepare(scope)
         }

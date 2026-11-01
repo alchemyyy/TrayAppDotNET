@@ -340,6 +340,10 @@
 - Processes Status column, mirrored from Taskmgr.exe: `TaskManagerTrayAppDotNET/src/Models/ProcessStatus.cs`,
   `TaskManagerTrayAppDotNET/src/Services/ProcessHungWindowCollector.cs`; rules in
   `documentation/docs/task_manager_process_status.md`
+- Always run as administrator: `TaskManagerTrayAppDotNET/src/Services/ElevatedStartTask.cs` (per-account
+  highest-privileges scheduled task, hand-off, task-start argument check) over the generated Task Scheduler COM client
+  in `src/Interop/TaskSchedulerInterfaces.cs` and `TaskSchedulerSession.cs`; the elevated relaunch both machine-level
+  toggles share is `src/Services/ElevatedSettingChange.cs`
 - Tests: `TaskManagerTrayAppDotNET/tests/TaskManagerTrayAppDotNET.Tests`
 
 ## Build And Packaging Files
@@ -401,9 +405,13 @@
   explicitly enabled startup shortcut carry it forward. Unelevated helper processes started outside `Run`
   (Brightness Night Light and DDC helpers) get it through `TrayAppDotNETProgram.ConfigureHelperProcess` or
   `HelperProcessArguments`, apply it with `InitializeHelperProcess`, and log to `<helper>.log` in the app's log
-  folder. Elevated helpers (Task Manager's broker and `--set-taskmgr-replacement`) get no override and use
-  `TADNLog.InitializeForElevatedProcess`, which writes no file (the broker forwards lines to the app's log). The
-  shared `LocalAppDataRoot` (versions manifest cache, install folder, download caches) does not move.
+  folder. Elevated helpers (Task Manager's broker, `--set-taskmgr-replacement` and `--set-elevated-start`) get no
+  override and use `TADNLog.InitializeForElevatedProcess`, which writes no file (the broker forwards lines to the
+  app's log). The shared `LocalAppDataRoot` (versions manifest cache, install folder, download caches) does not move.
+- Task Manager's Always run as administrator task (`ElevatedStartTask`) starts the system install elevated with
+  `--elevated-start-task [--autostart] [--hidden]`; `Program.Main` checks for it before every other mode and refuses
+  any other argument. An unelevated plain start (no arguments, `--autostart`, `--hidden`, or a redirected taskmgr.exe
+  start) runs that task before the watcher hop and exits; `--settings-dir` starts never hand off.
 - Single instance: a second launch's watcher asks the running app to exit through
   `Local\TrayAppDotNET-ExitRequest-<pid>` (`TrayAppDotNETExitRequest`); the app runs its normal exit (exit code 0,
   so its watcher stops too). Only when the single-instance mutex is still held after

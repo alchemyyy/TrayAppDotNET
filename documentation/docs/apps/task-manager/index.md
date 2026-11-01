@@ -101,7 +101,7 @@ There are two ways to make Windows open this app instead of its own Task Manager
 
 ## Administrator Actions
 
-The app itself runs as a normal user, never elevated. A few things Windows only allows administrators to do on some processes, and those go through a separate elevated helper:
+The app itself runs as a normal user unless you turn on [Always run as administrator](#always-run-as-administrator). A few things Windows only allows administrators to do on some processes, and those go through a separate elevated helper:
 
 - Changing priority or affinity of a protected process (the context menu shows a UAC shield on those entries when it's needed).
 - Creating a memory dump of a process the app isn't allowed to read.
@@ -115,12 +115,25 @@ Ending processes uses its own elevated termination helper, but **End task** and 
 
 **End task**, **End task tree**, every **Set priority** level and **Disconnect** also have their own confirmation, and it comes first: **Cancel** there means no administrator prompt either. So does disabling a service. Memory dumps, starting, stopping or restarting a service, and startup app changes have no confirmation of their own.
 
-Both settings are in **Settings** > **General** > **Administrator actions**:
+These settings are in **Settings** > **General** > **Administrator actions**:
 
 | Setting | Default | What it does |
 | --- | --- | --- |
+| **Always run as administrator** | Off | Starts the app as administrator every time, without a UAC prompt. See [below](#always-run-as-administrator). |
 | **Enable elevated termination at startup** | Off | Asks for administrator approval as soon as the window first shows, so ending protected processes works right away. When off, approval is requested the first time you end a process that needs it. |
-| **Run admin actions directly when elevated** | Off | If you started the app itself as administrator, do admin actions in the app instead of through the elevated helper. Off keeps behavior the same whether or not the app is elevated. |
+| **Run admin actions directly when elevated** | Off | If the app itself runs as administrator, do admin actions in the app instead of through the elevated helper. Off keeps behavior the same whether or not the app is elevated. |
+
+### Always Run as Administrator
+
+**Always run as administrator** makes every start of the app run it as administrator, without a UAC prompt: the Start menu entry, **Run on startup**, ++ctrl+shift+esc++ with **Replace Windows Task Manager**, and the restarts from **Settings**. It does what you would otherwise set up by hand in Task Scheduler: a task for your account, `\TrayAppDotNET\TaskManagerTrayAppDotNET-<your account's SID>`, that runs the app with highest privileges. A normal start hands off to that task, which starts the app again as administrator.
+
+- Turning it on or off needs administrator approval (a UAC prompt). If you decline, the toggle flips back and nothing changes.
+- It needs an administrator account and the system-wide install in Program Files, and you turn it on from that copy. The task only ever starts that install: a copy in your user folder could be replaced by any program you run, which would then start as administrator without asking. Other copies keep starting as you.
+- Any program running as you can run the task, so any program you run can start this app as administrator. None of them can change what the task starts: only an administrator can change or delete it.
+- A start with `--settings-dir` doesn't use the task.
+- If the task is disabled or changed outside the app (in Task Scheduler, for example), the card says so and the app starts without administrator rights. Turn the setting off and on again to restore the task.
+- Admin actions that go through the elevated helper still show **Administrator approval required**, but no UAC prompt follows. Turn on **Run admin actions directly when elevated** to skip the helper.
+- Uninstalling the system-wide install deletes the task for every account.
 
 ## Settings
 

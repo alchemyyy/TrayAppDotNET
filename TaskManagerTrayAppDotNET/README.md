@@ -101,7 +101,7 @@ does reserve a small nonzero working set in exchange for remaining dispatchable 
 
 ## Elevation
 
-The app runs `asInvoker`. Three separate channels touch other integrity levels or other processes:
+The app runs `asInvoker`. Four separate channels touch other integrity levels or other processes:
 
 - **Privileged-action broker** (`--elevated-broker`, `src/Services/ElevationBroker*.cs`): launched with `runas` on the
   first admin action. Its command line names the UI's PID and start time; it verifies them, keeps a handle to the UI,
@@ -119,6 +119,18 @@ The app runs `asInvoker`. Three separate channels touch other integrity levels o
 - **Activation pipe** (`src/Services/TaskManagerActivationServer.cs`): lets a redirected `taskmgr.exe` launch bring the
   running window forward. The name carries the user SID and session, the DACL and owner are the user SID, the client
   connects at identification level and only trusts a pipe owned by its own user.
+- **Always run as administrator task** (`src/Services/ElevatedStartTask.cs`, COM client in
+  `src/Interop/TaskScheduler*.cs`): one scheduled task per account, `\TrayAppDotNET\TaskManagerTrayAppDotNET-<SID>`,
+  that starts the Program Files system install with an interactive-token principal at the `HighestAvailable` run
+  level. The settings toggle registers or deletes it through an elevated `--set-elevated-start on|off` relaunch
+  (`ElevatedSettingChange`, shared with `--set-taskmgr-replacement`). The task's security descriptor lets the account
+  read and run it but only SYSTEM and administrators change or delete it, so an unelevated plain start (no
+  arguments, `--autostart`, `--hidden`, or a redirected `taskmgr.exe` start) runs it with its start flags as `$(Arg0)`
+  and exits, but only after checking that its definition still starts this exe elevated. Any program running as the
+  user can run the task and choose `$(Arg0)`, so `Program.Main` checks for `--elevated-start-task` before every other
+  mode and accepts only `--autostart` and `--hidden` after it; anything else exits with code 2. Registration only ever
+  targets the system install, because a copy in the user's profile can be replaced by any program the user runs. A
+  system uninstall deletes every account's task (`TaskManagerUninstallGuard.BeforePrepare`).
 
 ## Known gaps
 
@@ -167,4 +179,13 @@ To run the same mailbox test while normal-priority workers saturate every logica
 
 ```powershell
 .\TaskManagerTrayAppDotNET\tests\run_elevated_kill_helper_cpu_stress.ps1
+```
+
+The Task Scheduler smoke test registers, runs and deletes tasks in a temporary `\TrayAppDotNET.Tests-<guid>` folder.
+Registering a task that runs elevated needs an elevated test run, and its probe task flashes a console window:
+
+```powershell
+$env:TASK_MANAGER_RUN_SCHEDULED_TASK_TEST = '1'
+dotnet test .\TaskManagerTrayAppDotNET\tests\TaskManagerTrayAppDotNET.Tests\TaskManagerTrayAppDotNET.Tests.csproj `
+  --filter 'FullyQualifiedName~ScheduledTaskSmokeTests'
 ```

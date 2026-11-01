@@ -50,6 +50,7 @@ public sealed partial class TaskManagerSettingsWindow
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
             L(nameof(AppStrings.Settings_General_AdministratorActions_Header)),
             palette));
+        stack.Children.Add(BuildAlwaysRunAsAdministratorCard(palette));
         stack.Children.Add(BoolCard(
             L(nameof(AppStrings.Settings_General_ElevatedTerminationOnStartup_Title)),
             L(nameof(AppStrings.Settings_General_ElevatedTerminationOnStartup_Description)),
@@ -109,14 +110,14 @@ public sealed partial class TaskManagerSettingsWindow
             if (suppressReentry) return;
 
             toggle.IsEnabled = false;
-            TaskManagerReplacementResult result = await TaskManagerReplacement.SetEnabledElevatedAsync(requestedEnabled);
+            ElevatedSettingChangeResult result = await TaskManagerReplacement.SetEnabledElevatedAsync(requestedEnabled);
             TaskManagerReplacementState state = TaskManagerReplacement.GetState();
             bool installExists = TaskManagerReplacement.IsAvailable;
             toggle.IsEnabled = TaskManagerReplacement.CanToggle(installExists, state);
 
             bool applied = requestedEnabled
-                ? result == TaskManagerReplacementResult.Enabled
-                : result == TaskManagerReplacementResult.Disabled;
+                ? result == ElevatedSettingChangeResult.Enabled
+                : result == ElevatedSettingChangeResult.Disabled;
             if (!applied)
             {
                 // Restore the visual state without re-entering this handler
@@ -156,15 +157,84 @@ public sealed partial class TaskManagerSettingsWindow
     }
 
     private static string DescribeReplacementResult(
-        TaskManagerReplacementResult result,
+        ElevatedSettingChangeResult result,
         TaskManagerReplacementState state,
         bool systemInstallExists) => result switch
     {
-        TaskManagerReplacementResult.Declined =>
-            L(nameof(AppStrings.Settings_General_ReplaceWindowsTaskManager_Declined)),
-        TaskManagerReplacementResult.Failed => L(nameof(AppStrings.Settings_General_ReplaceWindowsTaskManager_Failed)),
+        ElevatedSettingChangeResult.Declined => L(nameof(AppStrings.Settings_General_ElevatedChange_Declined)),
+        ElevatedSettingChangeResult.Failed => L(nameof(AppStrings.Settings_General_ElevatedChange_Failed)),
         _ => DescribeReplacementState(state, systemInstallExists)
     };
+
+    /// <summary>
+    /// Builds the "Always run as administrator" card. Like the replacement card, it reflects the account's scheduled
+    /// task rather than a stored setting and applies changes through an elevated relaunch, so the toggle reverts when
+    /// administrator approval is declined or the change fails. Turning it on needs an administrator account running
+    /// the Program Files system install; a registered task can be turned off from any copy.
+    /// </summary>
+    private Border BuildAlwaysRunAsAdministratorCard(SettingsPalette palette)
+    {
+        ElevatedStartState initialState = ElevatedStartTask.GetState();
+        ElevatedStartAvailability availability = ElevatedStartTask.GetAvailability();
+        bool suppressReentry = false;
+
+        SettingsToggle toggle = new SettingsToggle(palette)
+            {
+                IsChecked = initialState.IsRegistered,
+                IsEnabled = ElevatedStartTask.CanToggle(availability, initialState)
+            }
+            .MapTo(ControlMap.Settings.GeneralPage.AlwaysRunAsAdministrator);
+        Border card = MutableCard(
+            L(nameof(AppStrings.Settings_General_AlwaysRunAsAdministrator_Title)),
+            DescribeElevatedStartState(initialState, availability),
+            toggle,
+            palette,
+            out TextBlock descriptionText,
+            searchKeywords: [L(nameof(AppStrings.Settings_General_AlwaysRunAsAdministrator_SearchKeywords))]);
+
+        toggle.CheckedChanged += async (_, requestedEnabled) =>
+        {
+            if (suppressReentry) return;
+
+            toggle.IsEnabled = false;
+            ElevatedSettingChangeResult result = await ElevatedStartTask.SetEnabledElevatedAsync(requestedEnabled);
+            ElevatedStartState state = ElevatedStartTask.GetState();
+            toggle.IsEnabled = ElevatedStartTask.CanToggle(availability, state);
+
+            // Show what Task Scheduler now holds, whatever the relaunch reported
+            if (toggle.IsChecked != state.IsRegistered)
+            {
+                suppressReentry = true;
+                toggle.IsChecked = state.IsRegistered;
+                suppressReentry = false;
+            }
+
+            descriptionText.Text = result switch
+            {
+                ElevatedSettingChangeResult.Declined => L(nameof(AppStrings.Settings_General_ElevatedChange_Declined)),
+                ElevatedSettingChangeResult.Failed => L(nameof(AppStrings.Settings_General_ElevatedChange_Failed)),
+                _ => DescribeElevatedStartState(state, availability)
+            };
+        };
+
+        return card;
+    }
+
+    private static string DescribeElevatedStartState(ElevatedStartState state, ElevatedStartAvailability availability)
+    {
+        if (state.IsRegistered)
+        {
+            string format = state.IsUsable
+                ? L(nameof(AppStrings.Settings_General_AlwaysRunAsAdministrator_EnabledDescription_Format))
+                : L(nameof(AppStrings.Settings_General_AlwaysRunAsAdministrator_NeedsRepairDescription_Format));
+            return string.Format(CultureInfo.CurrentCulture, format, state.TaskPath);
+        }
+        if (!availability.AccountCanElevate)
+            return L(nameof(AppStrings.Settings_General_AlwaysRunAsAdministrator_RequiresAdministrator));
+        if (!availability.IsSystemInstall)
+            return L(nameof(AppStrings.Settings_General_AlwaysRunAsAdministrator_RequiresSystemInstall));
+        return L(nameof(AppStrings.Settings_General_AlwaysRunAsAdministrator_Description));
+    }
 
     private Border BuildWindowManagementCard(SettingsPalette palette)
     {

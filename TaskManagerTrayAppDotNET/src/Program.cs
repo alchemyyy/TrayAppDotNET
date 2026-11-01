@@ -11,13 +11,29 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        // A start by the Always run as administrator task runs elevated with arguments any program running as the user
+        // can set, so it is checked before every other mode and may only become a plain start
+        if (ElevatedStartTask.IsTaskLaunch(args))
+        {
+            return ElevatedStartTask.TryGetTaskLaunchArguments(args, out string[] launchArguments)
+                ? RunApplication(launchArguments)
+                : ElevatedStartTask.RejectedTaskLaunchExitCode;
+        }
+
         // Elevated modes write no file in the user's folders: a same-user process controls them and could redirect an
-        // elevated write with a junction. The configure mode reports through its exit code; the broker sends its log
-        // lines to the UI over its pipe. Both set this up before anything can log.
+        // elevated write with a junction. The configure modes report through their exit code; the broker sends its log
+        // lines to the UI over its pipe. All of them set this up before anything can log.
         if (TaskManagerReplacement.IsElevatedConfigureLaunch(args))
         {
             TADNLog.InitializeForElevatedProcess(forwarder: null);
             _ = TaskManagerReplacement.TryHandleElevatedConfigure(args, out int configureExitCode);
+            return configureExitCode;
+        }
+
+        if (ElevatedStartTask.IsElevatedConfigureLaunch(args))
+        {
+            TADNLog.InitializeForElevatedProcess(forwarder: null);
+            _ = ElevatedStartTask.TryHandleElevatedConfigure(args, out int configureExitCode);
             return configureExitCode;
         }
 
@@ -33,10 +49,17 @@ internal static class Program
         if (TaskManagerReplacement.TryHandOffRedirectedLaunch(args))
             return 0;
 
-        return TrayAppDotNETProgram.Run(
+        // Always run as administrator: an unelevated plain start lets the account's task start this exe elevated
+        if (ElevatedStartTask.TryHandOffLaunch(args))
+            return 0;
+
+        return RunApplication(args);
+    }
+
+    private static int RunApplication(string[] args) =>
+        TrayAppDotNETProgram.Run(
             args,
             ApplicationName,
             Constants.AppGUID,
             static () => AppServices.Install.CreateProgramOptions(TaskManagerAvaloniaRunner.Run));
-    }
 }

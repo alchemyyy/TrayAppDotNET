@@ -471,6 +471,9 @@
             <Leaf ID="ReplaceWindowsTaskManager" Kind="Toggle" Event="CheckedChanged"
                   Source="TaskManagerSettingsWindow.BuildReplaceTaskManagerCard"
                   Description="System-wide taskmgr.exe redirect; reverts when elevation is declined" />
+            <Leaf ID="AlwaysRunAsAdministrator" Kind="Toggle" Event="CheckedChanged"
+                  Source="TaskManagerSettingsWindow.BuildAlwaysRunAsAdministratorCard"
+                  Description="Per-account scheduled task that starts the app elevated; reverts when elevation is declined" />
             <Leaf ID="ElevatedTerminationOnStartup" Kind="Toggle" Event="Callback"
                   Source="TaskManagerSettingsWindow.BuildGeneralPage" />
             <Leaf ID="BypassElevationBroker" Kind="Toggle" Event="Callback"
