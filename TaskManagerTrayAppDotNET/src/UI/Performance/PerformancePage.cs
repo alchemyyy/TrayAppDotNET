@@ -1693,7 +1693,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         }
 
         private static bool ShouldShowSubtitle(PerformanceDevicePresentation device) =>
-            device.Kind is not PerformanceDeviceKind.CPU and not PerformanceDeviceKind.Memory
+            device.Kind is not PerformanceDeviceKind.CPU
             && !string.IsNullOrWhiteSpace(device.Subtitle);
 
         private void OnPointerEntered(object? sender, PointerEventArgs eventArgs)

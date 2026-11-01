@@ -11,7 +11,7 @@ The column on the left lists every device, each with a small preview graph, its 
 The device types:
 
 - **CPU**: always one row for the whole processor.
-- **Memory**: always one row.
+- **Memory**: always one row. Its second line shows memory in use and the total (e.g. `12.0 GB/31.9 GB`), its third line the free (available) memory and how much is in use (e.g. `19.0 GB free (39% used)`).
 - **GPU 0**, **GPU 1**, ...: one row per physical GPU.
 - **Ethernet**, **Wi-Fi**, **VPN** or **Network**: one row per connected network adapter.
 - **Disk 0 (C:)**, **Disk 1 (D:, E:)**, ...: one row per physical disk, with its drive letters.

@@ -198,15 +198,13 @@ internal static class PerformanceDevicePresentationFactory
                 FormatBytes(sample.Composition.CompressedBytes),
                 str3: ")")
             : used;
-        string summary = sample.HasMemoryData
-            ? string.Concat(
-                used,
-                "/",
-                total,
-                " (",
-                FormatPercent(isAvailable: true, sample.UtilizationPercent),
-                ")")
-            : Unavailable;
+        string usedOfTotal = sample.HasMemoryData ? string.Concat(used, "/", total) : Unavailable;
+        string freeSummary = sample.HasMemoryData
+            ? F(
+                nameof(AppStrings.Perf_Memory_DeviceFreeFormat),
+                FormatBytes(sample.AvailablePhysicalBytes),
+                FormatPercent(isAvailable: true, sample.UtilizationPercent))
+            : string.Empty;
         PerformanceStatistic[] statistics =
         [
             new(Label: L(nameof(AppStrings.Perf_Label_InUseCompressed)), inUse),
@@ -252,8 +250,8 @@ internal static class PerformanceDevicePresentationFactory
             sample.Kind,
             sample.SortKey,
             Title: L(nameof(AppStrings.Perf_Title_Memory)),
-            total,
-            summary,
+            usedOfTotal,
+            freeSummary,
             hardwareName,
             F(nameof(AppStrings.Perf_Graph_MemoryUseOverFormat), graphWindow),
             sample.HasMemoryData,

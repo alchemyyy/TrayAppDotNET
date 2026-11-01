@@ -1437,6 +1437,9 @@
   <data name="Perf_Graph_MemoryUseOverFormat" xml:space="preserve">
     <value>Memory use over {0}</value>
   </data>
+  <data name="Perf_Memory_DeviceFreeFormat" xml:space="preserve">
+    <value>{0} free ({1} used)</value>
+  </data>
   <data name="Perf_Graph_LinkUtilizationOverFormat" xml:space="preserve">
     <value>% Link utilization over {0}</value>
   </data>

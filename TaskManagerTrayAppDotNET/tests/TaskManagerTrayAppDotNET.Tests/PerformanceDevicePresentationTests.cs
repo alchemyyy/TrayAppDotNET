@@ -23,6 +23,36 @@ public sealed class PerformanceDevicePresentationTests
     }
 
     [Fact]
+    public void MemoryRowShowsUsedOfTotalThenAvailableWithInUsePercent()
+    {
+        MemoryPerformanceSnapshot memory = MemoryPerformanceSnapshot.Empty with
+        {
+            HasMemoryData = true,
+            UtilizationPercent = 39,
+            TotalPhysicalBytes = 32UL * 1_024 * 1_024 * 1_024,
+            UsedPhysicalBytes = 12UL * 1_024 * 1_024 * 1_024,
+            AvailablePhysicalBytes = 19UL * 1_024 * 1_024 * 1_024
+        };
+        PerformanceSnapshot snapshot = PerformanceSnapshot.Empty with { Memory = memory };
+
+        PerformanceDevicePresentation device = PerformanceDevicePresentationFactory.Create(snapshot)
+            .Single(static candidate => candidate.Kind == PerformanceDeviceKind.Memory);
+
+        Assert.Equal(
+            expected: string.Concat(
+                PerformanceDevicePresentationFactory.FormatBytes(memory.UsedPhysicalBytes),
+                "/",
+                PerformanceDevicePresentationFactory.FormatBytes(memory.TotalPhysicalBytes)),
+            device.Subtitle);
+        Assert.Equal(
+            expected: F(
+                nameof(AppStrings.Perf_Memory_DeviceFreeFormat),
+                PerformanceDevicePresentationFactory.FormatBytes(memory.AvailablePhysicalBytes),
+                "39%"),
+            device.Summary);
+    }
+
+    [Fact]
     public void CPUUsesMeasuredTurboSpeedAndUpdatedMetricLabels()
     {
         CPUPerformanceSnapshot CPU = CPUPerformanceSnapshot.Empty with
