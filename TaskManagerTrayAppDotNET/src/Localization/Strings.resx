@@ -132,15 +132,6 @@
   <data name="Settings_General_AlwaysRunAsAdministrator_RequiresAdministrator" xml:space="preserve">
     <value>Unavailable: your account isn't an administrator.</value>
   </data>
-  <data name="Settings_General_ElevatedTerminationOnStartup_Title" xml:space="preserve">
-    <value>Enable elevated termination at startup</value>
-  </data>
-  <data name="Settings_General_ElevatedTerminationOnStartup_Description" xml:space="preserve">
-    <value>Request administrator approval when the app starts so it can end protected processes. When off, approval is requested only the first time you act on a process that needs it.</value>
-  </data>
-  <data name="Settings_General_ElevatedTerminationOnStartup_SearchKeywords" xml:space="preserve">
-    <value>elevated termination startup administrator UAC kill protected process eager</value>
-  </data>
   <data name="Settings_General_BypassElevationBroker_Title" xml:space="preserve">
     <value>Run admin actions directly when elevated</value>
   </data>

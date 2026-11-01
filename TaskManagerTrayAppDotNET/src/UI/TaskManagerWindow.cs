@@ -76,8 +76,6 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private int _restoreDragSearchLeftWithinWindow;
     private int _restoreDragSearchRightWithinWindow;
     private bool _allowClose;
-    private bool _initialElevationAttemptConsumed;
-    private bool _initialElevationDeferred;
     private bool _manualElevationPromptPending;
     private bool _isConfirmationOverlayVisible;
     private bool _exitRequested;
@@ -325,18 +323,11 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     }
 
     /// <summary>
-    /// Starts in the tray without showing the window; a tray click or Ctrl+Shift+Esc reveals it. The elevation
-    /// attempt a normal startup makes waits until the window is first shown.
-    /// </summary>
-    internal void StartHidden() => _initialElevationDeferred = true;
-
-    /// <summary>
     /// Starts without taking focus: hidden in the tray when Minimize to Tray is on, otherwise minimized to the
-    /// taskbar. The elevation attempt a normal startup makes waits until the window is first shown.
+    /// taskbar.
     /// </summary>
     internal void StartMinimized()
     {
-        StartHidden();
         if (_settings.MinimizeToTray) return;
 
         ShowActivated = false;
@@ -542,29 +533,6 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         _axamlWindowMinHeight = dimensions.MinHeight;
 #endif
         return dimensions;
-    }
-
-    /// <summary>Starts one silent elevation attempt after startup, only when the user opted in via settings.</summary>
-    internal void StartInitialElevatedTerminationAttempt()
-    {
-        if (!(AppServices.Settings?.EnableElevatedTerminationOnStartup ?? false) ||
-            _initialElevationAttemptConsumed ||
-            _manualElevationPromptPending ||
-            _allowClose ||
-            !IsVisible)
-            return;
-
-        _initialElevationAttemptConsumed = true;
-        _ = RunInitialElevatedTerminationAttemptAsync();
-    }
-
-    private void StartDeferredInitialElevationAttempt()
-    {
-        if (!_initialElevationDeferred || !ShouldEnableActivePageWork()) return;
-
-        _initialElevationDeferred = false;
-        // Background priority lets the shown window render before any Windows approval prompt appears
-        Dispatcher.UIThread.Post(StartInitialElevatedTerminationAttempt, DispatcherPriority.Background);
     }
 
     /// <summary>Allows app shutdown to close the otherwise warm, hide-on-close window.</summary>
@@ -955,24 +923,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private bool TryTerminateProcess(ProcessTerminationTarget target, out string errorMessage) =>
         _processTerminationService.TryTerminate(target, out errorMessage);
 
-    private async Task RunInitialElevatedTerminationAttemptAsync()
-    {
-        try
-        {
-            _ = await _processTerminationService.EnableElevatedHelperAsync();
-        }
-        catch (Exception exception)
-        {
-            TADNLog.Log($"Task Manager initial elevated termination attempt failed: {exception}");
-        }
-    }
-
-    private void RequestManualElevatedTermination()
-    {
-        // Manual choice owns elevation once its explanation starts, including a later Not now result
-        _initialElevationAttemptConsumed = true;
-        _ = PromptForManualElevatedTerminationAsync();
-    }
+    private void RequestManualElevatedTermination() => _ = PromptForManualElevatedTerminationAsync();
 
     private async Task PromptForManualElevatedTerminationAsync()
     {
@@ -1044,8 +995,6 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         if (_allowClose || _manualElevationPromptPending || !IsVisible)
             return ElevatedTerminationRequestOutcome.Unavailable;
 
-        // The request owns elevation like the manual choice, so the startup attempt cannot prompt again
-        _initialElevationAttemptConsumed = true;
         _manualElevationPromptPending = true;
         try
         {
@@ -1132,10 +1081,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
     private void OnWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs change)
     {
         if (change.Property == IsVisibleProperty || change.Property == WindowStateProperty)
-        {
             UpdateActivePageActivity();
-            StartDeferredInitialElevationAttempt();
-        }
 
         if (_allowClose
             || !_settings.MinimizeToTray

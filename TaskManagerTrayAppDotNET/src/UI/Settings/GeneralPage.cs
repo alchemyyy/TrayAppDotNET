@@ -52,14 +52,6 @@ public sealed partial class TaskManagerSettingsWindow
             palette));
         stack.Children.Add(BuildAlwaysRunAsAdministratorCard(palette));
         stack.Children.Add(BoolCard(
-            L(nameof(AppStrings.Settings_General_ElevatedTerminationOnStartup_Title)),
-            L(nameof(AppStrings.Settings_General_ElevatedTerminationOnStartup_Description)),
-            _settings.EnableElevatedTerminationOnStartup,
-            value => _settings.EnableElevatedTerminationOnStartup = value,
-            palette,
-            searchKeywords: [L(nameof(AppStrings.Settings_General_ElevatedTerminationOnStartup_SearchKeywords))],
-            node: ControlMap.Settings.GeneralPage.ElevatedTerminationOnStartup));
-        stack.Children.Add(BoolCard(
             L(nameof(AppStrings.Settings_General_BypassElevationBroker_Title)),
             L(nameof(AppStrings.Settings_General_BypassElevationBroker_Description)),
             _settings.BypassElevationBrokerWhenElevated,

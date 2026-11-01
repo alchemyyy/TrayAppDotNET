@@ -102,7 +102,6 @@ internal sealed class TaskManagerAvaloniaApp : Application
         if (TrayAppDotNETProgram.IsHiddenLaunch)
         {
             // The installer starts the app this way when it finishes, so it waits in the tray until it is opened
-            taskManagerWindow.StartHidden();
             base.OnFrameworkInitializationCompleted();
             return;
         }
@@ -115,25 +114,9 @@ internal sealed class TaskManagerAvaloniaApp : Application
             return;
         }
 
-        Task firstFrameReveal = taskManagerWindow.ShowAtDefaultPositionAndActivateAfterFirstFrameAsync();
+        taskManagerWindow.ShowAtDefaultPositionAndActivateAfterFirstFrameAsync()
+            .ForgetLogged("Task Manager initial window reveal failed");
         base.OnFrameworkInitializationCompleted();
-        _ = StartInitialElevationAfterWindowRevealAsync(taskManagerWindow, firstFrameReveal);
-    }
-
-    private async Task StartInitialElevationAfterWindowRevealAsync(
-        TaskManagerWindow taskManagerWindow,
-        Task firstFrameReveal)
-    {
-        try
-        {
-            await firstFrameReveal;
-            if (_shuttingDown || !ReferenceEquals(_taskManagerWindow, taskManagerWindow)) return;
-            taskManagerWindow.StartInitialElevatedTerminationAttempt();
-        }
-        catch (Exception exception)
-        {
-            TADNLog.Log($"Task Manager initial window reveal failed: {exception}");
-        }
     }
 
     private static TrayAppDotNETAppHostOptions<AppSettings, AppTheme> CreateHostOptions() =>

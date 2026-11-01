@@ -111,7 +111,7 @@ The app itself runs as a normal user unless you turn on [Always run as administr
 
 The first time you do one of those and Windows says no, the app asks **Administrator approval required** first, then shows the Windows UAC prompt. Once you approve, the helper sticks around until the app exits, so later actions don't prompt again. Declining changes nothing and isn't remembered: the next admin action asks again.
 
-Ending processes uses its own elevated termination helper, but **End task** and **End task tree** ask on demand the same way: when Windows refuses to end an elevated process and elevated termination isn't on, you get **Administrator approval required** and then UAC, and only the refused processes are ended again after you approve. Declining leaves them running and asks again next time. **Restart explorer** never asks for administrator approval. You can also turn elevated termination on ahead of time from the **More** menu on the Processes page (**Enable elevated termination...**), or have it requested at startup with the setting below. See [Processes](processes.md).
+Ending processes uses its own elevated termination helper, but **End task** and **End task tree** ask on demand the same way: when Windows refuses to end an elevated process and elevated termination isn't on, you get **Administrator approval required** and then UAC, and only the refused processes are ended again after you approve. Declining leaves them running and asks again next time. **Restart explorer** never asks for administrator approval. You can also turn elevated termination on ahead of time from the **More** menu on the Processes page (**Enable elevated termination...**), or turn on [Always run as administrator](#always-run-as-administrator) so the app runs elevated from the start and ending elevated processes never asks. See [Processes](processes.md).
 
 **End task**, **End task tree**, every **Set priority** level and **Disconnect** also have their own confirmation, and it comes first: **Cancel** there means no administrator prompt either. So does disabling a service. Memory dumps, starting, stopping or restarting a service, and startup app changes have no confirmation of their own.
 
@@ -120,7 +120,6 @@ These settings are in **Settings** > **General** > **Administrator actions**:
 | Setting | Default | What it does |
 | --- | --- | --- |
 | **Always run as administrator** | Off | Starts the app as administrator every time, without a UAC prompt. See [below](#always-run-as-administrator). |
-| **Enable elevated termination at startup** | Off | Asks for administrator approval as soon as the window first shows, so ending protected processes works right away. When off, approval is requested the first time you end a process that needs it. |
 | **Run admin actions directly when elevated** | Off | If the app itself runs as administrator, do admin actions in the app instead of through the elevated helper. Off keeps behavior the same whether or not the app is elevated. |
 
 ### Always Run as Administrator

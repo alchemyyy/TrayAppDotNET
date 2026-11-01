@@ -61,10 +61,11 @@ There is no "run an arbitrary executable" op.
 ## Kill-path integration (deferred)
 
 Process termination still runs on its existing path (`ProcessTerminationService` + the native kill
-helper), not through the broker. The kill helper's eager startup elevation is now gated by the
-`EnableElevatedTerminationOnStartup` setting (default off), so there is no eager UAC prompt. Routing
-terminate through the broker - having the broker spawn and drive the kill helper - is the deferred
-next step, because it re-architects the critical kill path and needs runtime verification.
+helper), not through the broker. The kill helper makes no eager startup elevation attempt, so there is
+no eager UAC prompt; Always run as administrator (`ElevatedStartTask`, a per-account scheduled task)
+starts the whole app elevated instead. Routing terminate through the broker - having the broker spawn
+and drive the kill helper - is the deferred next step, because it re-architects the critical kill path
+and needs runtime verification.
 
 ## Security model
 
@@ -112,11 +113,8 @@ Wired through the broker (lazy per-action consent): `SetPriority`, `SetAffinity`
 `ServiceControl`, `SetStartupApproval`, `DisconnectSession`. The UAC shield shows on the
 priority/affinity context-menu entries when the target needs elevation.
 
-Two settings, both default off:
-- `EnableElevatedTerminationOnStartup` gates the kill helper's eager startup UAC, so by default there
-  is no eager prompt.
-- `BypassElevationBrokerWhenElevated` lets an already-elevated app perform admin actions in-process
-  instead of through the broker; off keeps behavior consistent through the broker.
+One setting, default off: `BypassElevationBrokerWhenElevated` lets an already-elevated app perform admin
+actions in-process instead of through the broker; off keeps behavior consistent through the broker.
 
 Deferred: unifying terminate under the broker (routing termination through it and spawning the kill
 helper from it). Everything already wired is managed handlers plus call-site routing on

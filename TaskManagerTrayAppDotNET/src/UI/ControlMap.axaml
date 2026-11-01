@@ -474,8 +474,6 @@
             <Leaf ID="AlwaysRunAsAdministrator" Kind="Toggle" Event="CheckedChanged"
                   Source="TaskManagerSettingsWindow.BuildAlwaysRunAsAdministratorCard"
                   Description="Per-account scheduled task that starts the app elevated; reverts when elevation is declined" />
-            <Leaf ID="ElevatedTerminationOnStartup" Kind="Toggle" Event="Callback"
-                  Source="TaskManagerSettingsWindow.BuildGeneralPage" />
             <Leaf ID="BypassElevationBroker" Kind="Toggle" Event="Callback"
                   Source="TaskManagerSettingsWindow.BuildGeneralPage"
                   Description="Run admin actions directly when elevated" />

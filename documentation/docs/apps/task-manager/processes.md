@@ -174,7 +174,7 @@ TADN's Task Manager normally runs as a regular user, so some actions on elevated
 You can also turn elevated termination on ahead of time:
 
 - **More** > **Enable elevated termination...** asks **Enable elevated process termination?**, then shows the UAC prompt.
-- Or turn on **Enable elevated termination at startup** in **Settings** > **General** > **Administrator actions** to get the UAC prompt every time the window first shows. See [Task Manager](index.md).
+- Or turn on **Always run as administrator** in **Settings** > **General** > **Administrator actions**: the app then starts as administrator, so ending elevated processes never asks. See [Always Run as Administrator](index.md#always-run-as-administrator).
 
 The **More** menu entry tells you where things stand: **Enable elevated termination...**, **Retry elevated termination...** (after you declined the UAC prompt), **Waiting for Windows approval**, or **Elevated termination enabled**.
 
