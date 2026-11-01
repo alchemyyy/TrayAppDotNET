@@ -541,7 +541,9 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         ArgumentNullException.ThrowIfNull(snapshotService);
 
         _snapshotService ??= snapshotService;
-        ProcessViewportAnchor? viewportAnchor = _visibleRowCount > 0
+        // An anchor captured here tracks live data; a pending one belongs to a user-initiated projection change
+        bool isLiveAnchor = _visibleRowCount > 0;
+        ProcessViewportAnchor? viewportAnchor = isLiveAnchor
             ? CaptureViewportAnchor()
             : _pendingViewportAnchor;
         if (_pendingColumnLayout is { } pendingColumnLayout)
@@ -569,13 +571,14 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
             return;
         if (version == _snapshotVersion) return;
 
-        RebuildFromCopiedSnapshot(count, version, viewportAnchor);
+        RebuildFromCopiedSnapshot(count, version, viewportAnchor, followSectionChange: !isLiveAnchor);
     }
 
     private void RebuildFromCopiedSnapshot(
         int count,
         long version,
-        ProcessViewportAnchor? viewportAnchor)
+        ProcessViewportAnchor? viewportAnchor,
+        bool followSectionChange)
     {
         _snapshotVersion = version;
         BuildPresentationSnapshot(count);
@@ -586,7 +589,7 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         EnsureSelectedProcessesStillExist();
         RefreshLiveTotalHeaders();
         InvalidateMeasure();
-        RestoreViewportAnchor(viewportAnchor);
+        RestoreViewportAnchor(viewportAnchor, followSectionChange);
         _pendingViewportAnchor = null;
         PublishWarmProcesses();
         UpdateRetainedDrawings();
@@ -2682,10 +2685,19 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
             TaskManagerGridLayout.GetContentHeight(
                 _visibleRowCount,
                 _metrics.HeaderHeight,
-                _metrics.RowHeight));
+                _metrics.RowHeight),
+            _semanticRowClassifications[_visibleRowIndexes[visibleIndex]]);
     }
 
-    private void RestoreViewportAnchor(ProcessViewportAnchor? viewportAnchor)
+    private void RestoreViewportAnchor(ProcessViewportAnchor? viewportAnchor) =>
+        RestoreViewportAnchor(viewportAnchor, followSectionChange: true);
+
+    /// <summary>
+    /// Scrolls the anchored row back to its captured position. Live refreshes pass
+    /// <paramref name="followSectionChange"/> false, so a process moving to another semantic section, such as an
+    /// app whose window End task just closed, does not drag the view along.
+    /// </summary>
+    private void RestoreViewportAnchor(ProcessViewportAnchor? viewportAnchor, bool followSectionChange)
     {
         if (IsTaskManagerGridDisposed || viewportAnchor is not { } anchor) return;
 
@@ -2699,7 +2711,9 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
             _metrics.RowHeight);
         ProcessViewportAnchorAdjustment? adjustment = anchor.ResolveAdjustment(
             nextRowTop,
-            nextContentHeight);
+            nextContentHeight,
+            _semanticRowClassifications[_visibleRowIndexes[visibleIndex]],
+            followSectionChange);
         if (adjustment is not { } requestedAdjustment) return;
 
         if (requestedAdjustment.ContentHeightChanged) InvalidateMeasure();
@@ -4282,7 +4296,7 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         UpdateLiveTotalTexts();
         ReplaceHeaderTexts(pendingColumnLayout.Columns);
         UpdateHeaderHoverVisual();
-        RebuildFromCopiedSnapshot(count, version, viewportAnchor);
+        RebuildFromCopiedSnapshot(count, version, viewportAnchor, followSectionChange: true);
         if (headerHeightChanged) HeaderHeightChanged?.Invoke();
     }
 
@@ -4519,7 +4533,6 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         if (!_rowHasChildren[rowIndex]) return false;
         if (!ProcessSelectionFunctions.ShouldToggleTreeOnNameClick(
                 IsSemanticSectionRow(rowIndex),
-                isControlPressed: (modifiers & KeyModifiers.Control) != 0,
                 isShiftPressed: (modifiers & KeyModifiers.Shift) != 0))
             return false;
 
@@ -4539,12 +4552,13 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         ProcessViewportAnchor? viewportAnchor = CaptureViewportAnchor();
         ProcessInstanceKey[] visibleSelectionBeforeToggle = CaptureVisibleSelectedProcesses();
         HashSet<ProcessInstanceKey> collapsedProcesses = ActiveCollapsedProcesses;
-        if ((modifiers & KeyModifiers.Alt) != 0)
-            ExpandTreeDeep(rowIndex, collapsedProcesses);
-        else if (collapsedProcesses.Contains(row.InstanceKey))
-            collapsedProcesses.Remove(row.InstanceKey);
-        else
+        bool isCollapsed = collapsedProcesses.Contains(row.InstanceKey);
+        if (!isCollapsed)
             CollapseTreeDeep(rowIndex, collapsedProcesses);
+        else if ((modifiers & KeyModifiers.Control) != 0)
+            ExpandTreeDeep(rowIndex, collapsedProcesses);
+        else
+            collapsedProcesses.Remove(row.InstanceKey);
         RebuildVisibleRows();
         DeselectProcessesHiddenByTreeToggle(visibleSelectionBeforeToggle);
         InvalidateMeasure();

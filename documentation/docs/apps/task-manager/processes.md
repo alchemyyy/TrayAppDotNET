@@ -79,8 +79,8 @@ Click anywhere in the **Name** cell of an expandable row, not only the chevron.
 
 - Clicking a collapsed row expands one level.
 - Clicking an expanded row collapses it and everything under it.
-- ++alt++ + click expands the whole subtree.
-- On a section heading, collapsing collapses the section and every tree in it, and ++alt++ + click expands them all.
+- ++ctrl++ + click toggles the whole subtree: on an expanded row it collapses the row and everything under it, on a collapsed row it expands them all.
+- On a section heading, collapsing collapses the section and every tree in it, and ++ctrl++ + click on a collapsed heading expands them all.
 
 New trees start the way **Default process tree state** says (**Collapsed** by default). With **Keep semantic sections expanded** on (the default), the sections themselves stay open even when trees start collapsed. A tree's state is forgotten once its process exits.
 
@@ -102,13 +102,15 @@ Click a column header to sort by it, click it again to reverse. Number columns s
 | Input | Result |
 | --- | --- |
 | Click | Selects only that row |
-| ++ctrl++ + click | Adds or removes that row |
+| ++ctrl++ + click | Adds or removes that row. On the **Name** cell of an expandable row it toggles the tree instead, see [Expanding and Collapsing](#expanding-and-collapsing) |
 | ++shift++ + click | Selects the range from the last clicked row to this one |
 | ++ctrl+shift++ + click | Adds that range to the selection |
 | Click empty space in the table | Clears the selection |
 | Click anywhere else in the window | Clears the selection, except on **End task** |
 
 The selection follows the process, not the row position: it survives refreshes and re-sorting, and a process drops out of it when it exits. Collapsing a tree deselects the rows it hides.
+
+The list keeps the selected process where it is on screen while it re-sorts, but doesn't scroll after it when it moves to another section (for example from **Apps** to **Background processes** as **End task** closes its window).
 
 There's no row navigation by keyboard on this page. The table's only keys are ++delete++ (end task) and ++esc++ (cancel a column drag).
 
@@ -487,7 +489,7 @@ These are listed (read-only) in **Settings** > **Hotkeys** > **Tables**. They ca
 | Any table | ++shift+alt++ + middle-click | Set baseline stretch |
 | Process table | ++delete++ | End task (with confirmation) |
 | Process table | ++esc++ | Cancel a column resize or move |
-| Process table | ++alt++ + click on a **Name** cell | Expand the whole tree |
+| Process table | ++ctrl++ + click on an expandable row's **Name** cell | Expand or collapse the whole tree |
 | Process table | ++ctrl++ / ++shift++ / ++ctrl+shift++ + click | Multi-select, see [Selecting Processes](#selecting-processes) |
 | Process table | Right-click a header | Column properties |
 | Search box | ++up++ / ++down++, ++enter++ or ++tab++, ++esc++ | Navigate, accept, close autocomplete |

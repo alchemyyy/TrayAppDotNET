@@ -108,15 +108,12 @@ internal static class ProcessSelectionFunctions
     }
 
     /// <summary>
-    /// Decides whether a Name-cell click on an expandable row toggles its tree. Ctrl and Shift extend the
-    /// selection instead, so grouped rows stay multi-selectable; section headers cannot be selected and
-    /// always toggle.
+    /// Decides whether a Name-cell click on an expandable row toggles its tree. Shift extends the selection
+    /// instead, so grouped rows stay multi-selectable; Ctrl toggles the whole subtree; section headers cannot
+    /// be selected and always toggle.
     /// </summary>
-    public static bool ShouldToggleTreeOnNameClick(
-        bool isSectionRow,
-        bool isControlPressed,
-        bool isShiftPressed) =>
-        isSectionRow || (!isControlPressed && !isShiftPressed);
+    public static bool ShouldToggleTreeOnNameClick(bool isSectionRow, bool isShiftPressed) =>
+        isSectionRow || !isShiftPressed;
 
     /// <summary>Deselects processes that a tree collapse hid, then repairs the active and anchor processes.</summary>
     /// <param name="selectedProcesses">Current selection, updated in place when anything is hidden.</param>

@@ -191,23 +191,17 @@ public sealed class ProcessSelectionFunctionsTests
     }
 
     [Theory]
-    [InlineData(false, false, false, true)]
-    [InlineData(false, true, false, false)]
-    [InlineData(false, false, true, false)]
-    [InlineData(false, true, true, false)]
-    [InlineData(true, true, false, true)]
-    [InlineData(true, false, true, true)]
-    public void NameClickTogglesTreesOnlyWithoutSelectionModifiersOrOnSections(
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, true)]
+    public void NameClickTogglesTreesUnlessShiftExtendsAProcessSelection(
         bool isSectionRow,
-        bool isControlPressed,
         bool isShiftPressed,
         bool expectedToggle) =>
         Assert.Equal(
             expectedToggle,
-            ProcessSelectionFunctions.ShouldToggleTreeOnNameClick(
-                isSectionRow,
-                isControlPressed,
-                isShiftPressed));
+            ProcessSelectionFunctions.ShouldToggleTreeOnNameClick(isSectionRow, isShiftPressed));
 
     [Fact]
     public void CollapseDeselectsOnlyTheProcessesItHid()

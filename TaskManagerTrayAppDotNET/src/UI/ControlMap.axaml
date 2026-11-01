@@ -206,13 +206,15 @@
                           Event="OnPointerPressed" Source="ProcessTableCanvas.CommitColumnResize"
                           Description="Header divider; live resize or a guide line per settings" />
                     <Leaf ID="TreeToggle" Kind="Region" IsRepeated="True" IsTabStop="False"
-                          Pointer="Click;Alt+Click" Event="OnPointerPressed"
+                          Pointer="Click;Ctrl+Click" Event="OnPointerPressed"
                           Source="ProcessTableCanvas.TryHandleTreeNameClick"
-                          Description="Grouped parent or section Name cell; Alt+Click expands the subtree" />
+                          Description="Grouped parent or section Name cell; Ctrl+Click expands or collapses the whole
+                                       subtree" />
                     <Leaf ID="Row" Kind="Region" IsRepeated="True" IsTabStop="False"
                           Pointer="Click;Ctrl+Click;Shift+Click;Ctrl+Shift+Click" Event="OnPointerPressed"
                           Source="ProcessTableCanvas.ApplyPointerSelection"
-                          Description="Ctrl toggles, Shift extends; empty space clears the selection" />
+                          Description="Ctrl toggles, Shift extends; empty space clears the selection. Ctrl+Click on an
+                                       expandable row's Name cell toggles its tree instead" />
                     <Leaf ID="RowMenu" Kind="Region" IsRepeated="True" IsTabStop="False" Pointer="RightClick"
                           Event="OnPointerPressed" Source="ProcessTableCanvas.CreateRowContextMenuRequest"
                           Description="Selects the row unless already selected, then opens ProcessRowMenu" />

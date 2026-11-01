@@ -1,18 +1,29 @@
 namespace TaskManagerTrayAppDotNET.UI.ProcessesPage;
 
-/// <summary>Identifies one process row and its position before a table projection changes.</summary>
+/// <summary>
+/// Identifies one process row, its position before a table projection changes, and its semantic section
+/// (0 for none, else its classification plus one).
+/// </summary>
 internal readonly record struct ProcessViewportAnchor(
     ProcessInstanceKey Process,
     double RowTop,
-    double ContentHeight)
+    double ContentHeight,
+    byte SemanticSection)
 {
     private const double PositionEqualityTolerance = 0.01;
 
-    /// <summary>Creates the scroll correction needed to retain the original visual position.</summary>
+    /// <summary>
+    /// Creates the scroll correction needed to retain the original visual position. Without
+    /// <paramref name="followSectionChange"/>, a row that moved to another semantic section is not followed.
+    /// </summary>
     public ProcessViewportAnchorAdjustment? ResolveAdjustment(
         double nextRowTop,
-        double nextContentHeight)
+        double nextContentHeight,
+        byte nextSemanticSection,
+        bool followSectionChange)
     {
+        if (!followSectionChange && nextSemanticSection != SemanticSection) return null;
+
         if (!double.IsFinite(RowTop)
             || !double.IsFinite(ContentHeight)
             || !double.IsFinite(nextRowTop)

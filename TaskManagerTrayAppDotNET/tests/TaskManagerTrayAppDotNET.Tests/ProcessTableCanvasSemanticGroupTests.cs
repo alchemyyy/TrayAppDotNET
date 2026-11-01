@@ -258,6 +258,67 @@ public sealed class ProcessTableCanvasSemanticGroupTests
     });
 
     [Fact]
+    public void CtrlClickTogglesTheWholeSubtree() => AvaloniaTestHost.RunWithFluentTheme(static () =>
+    {
+        using ProcessIconService processIconService = new();
+        using ProcessTableCanvas canvas = CreateSemanticCanvas(
+            processIconService,
+            useRootProcessForSemanticGroups: true,
+            useRootProcessForSemanticSubgroups: true,
+            CreateRowsWithGrandchild());
+        List<(string Name, int ProcessID)> expandedRows = GetVisibleRows(canvas);
+        List<(string Name, int ProcessID)> collapsedRows =
+            [expandedRows[0], expandedRows[1], ("browser.exe", 10), ("other.exe", 20)];
+        // One level down: alpha.exe keeps its subgroup collapsed
+        List<(string Name, int ProcessID)> oneLevelRows =
+            [.. expandedRows[..5], .. expandedRows[7..]];
+
+        ClickTreeName(canvas, visibleIndex: 2, KeyModifiers.Control);
+        Assert.Equal(collapsedRows, GetVisibleRows(canvas));
+
+        ClickTreeName(canvas, visibleIndex: 2);
+        Assert.Equal(oneLevelRows, GetVisibleRows(canvas));
+
+        ClickTreeName(canvas, visibleIndex: 2);
+        Assert.Equal(collapsedRows, GetVisibleRows(canvas));
+
+        ClickTreeName(canvas, visibleIndex: 2, KeyModifiers.Control);
+        Assert.Equal(expandedRows, GetVisibleRows(canvas));
+    });
+
+    [Fact]
+    public void LiveRefreshFollowsTheSelectionOnlyWithinItsSection() => AvaloniaTestHost.RunWithFluentTheme(static () =>
+    {
+        ProcessRow other = new(20, 400, -1, "other.exe", OtherPath, ProcessIndependentWindowState.Qualifying,
+            PrivateBytes: 1_600, RootBasePriority);
+        ProcessRow service = new(40, 600, -1, "service.exe", ServicePath, ProcessIndependentWindowState.None,
+            PrivateBytes: 6_400, RootBasePriority);
+        ProcessRow browser = new(10, 100, -1, "browser.exe", BrowserPath, ProcessIndependentWindowState.Qualifying,
+            BrowserWindowPrivateBytes, WindowBasePriority);
+        using ProcessIconService processIconService = new();
+        using ProcessTableCanvas canvas = CreateSemanticCanvas(
+            processIconService,
+            useRootProcessForSemanticGroups: true,
+            rows: [other, service]);
+        canvas.Measure(Size.Infinity);
+        canvas.Arrange(new Rect(x: 0, y: 0, width: 800, height: 600));
+        InvokePrivate(canvas, methodName: "ApplyPointerSelection", 2, KeyModifiers.None);
+
+        // browser.exe sorts ahead of other.exe, which moves down within Apps
+        Assert.True(LiveRefreshRaisesViewportAdjustment(canvas, version: 1, other, service, browser));
+        Assert.Equal(("other.exe", 20), GetVisibleRows(canvas)[3]);
+
+        // End task closing the window reclassifies other.exe into Background processes before it exits
+        Assert.False(LiveRefreshRaisesViewportAdjustment(
+            canvas,
+            version: 2,
+            other with { WindowState = ProcessIndependentWindowState.None },
+            service,
+            browser));
+        Assert.Equal(("other.exe", 20), GetVisibleRows(canvas)[5]);
+    });
+
+    [Fact]
     public void RootProcessRowEndsTheGroupWhileRootLineEndsOnlyTheRoot() => AvaloniaTestHost.RunWithFluentTheme(static () =>
     {
         using ProcessIconService processIconService = new();
@@ -383,11 +444,7 @@ public sealed class ProcessTableCanvasSemanticGroupTests
         try
         {
             ProcessSnapshotBuffer sourceSnapshot = GetPrivateField<ProcessSnapshotBuffer>(canvas, "_sourceSnapshot");
-            rows ??= CreateRows();
-            sourceSnapshot.BeginWrite(schema, rows.Length);
-            for (int rowIndex = 0; rowIndex < rows.Length; rowIndex++)
-                WriteRow(sourceSnapshot, schema, rowIndex, rows[rowIndex]);
-            sourceSnapshot.CompleteWrite(rows.Length);
+            WriteRows(sourceSnapshot, schema, rows ?? CreateRows());
 
             canvas.SetProcessGroupingStyle(ProcessGroupingStyle.Semantic);
             return canvas;
@@ -454,6 +511,14 @@ public sealed class ProcessTableCanvasSemanticGroupTests
         }
 
         return settings;
+    }
+
+    private static void WriteRows(ProcessSnapshotBuffer snapshot, ProcessDataSchema schema, ProcessRow[] rows)
+    {
+        snapshot.BeginWrite(schema, rows.Length);
+        for (int rowIndex = 0; rowIndex < rows.Length; rowIndex++)
+            WriteRow(snapshot, schema, rowIndex, rows[rowIndex]);
+        snapshot.CompleteWrite(rows.Length);
     }
 
     private static void WriteRow(
@@ -545,13 +610,44 @@ public sealed class ProcessTableCanvasSemanticGroupTests
     }
 
     /// <summary>Clicks a row's name, which toggles its tree the way a user click on the Name column does.</summary>
-    private static void ClickTreeName(ProcessTableCanvas canvas, int visibleIndex) =>
+    private static void ClickTreeName(
+        ProcessTableCanvas canvas,
+        int visibleIndex,
+        KeyModifiers modifiers = KeyModifiers.None) =>
         Assert.True(Assert.IsType<bool>(InvokePrivate(
             canvas,
             methodName: "TryHandleTreeNameClick",
             new Point(NameColumnClickX, y: 0),
             visibleIndex,
-            KeyModifiers.None)));
+            modifiers)));
+
+    /// <summary>
+    /// Replays the live path of RefreshFrom: anchors the selected row, copies the new rows in and rebuilds, then
+    /// reports whether the canvas asked the page to scroll after the row.
+    /// </summary>
+    private static bool LiveRefreshRaisesViewportAdjustment(
+        ProcessTableCanvas canvas,
+        long version,
+        params ProcessRow[] rows)
+    {
+        ProcessViewportAnchor anchor = Assert.IsType<ProcessViewportAnchor>(
+            InvokePrivate(canvas, methodName: "CaptureViewportAnchor"));
+        ProcessSnapshotBuffer sourceSnapshot = GetPrivateField<ProcessSnapshotBuffer>(canvas, "_sourceSnapshot");
+        WriteRows(sourceSnapshot, Assert.IsType<ProcessDataSchema>(sourceSnapshot.Schema), rows);
+        bool raised = false;
+        Action<ProcessViewportAnchorAdjustment> onAdjustment = _ => raised = true;
+        canvas.ViewportAnchorAdjustmentRequested += onAdjustment;
+        try
+        {
+            InvokePrivate(canvas, methodName: "RebuildFromCopiedSnapshot", rows.Length, version, anchor, false);
+        }
+        finally
+        {
+            canvas.ViewportAnchorAdjustmentRequested -= onAdjustment;
+        }
+
+        return raised;
+    }
 
     private static T GetPrivateField<T>(ProcessTableCanvas canvas, string fieldName)
     {
