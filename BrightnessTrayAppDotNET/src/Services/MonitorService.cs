@@ -2025,7 +2025,7 @@ public sealed class MonitorService : IDisposable
     {
         if (_disposed) return [];
 
-        return InvokeOnDispatcher<List<string>>(Snapshot, resultWhileDraining: []);
+        return InvokeOnDispatcher(Snapshot, resultWhileDraining: []);
 
         List<string> Snapshot()
         {
@@ -2085,7 +2085,7 @@ public sealed class MonitorService : IDisposable
     {
         if (_disposed) return [];
 
-        return InvokeOnDispatcher<List<(string ID, string EDIDKey)>>(Snapshot, resultWhileDraining: []);
+        return InvokeOnDispatcher(Snapshot, resultWhileDraining: []);
 
         List<(string ID, string EDIDKey)> Snapshot() => [.. Monitors.Select(static m => (m.ID, m.EDIDKey))];
     }

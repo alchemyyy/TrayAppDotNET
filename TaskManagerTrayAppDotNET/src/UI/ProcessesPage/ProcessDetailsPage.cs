@@ -1061,7 +1061,6 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
                 _reportMessage(
                     request.Count > 1 ? LocalizationManager.Instance[nameof(AppStrings.Processes_Failed_EndTasks)] : LocalizationManager.Instance[nameof(AppStrings.Processes_Failed_EndTask)],
                     result.ErrorMessage);
-                return;
             }
         }
         catch (Exception exception)

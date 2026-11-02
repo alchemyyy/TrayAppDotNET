@@ -56,7 +56,7 @@ public sealed class ProcessTerminationElevationFunctionsTests
     {
         ProcessTerminationBatchResult result = ProcessTerminationBatchFunctions.Execute(
             [Protected, Broken, Plain],
-            (ProcessTerminationTarget target, out string errorMessage) =>
+            (target, out errorMessage) =>
             {
                 errorMessage = target == Plain.Target ? string.Empty : "Failed.";
                 return target == Plain.Target;
@@ -79,12 +79,12 @@ public sealed class ProcessTerminationElevationFunctionsTests
 
         ProcessTerminationBatchResult result = ProcessTerminationBatchFunctions.ExecuteTrees(
             [Plain],
-            (ProcessTerminationTarget target, out string errorMessage) =>
+            (target, out errorMessage) =>
             {
                 errorMessage = target == elevatedChild ? "Access is denied." : string.Empty;
                 return target != elevatedChild;
             },
-            (ProcessTerminationTarget _, TryTerminateProcessAction terminate, out string errorMessage) =>
+            (_, terminate, out errorMessage) =>
                 TerminateChildren([criticalChild, elevatedChild], criticalChild, terminate, out errorMessage),
             static _ => false,
             target => target == elevatedChild);
@@ -307,7 +307,7 @@ public sealed class ProcessTerminationElevationFunctionsTests
         bool elevated) =>
         ProcessTerminationBatchFunctions.Execute(
             processes,
-            (ProcessTerminationTarget target, out string errorMessage) =>
+            (target, out errorMessage) =>
             {
                 if (target == Plain.Target || (elevated && target == Protected.Target))
                 {

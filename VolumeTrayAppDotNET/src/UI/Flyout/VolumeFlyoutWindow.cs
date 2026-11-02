@@ -2583,7 +2583,7 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     private static string? ResolveOwnAppID()
     {
         // Resolved the way AudioSession resolves session app IDs, so the two compare equal
-        string? path = TrayAppDotNETCommon.Utils.ProcessImagePath.TryGet(Environment.ProcessId);
+        string? path = ProcessImagePath.TryGet(Environment.ProcessId);
         return string.IsNullOrEmpty(path) ? null : path.ToLowerInvariant();
     }
 

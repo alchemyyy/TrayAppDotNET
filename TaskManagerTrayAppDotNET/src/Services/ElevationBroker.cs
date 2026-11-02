@@ -235,7 +235,7 @@ internal static class ElevationBroker
 
     private static BrokerResponse ExecuteSetPriority(BrokerRequest request, ProcessTerminationTarget target)
     {
-        if (request.Argument > (ulong)uint.MaxValue || !Enum.IsDefined((ProcessPriorityLevel)(uint)request.Argument))
+        if (request.Argument > uint.MaxValue || !Enum.IsDefined((ProcessPriorityLevel)(uint)request.Argument))
             return new BrokerResponse(request.CorrelationId, BrokerResultCode.Failed, "The requested priority is invalid.");
 
         bool succeeded = ProcessNativeActions.TrySetPriority(
@@ -283,7 +283,7 @@ internal static class ElevationBroker
     {
         if (string.IsNullOrEmpty(request.Text))
             return new BrokerResponse(request.CorrelationId, BrokerResultCode.InvalidTarget, "The service name is missing.");
-        if (request.Argument > (ulong)int.MaxValue || !Enum.IsDefined((BrokerServiceVerb)(int)request.Argument))
+        if (request.Argument > int.MaxValue || !Enum.IsDefined((BrokerServiceVerb)(int)request.Argument))
             return new BrokerResponse(request.CorrelationId, BrokerResultCode.Failed, "Unknown service verb.");
 
         WindowsServiceOperationResult result = (BrokerServiceVerb)(int)request.Argument switch

@@ -190,11 +190,11 @@ public sealed class WmiConnection : IDisposable
 
     /// <summary>Reads a non-negative integer property (any integer width, or a numeric string).</summary>
     public static bool TryGetUInt64(IWbemClassObject item, string name, out ulong value) =>
-        TryGet(item, name, static (in WmiVariant v, out ulong u) => v.TryGetUInt64(out u), out value);
+        TryGet(item, name, static (in v, out u) => v.TryGetUInt64(out u), out value);
 
     /// <summary>Reads a non-negative integer property that fits 32 bits.</summary>
     public static bool TryGetUInt32(IWbemClassObject item, string name, out uint value) =>
-        TryGet(item, name, static (in WmiVariant v, out uint u) => v.TryGetUInt32(out u), out value);
+        TryGet(item, name, static (in v, out u) => v.TryGetUInt32(out u), out value);
 
     /// <summary>Writes a VT_I4 property (WMI's wire type for CIM uint32 parameters).</summary>
     public static unsafe bool TryPutInt32(IWbemClassObject item, string name, int value, out string? error)

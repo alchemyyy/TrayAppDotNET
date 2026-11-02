@@ -19,7 +19,7 @@ public sealed class ProcessTerminationBatchFunctionsTests
 
         ProcessTerminationBatchResult result = ProcessTerminationBatchFunctions.Execute(
             processes,
-            (ProcessTerminationTarget target, out string errorMessage) =>
+            (target, out errorMessage) =>
             {
                 terminationAttempts.Add(target);
                 goneTargets.Add(parent.Target);
@@ -44,7 +44,7 @@ public sealed class ProcessTerminationBatchFunctionsTests
 
         ProcessTerminationBatchResult result = ProcessTerminationBatchFunctions.Execute(
             [process],
-            (ProcessTerminationTarget target, out string errorMessage) =>
+            (target, out errorMessage) =>
             {
                 Assert.Equal(process.Target, target);
                 isGone = true;
@@ -65,7 +65,7 @@ public sealed class ProcessTerminationBatchFunctionsTests
 
         ProcessTerminationBatchResult result = ProcessTerminationBatchFunctions.Execute(
             [first, second],
-            (ProcessTerminationTarget target, out string errorMessage) =>
+            (target, out errorMessage) =>
             {
                 errorMessage = target == first.Target
                     ? "Access is denied."
@@ -87,7 +87,7 @@ public sealed class ProcessTerminationBatchFunctionsTests
 
         ProcessTerminationBatchResult result = ProcessTerminationBatchFunctions.Execute(
             [process],
-            (ProcessTerminationTarget target, out string errorMessage) =>
+            (target, out errorMessage) =>
             {
                 Assert.Equal(process.Target, target);
                 errorMessage = "Access is denied.";
@@ -106,7 +106,7 @@ public sealed class ProcessTerminationBatchFunctionsTests
 
         ProcessTerminationBatchResult result = ProcessTerminationBatchFunctions.Execute(
             [process],
-            static (ProcessTerminationTarget _, out string errorMessage) =>
+            static (_, out errorMessage) =>
             {
                 errorMessage = string.Empty;
                 return false;

@@ -616,7 +616,7 @@ public class AppSettings : AppSettingsCommon<HotkeyBinding, BrightnessHotkeyActi
     public static bool IsPersistedGammaRampTintOn()
     {
         AppSettings settings = ReadOrDefault<AppSettings>(Path.Combine(GetDefaultDirectory(), SettingsFileName));
-        return BrightnessTrayAppDotNET.Interop.NightLight.GammaRampNightLight.ShouldRestoreAfterForcedStop(
+        return Interop.NightLight.GammaRampNightLight.ShouldRestoreAfterForcedStop(
             settings.NightLightFallbackMode,
             settings.NightLightGammaRampEnabled);
     }

@@ -110,7 +110,7 @@ public static class HotkeyDefaults
     {
         foreach (TBinding binding in defaults)
         {
-            if (HasIdentity<TBinding, TAction>(binding, action, parameter, bindingID)) return true;
+            if (HasIdentity(binding, action, parameter, bindingID)) return true;
         }
 
         return false;
@@ -156,7 +156,7 @@ public static class HotkeyDefaults
         where TBinding : HotkeyBindingBase<TAction>
         where TAction : struct, Enum =>
         hotkeys.RemoveAll(binding =>
-            HasIdentity<TBinding, TAction>(binding, action, string.Empty, bindingID: 0)
+            HasIdentity(binding, action, string.Empty, bindingID: 0)
             && (binding.RemovedByUser || (binding.Modifiers == modifiers && binding.VirtualKey == virtualKey)));
 
     private static bool HasIdentity<TBinding, TAction>(TBinding binding, TAction action, string parameter, int bindingID)

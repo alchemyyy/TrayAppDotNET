@@ -668,7 +668,7 @@ internal sealed class BatteryAvaloniaApp : Application
     }
 
     private Task<bool> ShowUninstallerWindow(
-        TrayAppDotNETCommon.Models.InstallScope scope,
+        InstallScope scope,
         IProgress<TrayAppDotNETInstallProgress>? progress) =>
         _host?.ShowUninstallerWindow(scope, progress, _settingsWindow) ?? Task.FromResult(false);
 

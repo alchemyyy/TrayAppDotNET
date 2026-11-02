@@ -230,7 +230,7 @@ internal static unsafe class NativeProcessInfo
     }
 
     /// <summary>Returns null for a failed query and empty for a known unpackaged process.</summary>
-    public static unsafe string? ReadPackageFullNameForGrouping(IntPtr processHandle)
+    public static string? ReadPackageFullNameForGrouping(IntPtr processHandle)
     {
         const int AppModelErrorNoPackage = 15700;
         // PACKAGE_FULL_NAME_MAX_LENGTH is 127 characters plus the terminator, so a stack buffer covers every package
@@ -567,7 +567,7 @@ internal static unsafe class NativeProcessInfo
         uint outputBufferSize);
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
-    private static extern unsafe int GetPackageFullName(IntPtr process, ref uint packageFullNameLength, char* packageFullName);
+    private static extern int GetPackageFullName(IntPtr process, ref uint packageFullNameLength, char* packageFullName);
 
     [DllImport("psapi.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

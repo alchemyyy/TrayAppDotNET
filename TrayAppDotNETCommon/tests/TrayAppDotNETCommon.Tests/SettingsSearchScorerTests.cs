@@ -12,8 +12,8 @@ public sealed class SettingsSearchScorerTests
     public void CommonSynonymResourceIsPresentAndParseable()
     {
         string commonDefinitions = Assert.IsType<string>(
-            TrayAppDotNETCommon.Localization.CommonStrings.ResourceManager.GetString(
-                nameof(TrayAppDotNETCommon.Localization.CommonStrings.SettingsWindow_SearchSynonymGroups_Common),
+            Localization.CommonStrings.ResourceManager.GetString(
+                nameof(Localization.CommonStrings.SettingsWindow_SearchSynonymGroups_Common),
                 CultureInfo.InvariantCulture));
         Assert.False(string.IsNullOrWhiteSpace(commonDefinitions));
 

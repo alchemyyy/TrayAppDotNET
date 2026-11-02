@@ -48,7 +48,7 @@ internal sealed class ElevatedActionCoordinator : IDisposable
                 message));
         }
 
-        return RunAsync(ElevationOp.SetPriority, target.ProcessID, target.CreationTimeFileTime, (ulong)(uint)priority, text: "");
+        return RunAsync(ElevationOp.SetPriority, target.ProcessID, target.CreationTimeFileTime, (uint)priority, text: "");
     }
 
     public Task<ElevatedActionResult> SetAffinityAsync(ProcessTerminationTarget target, ulong affinityMask)
@@ -128,7 +128,7 @@ internal sealed class ElevatedActionCoordinator : IDisposable
             });
         }
 
-        return RunAsync(ElevationOp.DisconnectSession, processId: 0, creationTimeFileTime: 0, (ulong)(uint)sessionId, text: "");
+        return RunAsync(ElevationOp.DisconnectSession, processId: 0, creationTimeFileTime: 0, (uint)sessionId, text: "");
     }
 
     public Task<ElevatedActionResult> ServiceControlAsync(string serviceName, BrokerServiceVerb verb)

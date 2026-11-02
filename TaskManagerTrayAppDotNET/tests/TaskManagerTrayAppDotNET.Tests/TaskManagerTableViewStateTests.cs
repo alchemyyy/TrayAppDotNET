@@ -297,7 +297,7 @@ public sealed class TaskManagerTableViewStateTests
         bool isLightTheme)
         : TaskManagerTablePage(
             title: "Test",
-            UI.ControlMap.Main.AppHistoryPage.ID,
+            ControlMap.Main.AppHistoryPage.ID,
             schema,
             processIconService,
             settings,

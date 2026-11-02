@@ -41,7 +41,7 @@ internal static class AppVolumeScale
     /// <summary>App slider position in percent for a Windows session level.</summary>
     internal static double SliderPercentFromLevel(float level, bool isLogarithmic)
     {
-        double clampedLevel = Math.Clamp((double)level, min: 0.0, max: 1.0);
+        double clampedLevel = Math.Clamp(level, min: 0.0, max: 1.0);
         return isLogarithmic
             ? Math.Round(PositionFromLevel(clampedLevel) * PercentMax, PositionPercentDecimals)
             : clampedLevel * PercentMax;

@@ -314,7 +314,7 @@ internal static class AdapterSettingsShellMonitor
             uint threadId = _threadId;
             if (threadId == 0) return;
 
-            if (!User32.PostThreadMessage(threadId, (uint)User32.WM_QUIT, IntPtr.Zero, IntPtr.Zero))
+            if (!User32.PostThreadMessage(threadId, User32.WM_QUIT, IntPtr.Zero, IntPtr.Zero))
                 TADNLog.Log($"{_threadName}: PostThreadMessage(WM_QUIT) failed: {Marshal.GetLastPInvokeError()}");
         }
     }

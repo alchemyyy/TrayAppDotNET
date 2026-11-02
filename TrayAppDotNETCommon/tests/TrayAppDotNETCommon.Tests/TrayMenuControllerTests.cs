@@ -104,7 +104,7 @@ public sealed class TrayMenuControllerTests
     }
 
     // An app map whose tray menu surface instantiates the common ContextMenu template, with the standard Exit row
-    private sealed class TrayMenuTestMap : UI.ControlMapping.ControlMap
+    private sealed class TrayMenuTestMap : ControlMap
     {
         public TrayMenuTestMap() : base(TestMapName)
         {
