@@ -189,11 +189,11 @@ public static class SolidPayloadArchive
         }
 
         int entryCount = FrameworkCompatibility.ReadInt32LittleEndian(header, EntryCountOffset);
-        if (entryCount <= 0 || entryCount > MaximumEntryCount)
+        if (entryCount is <= 0 or > MaximumEntryCount)
             throw new InvalidDataException($"The payload declares {entryCount} entries, which is out of range.");
 
         int tableLength = FrameworkCompatibility.ReadInt32LittleEndian(header, TableLengthOffset);
-        if (tableLength <= 0 || tableLength > MaximumTableLength)
+        if (tableLength is <= 0 or > MaximumTableLength)
             throw new InvalidDataException($"The payload declares a {tableLength} byte entry table, which is out of range.");
 
         long rawLength = FrameworkCompatibility.ReadInt64LittleEndian(header, RawLengthOffset);
@@ -253,7 +253,7 @@ public static class SolidPayloadArchive
     /// </summary>
     private static void ValidateName(string name)
     {
-        if (name.Length == 0 || name.Length > MaximumNameByteLength)
+        if (name.Length is 0 or > MaximumNameByteLength)
             throw new InvalidDataException($"A solid payload entry name of {name.Length} characters is out of range.");
 
         if (name[0] == EntrySeparator || name.Contains(":", StringComparison.Ordinal))
@@ -307,7 +307,7 @@ public static class SolidPayloadArchive
 
             int nameByteLength = FrameworkCompatibility.ReadInt32LittleEndian(table, cursor);
             cursor += Int32Length;
-            if (nameByteLength <= 0 || nameByteLength > MaximumNameByteLength)
+            if (nameByteLength is <= 0 or > MaximumNameByteLength)
                 throw new InvalidDataException($"Entry {index} declares a name of {nameByteLength} bytes.");
 
             if (table.Length - cursor < nameByteLength + Int32Length + Int64Length)

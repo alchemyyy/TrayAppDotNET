@@ -6,10 +6,8 @@ namespace TaskManagerTrayAppDotNET.Tests;
 public sealed class ProcessTableValuePresentationTests
 {
     [Fact]
-    public void UsesCompactUnavailableText()
-    {
+    public void UsesCompactUnavailableText() =>
         Assert.Equal(expected: "N/A", ProcessTableValuePresentation.UnavailableText);
-    }
 
     [Fact]
     public void UnavailableSamplesSortBelowZero()

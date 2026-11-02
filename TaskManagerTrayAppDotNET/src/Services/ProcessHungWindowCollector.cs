@@ -18,10 +18,7 @@ internal sealed class ProcessHungWindowCollector
     private readonly HashSet<int> _notRespondingProcessIDs = new(16);
     private bool _callbackFailureLogged;
 
-    public ProcessHungWindowCollector()
-    {
-        _enumerateWindowCallback = OnEnumerateWindow;
-    }
+    public ProcessHungWindowCollector() => _enumerateWindowCallback = OnEnumerateWindow;
 
     /// <summary>Replaces the hung-process set with one enumeration of the desktop's top-level windows.</summary>
     public void Capture()

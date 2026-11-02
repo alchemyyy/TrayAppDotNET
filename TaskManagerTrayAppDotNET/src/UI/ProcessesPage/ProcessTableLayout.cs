@@ -130,8 +130,10 @@ internal static class ProcessTableLayout
         Span<ProcessTableColumn> destination)
     {
         if (columns.Length != destination.Length)
+        {
             throw new ArgumentException(message: "Source and destination column counts must match.",
                 nameof(destination));
+        }
         if ((uint)resizedColumnIndex >= (uint)columns.Length)
             throw new ArgumentOutOfRangeException(nameof(resizedColumnIndex));
         if (!double.IsFinite(width) || width <= 0)

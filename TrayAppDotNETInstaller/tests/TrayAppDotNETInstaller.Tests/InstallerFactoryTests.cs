@@ -14,10 +14,7 @@ public sealed class InstallerFactoryTests : IDisposable
         "TrayAppDotNETInstaller.Tests",
         Guid.NewGuid().ToString("N"));
 
-    public InstallerFactoryTests()
-    {
-        Directory.CreateDirectory(_root);
-    }
+    public InstallerFactoryTests() => Directory.CreateDirectory(_root);
 
     public void Dispose()
     {
@@ -52,10 +49,8 @@ public sealed class InstallerFactoryTests : IDisposable
     }
 
     [Fact]
-    public void Run_VerifyInstallerRejectsAnImageArgumentWithNoValue()
-    {
+    public void Run_VerifyInstallerRejectsAnImageArgumentWithNoValue() =>
         Assert.Equal(1, InstallerFactory.Run(["--verify-installer"]));
-    }
 
     [Fact]
     public void Run_VerifyInstallerRejectsAnImageCarryingNoPayloadArchive()
@@ -127,13 +122,13 @@ public sealed class InstallerFactoryTests : IDisposable
     }
 
     [Theory]
-    [InlineData("--make-installer --payload C:\\packages\\VolumeTrayAppDotNET_270.zip")]
-    [InlineData("--make-installer --output C:\\out\\Installer.exe")]
+    [InlineData(@"--make-installer --payload C:\packages\VolumeTrayAppDotNET_270.zip")]
+    [InlineData(@"--make-installer --output C:\out\Installer.exe")]
     [InlineData("--make-installer --output")]
-    [InlineData("--make-installer --output C:\\out\\Installer.exe --payload")]
-    [InlineData("--make-installer --output C:\\out\\Installer.exe --payload C:\\packages\\VolumeTrayAppDotNET_270.zip --icon")]
-    [InlineData("--make-installer --output C:\\out\\Installer.exe --payload C:\\packages\\VolumeTrayAppDotNET_270.zip --payload-list")]
-    [InlineData("--make-installer --output C:\\out\\Installer.exe --payload C:\\packages\\VolumeTrayAppDotNET_270.zip --unknown")]
+    [InlineData(@"--make-installer --output C:\out\Installer.exe --payload")]
+    [InlineData(@"--make-installer --output C:\out\Installer.exe --payload C:\packages\VolumeTrayAppDotNET_270.zip --icon")]
+    [InlineData(@"--make-installer --output C:\out\Installer.exe --payload C:\packages\VolumeTrayAppDotNET_270.zip --payload-list")]
+    [InlineData(@"--make-installer --output C:\out\Installer.exe --payload C:\packages\VolumeTrayAppDotNET_270.zip --unknown")]
     public void TryParseArguments_RejectsIncompleteOrUnknownInput(string commandLine)
     {
         // The .NET Framework has no Split(char, StringSplitOptions) overload, so the separator is an array

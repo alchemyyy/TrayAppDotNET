@@ -26,7 +26,7 @@ public sealed class ComProxyGateTests
         }, out _));
         Assert.True(entered.Wait(Timeout));
 
-        Task retire = Task.Run(() => gate.Retire());
+        Task retire = Task.Run(gate.Retire);
         Assert.False(await FinishesWithin(retire, TimeSpan.FromMilliseconds(200)));
 
         release.Set();

@@ -18,17 +18,11 @@ public enum DetachedCleanupAction
 }
 
 /// <summary>One path for <see cref="DetachedCleanup"/>.</summary>
-public sealed class DetachedCleanupTarget
+public sealed class DetachedCleanupTarget(DetachedCleanupAction action, string path)
 {
-    public DetachedCleanupTarget(DetachedCleanupAction action, string path)
-    {
-        Action = action;
-        Path = path ?? throw new ArgumentNullException(nameof(path));
-    }
+    public DetachedCleanupAction Action { get; } = action;
 
-    public DetachedCleanupAction Action { get; }
-
-    public string Path { get; }
+    public string Path { get; } = path ?? throw new ArgumentNullException(nameof(path));
 }
 
 /// <summary>

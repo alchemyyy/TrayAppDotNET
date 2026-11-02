@@ -51,10 +51,8 @@ public sealed class FrameworkCompatibilityTests
     [InlineData(" A , B ", new[] { "A", "B" })]
     [InlineData(",", new string[0])]
     [InlineData("", new string[0])]
-    public void SplitTrimmed_DropsEmptyEntriesAndTrimsTheRest(string value, string[] expected)
-    {
+    public void SplitTrimmed_DropsEmptyEntriesAndTrimsTheRest(string value, string[] expected) =>
         Assert.Equal(expected, FrameworkCompatibility.SplitTrimmed(value, separator: ','));
-    }
 
     [Fact]
     public void LittleEndianAccessors_RoundTripEveryWidth()

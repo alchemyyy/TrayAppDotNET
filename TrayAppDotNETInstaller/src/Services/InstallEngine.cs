@@ -749,8 +749,7 @@ public static class InstallEngine
         {
             try
             {
-                string? line;
-                while ((line = reader.ReadLine()) != null)
+                while (reader.ReadLine() is { } line)
                 {
                     activity();
                     HandleStandardOutputLine(line);
@@ -766,8 +765,7 @@ public static class InstallEngine
         {
             try
             {
-                string? line;
-                while ((line = reader.ReadLine()) != null)
+                while (reader.ReadLine() is { } line)
                 {
                     activity();
                     AppendDiagnostic(line);

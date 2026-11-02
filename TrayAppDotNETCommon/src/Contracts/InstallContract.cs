@@ -56,16 +56,16 @@ public static class TrayAppDotNETInstallContract
     /// old native code.
     /// </summary>
     public static readonly string[] SharedNativeDllNames =
-    {
+    [
         "av_libglesv2.dll",
         "libHarfBuzzSharp.dll",
         "libSkiaSharp.dll",
-    };
+    ];
 
     /// <summary>Native DLLs some builds ship beside <see cref="SharedNativeDllNames"/>; handled the same way when present.</summary>
     public static readonly string[] OptionalSharedNativeDllNames =
-    {
+    [
         "libMonoPosixHelper.dll",
         "MonoPosixHelper.dll",
-    };
+    ];
 }

@@ -16,10 +16,7 @@ internal sealed class ProcessWindowGroupingFactsCollector
     private bool _captureSucceeded;
     private bool _callbackFailureLogged;
 
-    public ProcessWindowGroupingFactsCollector()
-    {
-        _enumerateWindowCallback = OnEnumerateWindow;
-    }
+    public ProcessWindowGroupingFactsCollector() => _enumerateWindowCallback = OnEnumerateWindow;
 
     /// <summary>Replaces all prior window facts with one complete desktop enumeration.</summary>
     public void Capture()

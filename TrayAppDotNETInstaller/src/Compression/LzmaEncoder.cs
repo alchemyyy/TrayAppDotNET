@@ -155,7 +155,7 @@ public static class LzmaEncoder
         /// </summary>
         private bool ShouldDeferToNextPosition(int length, uint distance, int repeatIndex)
         {
-            if (length < LzmaConstants.MatchMinimumLength || length >= NiceLength) return false;
+            if (length is < LzmaConstants.MatchMinimumLength or >= NiceLength) return false;
             if (_position + 1 >= _inputLength) return false;
 
             InsertBefore(_position + 1);

@@ -202,8 +202,8 @@ public sealed class AxamlPropertyLinkerGenerator : IIncrementalGenerator
         if (key.IndexOf(value: '.', separatorIndex + 1) >= 0)
             return null;
 
-        string prefix = key.Substring(0, separatorIndex);
-        string propertyName = key.Substring(separatorIndex + 1);
+        string prefix = key[..separatorIndex];
+        string propertyName = key[(separatorIndex + 1)..];
         if (!CSharpNames.IsIdentifier(prefix) || !CSharpNames.IsIdentifier(propertyName))
             return null;
 

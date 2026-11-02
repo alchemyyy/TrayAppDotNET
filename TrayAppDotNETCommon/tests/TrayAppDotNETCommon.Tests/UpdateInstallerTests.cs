@@ -24,7 +24,7 @@ public sealed class UpdateInstallerTests : IDisposable
             "--update-apply", "--parent-pid", "12", "--parent-start", "34", "--pipe", "TrayAppDotNET.Update.12.x",
             "--target", @"C:\Program Files\TrayAppDotNET\TestTrayAppDotNET.exe", "--log", @"C:\temp\update.log"
         ];
-        string[] current = [.. olderParent, "--archive", @"C:\temp\TestTrayAppDotNET_101.zip", "--sha256", new string('a', 64), "--build", "101"];
+        string[] current = [.. olderParent, "--archive", @"C:\temp\TestTrayAppDotNET_101.zip", "--sha256", new('a', 64), "--build", "101"];
         string[] restarter = ["--update-restart", "--worker-pid", "1", "--worker-start", "2", "--target", "t", "--archive", "a", "--log", "l"];
 
         Assert.True(UpdateInstaller.IsLegacyApplyInvocation(olderParent));

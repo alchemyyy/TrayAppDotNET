@@ -744,9 +744,11 @@ public sealed class BatteryFlyoutWindow : FlyoutWindowCommon
     {
         if (snapshot is not { BatteryPresent: true, IsFullyCharged: false }) return null;
         if (snapshot.IsCharging)
+        {
             return estimates.ChargeTime.HasValue
                 ? F(nameof(AppStrings.Flyout_UntilFull_Format), FormatEstimate(estimates.ChargeTime))
                 : null;
+        }
 
         // Predicted life is known on external power too, but only a draining battery has time remaining
         if (snapshot.IsOnExternalPower) return null;

@@ -402,7 +402,7 @@ internal static class SettingsSearchTextExtractor
                 break;
 
             // A dropdown keeps its items in a popup; indexing them lets a search find options that are not selected
-            case Popup { Child: Control popupChild }:
+            case Popup { Child: { } popupChild }:
                 pending.Add(popupChild);
                 break;
 

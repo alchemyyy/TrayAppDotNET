@@ -96,14 +96,15 @@ public sealed class AxamlResourceStoreGeneratorTests
         EventInfo reloaded = resourcesType.GetEvent(
             "ResourcesReloaded",
             BindingFlags.NonPublic | BindingFlags.Static)!;
-        Action handler = () => notifications++;
-        reloaded.GetAddMethod(nonPublic: true)!.Invoke(obj: null, [handler]);
+        reloaded.GetAddMethod(nonPublic: true)!.Invoke(obj: null, [(Action)OnResourcesReloaded]);
 
         resourcesType.GetMethod("ReloadNow", BindingFlags.NonPublic | BindingFlags.Static)!
             .Invoke(obj: null, parameters: null);
 
         Assert.Equal(expected: 1, notifications);
         Assert.NotSame(initial, Current(resourcesType));
+
+        void OnResourcesReloaded() => notifications++;
     }
 
     [Fact]

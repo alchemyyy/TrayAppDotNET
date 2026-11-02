@@ -122,8 +122,10 @@ internal sealed class SVGDocument : IDisposable
         bool hasUnsupportedElements = root.Descendants().Any(static element =>
             element.Name.LocalName is "clipPath" or "mask" or "use");
         if (hasUnsupportedElements)
+        {
             throw new NotSupportedException(
                 $"SVG '{resourceFileName}' contains clipping, masking, or referenced geometry.");
+        }
     }
 
     /// <summary>Builds one path element's local-space geometry: its fill, its stroke outline, or both.</summary>

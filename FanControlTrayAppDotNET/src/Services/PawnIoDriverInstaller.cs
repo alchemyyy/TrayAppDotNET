@@ -241,8 +241,10 @@ internal static class PawnIoDriverInstaller
 
             long? contentLength = response.Content.Headers.ContentLength;
             if (contentLength.HasValue && contentLength.Value != InstallerLength)
+            {
                 throw new InvalidDataException(
                     $"PawnIO installer download length was {contentLength.Value}; expected {InstallerLength}.");
+            }
 
             await using (Stream responseStream =
                          await response.Content.ReadAsStreamAsync(deadline.Token).ConfigureAwait(false))

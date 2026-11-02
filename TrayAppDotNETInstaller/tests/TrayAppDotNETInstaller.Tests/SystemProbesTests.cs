@@ -11,10 +11,8 @@ public sealed class SystemProbesTests
     [InlineData((byte)1, true)]
     [InlineData((byte)0, true)]
     [InlineData((byte)8, true)]
-    public void InterpretBatteryFlag_OnlyNoSystemBatteryIsFalse(byte flag, bool expected)
-    {
+    public void InterpretBatteryFlag_OnlyNoSystemBatteryIsFalse(byte flag, bool expected) =>
         Assert.Equal(expected, SystemProbes.InterpretBatteryFlag(flag));
-    }
 
     [Fact]
     public void HasSystemBattery_DoesNotThrow()

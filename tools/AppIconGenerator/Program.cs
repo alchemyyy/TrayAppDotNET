@@ -106,8 +106,10 @@ internal static class Program
     {
         string markerPath = Path.Combine(repositoryRoot, RepositoryMarkerFileName);
         if (!File.Exists(markerPath))
+        {
             throw new DirectoryNotFoundException(
                 $"Repository marker was not found: {markerPath}");
+        }
     }
 
     private static IReadOnlyList<IconTarget> SelectTargets(

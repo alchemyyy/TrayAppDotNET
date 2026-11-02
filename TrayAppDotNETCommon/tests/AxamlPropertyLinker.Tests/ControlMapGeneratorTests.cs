@@ -150,10 +150,7 @@ public sealed class ControlMapGeneratorTests
     [InlineData("""<Surface ID="Flyout"><Variant ID="Wide" Order=" " /><Leaf ID="Close" Kind="Command" /></Surface>""")]
     [InlineData("""<Template ID="Shell"><Variant ID="Wide" Order="Close" /><Leaf ID="Close" Kind="Command" /><Slot /></Template>""")]
     [InlineData("""<Template ID="Shell"><Leaf ID="Close" Kind="Command" /></Template><Surface ID="Flyout" Template="Shell"><Variant ID="Wide" Order="Close" /></Surface>""")]
-    public void ReportsInvalidVariants(string body)
-    {
-        AssertSingleDiagnostic(Map(body), expectedID: "TADNCM017");
-    }
+    public void ReportsInvalidVariants(string body) => AssertSingleDiagnostic(Map(body), expectedID: "TADNCM017");
 
     [Fact]
     public void ReportsVariantWithoutOrderAndVariantAtTheRoot()
@@ -401,20 +398,16 @@ public sealed class ControlMapGeneratorTests
     }
 
     [Fact]
-    public void ReportsMalformedXML()
-    {
+    public void ReportsMalformedXML() =>
         AssertSingleDiagnostic(Map("""<Surface ID="Flyout">"""), expectedID: "TADNCM001");
-    }
 
     [Theory]
     [InlineData("""<Leaf ID="Stray" Kind="Button" />""")]
     [InlineData("""<Surface ID="Outer"><Surface ID="Inner"><Leaf ID="Close" Kind="Command" /></Surface></Surface>""")]
     [InlineData("""<Surface ID="Flyout"><Slot /><Leaf ID="Close" Kind="Command" /></Surface>""")]
     [InlineData("""<Surface ID="Flyout"><Button ID="Close" /><Leaf ID="Hide" Kind="Command" /></Surface>""")]
-    public void ReportsMisplacedOrUnknownElements(string body)
-    {
+    public void ReportsMisplacedOrUnknownElements(string body) =>
         AssertSingleDiagnostic(Map(body), expectedID: "TADNCM002");
-    }
 
     [Fact]
     public void ReportsUnknownAttribute()
@@ -460,10 +453,7 @@ public sealed class ControlMapGeneratorTests
     [InlineData("""<Surface ID="Flyout"><Scope ID="Row" Arrows="Diagonal"><Leaf ID="Close" Kind="Command" /></Scope></Surface>""")]
     [InlineData("""<Surface ID="Flyout"><Leaf ID="Close" Kind="Command" IsTabStop="Maybe" /></Surface>""")]
     [InlineData("""<Surface ID="Flyout" Tab="cycle"><Leaf ID="Close" Kind="Command" /></Surface>""")]
-    public void ReportsInvalidValues(string body)
-    {
-        AssertSingleDiagnostic(Map(body), expectedID: "TADNCM006");
-    }
+    public void ReportsInvalidValues(string body) => AssertSingleDiagnostic(Map(body), expectedID: "TADNCM006");
 
     [Theory]
     [InlineData("Ctrl+1")]
@@ -494,10 +484,7 @@ public sealed class ControlMapGeneratorTests
     [Theory]
     [InlineData("""<Surface ID="Flyout"><Scope ID="Header"><Leaf ID="Close" Kind="Command" Keys="Escape" KeyScope="Footer" /></Scope></Surface>""")]
     [InlineData("""<Surface ID="Flyout"><Leaf ID="Close" Kind="Command" KeyScope="Flyout" /></Surface>""")]
-    public void ReportsInvalidKeyScopes(string body)
-    {
-        AssertSingleDiagnostic(Map(body), expectedID: "TADNCM008");
-    }
+    public void ReportsInvalidKeyScopes(string body) => AssertSingleDiagnostic(Map(body), expectedID: "TADNCM008");
 
     [Theory]
     [InlineData("""<Template ID="Shell"><Leaf ID="Close" Kind="Command" /></Template><Surface ID="Flyout" Template="Shell"><Leaf ID="Hide" Kind="Command" /></Surface>""")]
@@ -505,10 +492,7 @@ public sealed class ControlMapGeneratorTests
     [InlineData("""<Template ID="Shell"><Slot ID="Actions" /><Scope ID="Host"><Slot ID="Actions" /></Scope></Template>""")]
     [InlineData("""<Template ID="Shell"><Slot /></Template><Surface ID="Flyout" Template="Shell"><Leaf ID="Hide" Kind="Command" Slot="Actions" /></Surface>""")]
     [InlineData("""<Surface ID="Flyout"><Leaf ID="Hide" Kind="Command" Slot="Actions" /></Surface>""")]
-    public void ReportsSlotMisuse(string body)
-    {
-        AssertSingleDiagnostic(Map(body), expectedID: "TADNCM010");
-    }
+    public void ReportsSlotMisuse(string body) => AssertSingleDiagnostic(Map(body), expectedID: "TADNCM010");
 
     [Fact]
     public void RoutesChildrenToNamedAndUnnamedSlots()
@@ -602,10 +586,7 @@ public sealed class ControlMapGeneratorTests
     [InlineData("""<Surface ID="Flyout"><Scope ID="Header" /></Surface>""")]
     [InlineData("""<Template ID="Shell" />""")]
     [InlineData("""<Surface ID="Flyout" />""")]
-    public void ReportsEmptyContainers(string body)
-    {
-        AssertSingleDiagnostic(Map(body), expectedID: "TADNCM014");
-    }
+    public void ReportsEmptyContainers(string body) => AssertSingleDiagnostic(Map(body), expectedID: "TADNCM014");
 
     [Fact]
     public void ReportsRecursiveTemplates()
@@ -784,8 +765,10 @@ public sealed class ControlMapGeneratorTests
         {
             foreach ((object _, IncrementalStepRunReason reason) in run.TrackedSteps[stepName]
                          .SelectMany(static step => step.Outputs))
+            {
                 Assert.True(reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged,
                     $"{stepName}: {reason}");
+            }
         }
     }
 

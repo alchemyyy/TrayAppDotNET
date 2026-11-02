@@ -50,10 +50,8 @@ public sealed class InstallerIconsTests
     }
 
     [Fact]
-    public void SelectFrameIndex_IsMinusOneWithoutFrames()
-    {
+    public void SelectFrameIndex_IsMinusOneWithoutFrames() =>
         Assert.Equal(-1, InstallerIcons.SelectFrameIndex([], targetPixelWidth: 16));
-    }
 
     [Fact]
     public void SelectFrameIndex_TakesTheFirstOfEqualWidths()

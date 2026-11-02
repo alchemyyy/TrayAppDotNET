@@ -11,8 +11,8 @@ public sealed class WindhawkDetectorTests
     {
         WindhawkProbe[] probes =
         [
-            new WindhawkProbe("first", static () => null),
-            new WindhawkProbe("second", static () => null)
+            new("first", static () => null),
+            new("second", static () => null)
         ];
 
         WindhawkDetection detection = WindhawkDetector.Aggregate(probes);
@@ -27,9 +27,9 @@ public sealed class WindhawkDetectorTests
         int laterProbeCalls = 0;
         WindhawkProbe[] probes =
         [
-            new WindhawkProbe("first", static () => null),
-            new WindhawkProbe("program files", static () => @"C:\Program Files\Windhawk\windhawk.exe"),
-            new WindhawkProbe("never", () =>
+            new("first", static () => null),
+            new("program files", static () => @"C:\Program Files\Windhawk\windhawk.exe"),
+            new("never", () =>
             {
                 laterProbeCalls++;
                 return "unreached";
@@ -48,9 +48,9 @@ public sealed class WindhawkDetectorTests
     {
         WindhawkProbe[] probes =
         [
-            new WindhawkProbe("registry", static () => throw new SecurityException("denied")),
-            new WindhawkProbe("disk", static () => throw new IOException("busy")),
-            new WindhawkProbe("process", static () => "windhawk PID 42")
+            new("registry", static () => throw new SecurityException("denied")),
+            new("disk", static () => throw new IOException("busy")),
+            new("process", static () => "windhawk PID 42")
         ];
 
         WindhawkDetection detection = WindhawkDetector.Aggregate(probes);

@@ -100,7 +100,7 @@ internal static class BluetoothRadioPower
                         continue;
                     }
 
-                    if (requestedEnabled is bool isEnabled && NeedsStateChange(state, isEnabled))
+                    if (requestedEnabled is { } isEnabled && NeedsStateChange(state, isEnabled))
                     {
                         DeviceRadioState targetState = isEnabled
                             ? DeviceRadioState.RadioOn

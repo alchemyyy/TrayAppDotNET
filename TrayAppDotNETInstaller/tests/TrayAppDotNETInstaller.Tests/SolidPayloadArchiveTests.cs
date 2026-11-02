@@ -50,10 +50,7 @@ public sealed class SolidPayloadArchiveTests : IDisposable
 
     private readonly List<string> _log = [];
 
-    public SolidPayloadArchiveTests()
-    {
-        Directory.CreateDirectory(_root);
-    }
+    public SolidPayloadArchiveTests() => Directory.CreateDirectory(_root);
 
     public void Dispose()
     {
@@ -133,7 +130,7 @@ public sealed class SolidPayloadArchiveTests : IDisposable
         string zipPath = CreateZip(
             SourceZipName,
             ("first.txt", TextBytes("first")),
-            ("empty.dat", Array.Empty<byte>()),
+            ("empty.dat", []),
             ("last.txt", TextBytes("last")));
 
         SolidPayloadStatistics statistics = CreatePayload(zipPath, out string payloadPath);
@@ -161,7 +158,7 @@ public sealed class SolidPayloadArchiveTests : IDisposable
         string zipPath = CreateZip(
             SourceZipName,
             ("first.txt", TextBytes("first")),
-            ("trailing-empty.dat", Array.Empty<byte>()));
+            ("trailing-empty.dat", []));
 
         string destination = Path.Combine(_root, "trailing-empty-entry");
         CreatePayload(zipPath, out string payloadPath);
@@ -423,7 +420,7 @@ public sealed class SolidPayloadArchiveTests : IDisposable
         Assert.Equal(3, reports.Count);
         Assert.All(reports, report => Assert.False(report.IsFailure));
         Assert.All(reports, report => Assert.InRange(report.Percent, slice.StartPercent, slice.EndPercent));
-        Assert.Equal(slice.EndPercent, reports[reports.Count - 1].Percent);
+        Assert.Equal(slice.EndPercent, reports[^1].Percent);
         for (int index = 1; index < reports.Count; index++)
             Assert.True(reports[index].Percent >= reports[index - 1].Percent, "progress must not go backwards");
         Assert.Contains(ExecutableEntryName, reports[0].Message, StringComparison.Ordinal);

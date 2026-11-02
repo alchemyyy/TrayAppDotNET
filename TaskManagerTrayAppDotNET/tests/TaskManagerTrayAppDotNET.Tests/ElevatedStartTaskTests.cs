@@ -85,10 +85,8 @@ public sealed class ElevatedStartTaskTests
     [InlineData("--installer")]
     [InlineData("--uninstall-headless", "local")]
     [InlineData("--update-restart")]
-    public void StartsThatAreNotPlainStayInTheirOwnProcess(params string[] arguments)
-    {
+    public void StartsThatAreNotPlainStayInTheirOwnProcess(params string[] arguments) =>
         Assert.False(ElevatedStartTask.TryGetHandOffParameter(arguments, out _));
-    }
 
     [Fact]
     public void TheAppsDefinitionStartsOnlyTheSystemInstallElevated()
@@ -126,10 +124,8 @@ public sealed class ElevatedStartTaskTests
     [InlineData("")]
     [InlineData("<Task")]
     [InlineData("<Task xmlns=\"http://schemas.microsoft.com/windows/2004/02/mit/task\" />")]
-    public void MissingOrMalformedDefinitionsAreNotUsable(string? definition)
-    {
+    public void MissingOrMalformedDefinitionsAreNotUsable(string? definition) =>
         Assert.False(ElevatedStartTask.IsUsableDefinition(definition, SystemExecutable));
-    }
 
     [Fact]
     public void TurningOnNeedsAnAdministratorRunningTheSystemInstall()

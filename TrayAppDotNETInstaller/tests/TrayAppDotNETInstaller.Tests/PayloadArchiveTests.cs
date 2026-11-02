@@ -18,10 +18,7 @@ public sealed class PayloadArchiveTests : IDisposable
 
     private readonly List<string> _log = [];
 
-    public PayloadArchiveTests()
-    {
-        Directory.CreateDirectory(_root);
-    }
+    public PayloadArchiveTests() => Directory.CreateDirectory(_root);
 
     public void Dispose()
     {

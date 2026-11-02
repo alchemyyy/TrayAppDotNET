@@ -584,43 +584,43 @@ public sealed class LzmaConformanceTests
 
     private static readonly LzmaVector[] Vectors =
     [
-        new LzmaVector(
+        new(
             "empty",
             "5D00001000",
             0,
             EmptyCompressedBase64,
             "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"),
-        new LzmaVector(
+        new(
             "single",
             "5D00001000",
             1,
             SingleCompressedBase64,
             "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"),
-        new LzmaVector(
+        new(
             "text",
             "5D00001000",
             2816,
             TextCompressedBase64,
             "4bc29d3a9c5a116faba90c4152964c8c0c9616b2688e60470eca11a1920b5d10"),
-        new LzmaVector(
+        new(
             "repetitive",
             "5D00001000",
             100000,
             RepetitiveCompressedBase64,
             "e6631225e83d23bf67657e85109ad5deb3570e1405d7aaa23a2485ae8582c143"),
-        new LzmaVector(
+        new(
             "random",
             "5D00001000",
             8192,
             RandomCompressedBase64,
             "3e0f7e923af49323cbdc08318edc4f0398b2b289c783758c4a2c7bbe7a989d9e"),
-        new LzmaVector(
+        new(
             "mixed",
             "5D00001000",
             32768,
             MixedCompressedBase64,
             "cda3008c2f31905e81ec201bd9492b93520d1a4bfb2651ca37e92644e43c6349"),
-        new LzmaVector(
+        new(
             "binary",
             "5D00001000",
             65536,

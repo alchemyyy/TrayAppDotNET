@@ -47,21 +47,22 @@ internal static class IconTargetCatalog
     /// <summary>Creates the complete target catalog in stable output order.</summary>
     public static IReadOnlyList<IconTarget> Create()
     {
-        List<IconTarget> targets = new(capacity: 7);
-        targets.Add(SingleLayerTarget("BATADN", "BatteryTrayAppDotNET", BatterySVG));
-        targets.Add(SingleLayerTarget("BTADN", "BrightnessTrayAppDotNET", BrightnessSVG));
-        targets.Add(SingleLayerTarget("FCTADN", "FanControlTrayAppDotNET", FanControlSVG));
-        targets.Add(SingleLayerTarget("NTADN", "NetworkTrayAppDotNET", NetworkSVG));
-        targets.Add(new IconTarget(
-            "TMTADN",
-            "TaskManagerTrayAppDotNET",
-            [
-                new SVGIconLayer(TaskManagerDesktopTowerSVG, NormalizedRectangle.FullCanvas),
-                new SVGIconLayer(TaskManagerPulseSVG, TaskManagerPulseDestination)
-            ]));
-        targets.Add(SingleLayerTarget("VTADN", "VolumeTrayAppDotNET", VolumeSVG));
-        targets.Add(SingleLayerTarget("TADN", "TrayAppDotNETInstaller", SuiteLogoSVG));
-        return targets;
+        return
+        [
+            SingleLayerTarget("BATADN", "BatteryTrayAppDotNET", BatterySVG),
+            SingleLayerTarget("BTADN", "BrightnessTrayAppDotNET", BrightnessSVG),
+            SingleLayerTarget("FCTADN", "FanControlTrayAppDotNET", FanControlSVG),
+            SingleLayerTarget("NTADN", "NetworkTrayAppDotNET", NetworkSVG),
+            new IconTarget(
+                "TMTADN",
+                "TaskManagerTrayAppDotNET",
+                [
+                    new SVGIconLayer(TaskManagerDesktopTowerSVG, NormalizedRectangle.FullCanvas),
+                    new SVGIconLayer(TaskManagerPulseSVG, TaskManagerPulseDestination)
+                ]),
+            SingleLayerTarget("VTADN", "VolumeTrayAppDotNET", VolumeSVG),
+            SingleLayerTarget("TADN", "TrayAppDotNETInstaller", SuiteLogoSVG)
+        ];
     }
 
     private static IconTarget SingleLayerTarget(string shortName, string projectDirectoryName, string SVGFileName) =>

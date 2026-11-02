@@ -37,23 +37,17 @@ public sealed record HotkeyRegistrationFailure<TBinding>(
     int Win32Error = 0)
     where TBinding : class;
 
-public sealed class HotkeyApplyResult<TBinding>
+public sealed class HotkeyApplyResult<TBinding>(
+    IReadOnlyList<TBinding> registered,
+    IReadOnlyDictionary<TBinding, HotkeyRegistrationFailure<TBinding>> failed)
     where TBinding : class
 {
     public static readonly HotkeyApplyResult<TBinding> Empty = new([], new Dictionary<TBinding, HotkeyRegistrationFailure<TBinding>>());
 
-    public HotkeyApplyResult(
-        IReadOnlyList<TBinding> registered,
-        IReadOnlyDictionary<TBinding, HotkeyRegistrationFailure<TBinding>> failed)
-    {
-        Registered = registered;
-        Failed = failed;
-    }
-
-    public IReadOnlyList<TBinding> Registered { get; }
+    public IReadOnlyList<TBinding> Registered { get; } = registered;
 
     /// <summary>Enabled, bound bindings that are not registered, keyed by reference.</summary>
-    public IReadOnlyDictionary<TBinding, HotkeyRegistrationFailure<TBinding>> Failed { get; }
+    public IReadOnlyDictionary<TBinding, HotkeyRegistrationFailure<TBinding>> Failed { get; } = failed;
 }
 
 /// <summary>

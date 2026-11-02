@@ -7,10 +7,7 @@ namespace BrightnessTrayAppDotNET.Tests;
 public sealed class MonitorProfileDatabaseTests
 {
     [Fact]
-    public void TheEmbeddedDatabaseLoads()
-    {
-        Assert.True(DDCMonitorDatabase.LoadedMonitorCount >= 300);
-    }
+    public void TheEmbeddedDatabaseLoads() => Assert.True(DDCMonitorDatabase.LoadedMonitorCount >= 300);
 
     [Fact]
     public void AKnownMonitorGetsItsProfileIncludingTheInvertedPowerCommand()

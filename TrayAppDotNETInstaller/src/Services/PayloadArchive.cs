@@ -65,24 +65,25 @@ public sealed class PayloadArchive
         FrameworkCompatibility.ThrowIfNullOrWhiteSpace(filePath, nameof(filePath));
 
         string? lastReason = null;
-        Action<string> capture = message =>
-        {
-            lastReason = message;
-            log?.Invoke(message);
-        };
         try
         {
             // The directory is read once; every entry is hashed again when it is opened, so no handle is kept
             using FileStream stream = new(filePath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
-            List<PayloadArchiveEntry>? entries = TryReadDirectory(stream, filePath, capture);
+            List<PayloadArchiveEntry>? entries = TryReadDirectory(stream, filePath, Capture);
             failureReason = entries == null ? lastReason : null;
             return entries == null ? null : new PayloadArchive(filePath, entries);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException)
         {
-            capture($"PayloadArchive: cannot read {filePath}: {exception.Message}");
+            Capture($"PayloadArchive: cannot read {filePath}: {exception.Message}");
             failureReason = lastReason;
             return null;
+        }
+
+        void Capture(string message)
+        {
+            lastReason = message;
+            log?.Invoke(message);
         }
     }
 
@@ -138,7 +139,7 @@ public sealed class PayloadArchive
 
         long directoryOffset = FrameworkCompatibility.ReadInt64LittleEndian(trailer, MagicLength);
         long directoryLength = FrameworkCompatibility.ReadInt64LittleEndian(trailer, MagicLength + Int64Length);
-        if (directoryLength < DirectoryHeaderLength || directoryLength > MaximumDirectoryLength)
+        if (directoryLength is < DirectoryHeaderLength or > MaximumDirectoryLength)
         {
             Report(log, $"PayloadArchive: {filePath} declares an implausible directory length of {directoryLength}");
             return null;
@@ -183,7 +184,7 @@ public sealed class PayloadArchive
         }
 
         int entryCount = FrameworkCompatibility.ReadInt32LittleEndian(directoryBytes, Int32Length);
-        if (entryCount < 0 || entryCount > MaximumEntryCount)
+        if (entryCount is < 0 or > MaximumEntryCount)
         {
             Report(log, $"PayloadArchive: {filePath} declares {entryCount} entries, which is out of range");
             return null;
@@ -201,7 +202,7 @@ public sealed class PayloadArchive
 
             int nameByteLength = FrameworkCompatibility.ReadInt32LittleEndian(directoryBytes, cursor);
             cursor += Int32Length;
-            if (nameByteLength <= 0 || nameByteLength > MaximumNameByteLength)
+            if (nameByteLength is <= 0 or > MaximumNameByteLength)
             {
                 Report(log, $"PayloadArchive: entry {index} of {filePath} declares a name of {nameByteLength} bytes");
                 return null;

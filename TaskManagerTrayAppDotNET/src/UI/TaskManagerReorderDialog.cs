@@ -376,7 +376,7 @@ internal abstract class TaskManagerReorderDialog<TItem> : Window, IDisposable
     private void OnOpened(object? sender, EventArgs eventArgs)
     {
         PixelRect? workingArea = Screens.ScreenFromWindow(this)?.WorkingArea;
-        if (workingArea is not PixelRect availableArea) return;
+        if (workingArea is not { } availableArea) return;
 
         double renderScaling = RenderScaling > 0 ? RenderScaling : 1;
         double availableWidth = Math.Max(val1: 1, availableArea.Width / renderScaling - _workAreaMargin);

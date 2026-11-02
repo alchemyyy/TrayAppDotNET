@@ -28,10 +28,8 @@ public sealed class BatteryTimeEstimator
 
     public BatteryTimeEstimator(
         int dischargeChecks = DefaultDischargeChecks,
-        double halfLifeChecks = DefaultHalfLifeChecks)
-    {
+        double halfLifeChecks = DefaultHalfLifeChecks) =>
         SetConfiguration(dischargeChecks, halfLifeChecks);
-    }
 
     public BatteryTimeEstimates Estimates { get; private set; } = BatteryTimeEstimates.Unknown;
 

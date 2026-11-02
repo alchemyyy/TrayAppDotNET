@@ -440,7 +440,7 @@ internal sealed class PerformanceHistoryGraph : Control
     }
 
     private SolidColorBrush CreateUnderfillBrush(Color accent) =>
-        new SolidColorBrush(PerformanceGraphRendering.CreateUnderfillColor(
+        new(PerformanceGraphRendering.CreateUnderfillColor(
             accent,
             _underfillOpacity,
             _underfillDarkenAmount));

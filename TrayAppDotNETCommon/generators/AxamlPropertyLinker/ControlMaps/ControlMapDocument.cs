@@ -162,8 +162,8 @@ internal static class ControlMapParser
             hasClassAttribute = true;
             string fullClassName = attribute.Value.Trim();
             int separatorIndex = fullClassName.LastIndexOf('.');
-            string classNamespace = separatorIndex > 0 ? fullClassName.Substring(0, separatorIndex) : string.Empty;
-            string className = separatorIndex > 0 ? fullClassName.Substring(separatorIndex + 1) : string.Empty;
+            string classNamespace = separatorIndex > 0 ? fullClassName[..separatorIndex] : string.Empty;
+            string className = separatorIndex > 0 ? fullClassName[(separatorIndex + 1)..] : string.Empty;
             if (!IsQualifiedName(classNamespace) || !IsIdentifier(className))
             {
                 document.Diagnostics.Add(ControlMapDiagnostics.At(

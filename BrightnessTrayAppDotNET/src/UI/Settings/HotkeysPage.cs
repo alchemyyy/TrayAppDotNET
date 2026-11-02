@@ -89,7 +89,7 @@ public sealed partial class BrightnessSettingsWindow
 
         return rows;
 
-        TrayAppDotNETHotkeyRow<BrightnessHotkeyAction> Row(
+        static TrayAppDotNETHotkeyRow<BrightnessHotkeyAction> Row(
             BrightnessHotkeyAction action,
             string titleKey,
             string descriptionKey) =>

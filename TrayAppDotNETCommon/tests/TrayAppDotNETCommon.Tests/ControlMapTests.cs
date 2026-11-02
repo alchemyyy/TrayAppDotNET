@@ -46,7 +46,7 @@ public sealed class ControlMapTests
     {
         UI.ControlMap map = new();
         // App maps share the class name, so only the namespace in the map name tells them apart
-        ControlMapNodeID foreignID = new(Map: "BatteryTrayAppDotNET.UI.ControlMap", UI.ControlMap.SettingsShell.ID.Path);
+        ControlMapNodeID foreignID = UI.ControlMap.SettingsShell.ID with { Map = "BatteryTrayAppDotNET.UI.ControlMap" };
 
         Assert.Null(map.Find(foreignID));
         Assert.NotNull(map.Find(UI.ControlMap.SettingsShell.ID));

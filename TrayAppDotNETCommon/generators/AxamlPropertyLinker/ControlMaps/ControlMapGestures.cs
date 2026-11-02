@@ -140,7 +140,7 @@ internal static class ControlMapGestures
             lastModifierIndex = modifierIndex;
         }
 
-        string name = parts[parts.Length - 1];
+        string name = parts[^1];
         if (isKey)
         {
             if (!KeyNames.Contains(name))

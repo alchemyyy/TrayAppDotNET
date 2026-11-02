@@ -116,8 +116,8 @@ public sealed class IconGeneratorTests
         byte[] secondPNG = [.. PNGSignature, 4, 5, 6, 7];
         List<IconImage> images =
         [
-            new IconImage(16, firstPNG),
-            new IconImage(256, secondPNG)
+            new(16, firstPNG),
+            new(256, secondPNG)
         ];
         using MemoryStream stream = new();
 

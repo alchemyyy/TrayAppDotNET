@@ -23,11 +23,11 @@ public static class WindhawkDetector
 
     public static IReadOnlyList<WindhawkProbe> DefaultProbes() =>
     [
-        new WindhawkProbe("uninstall registry", ProbeUninstallRegistry),
-        new WindhawkProbe("registry key", ProbeSoftwareKey),
-        new WindhawkProbe("program files", ProbeProgramFiles),
-        new WindhawkProbe("program data", ProbeProgramData),
-        new WindhawkProbe("running process", ProbeRunningProcess)
+        new("uninstall registry", ProbeUninstallRegistry),
+        new("registry key", ProbeSoftwareKey),
+        new("program files", ProbeProgramFiles),
+        new("program data", ProbeProgramData),
+        new("running process", ProbeRunningProcess)
     ];
 
     /// <summary>Runs the probes in order and reports the first one that yields evidence.</summary>

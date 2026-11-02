@@ -29,8 +29,10 @@ internal static class IconGenerator
     {
         string projectDirectory = Path.Combine(repositoryRoot, target.ProjectDirectoryName);
         if (!Directory.Exists(projectDirectory))
+        {
             throw new DirectoryNotFoundException(
                 $"Project directory for {target.ShortName} was not found: {projectDirectory}");
+        }
 
         List<IconImage> images = new(IconSizes.Length);
         using IconComposition composition = IconComposition.Create(target, sourceDirectory);

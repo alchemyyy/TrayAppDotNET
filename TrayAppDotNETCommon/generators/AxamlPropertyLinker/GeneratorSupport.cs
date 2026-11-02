@@ -154,8 +154,8 @@ internal static class CSharpNames
         int separatorIndex = fullClassName.LastIndexOf('.');
         if (separatorIndex <= 0 || separatorIndex == fullClassName.Length - 1) return false;
 
-        string candidateNamespace = fullClassName.Substring(0, separatorIndex);
-        string candidateClass = fullClassName.Substring(separatorIndex + 1);
+        string candidateNamespace = fullClassName[..separatorIndex];
+        string candidateClass = fullClassName[(separatorIndex + 1)..];
         if (!IsQualifiedName(candidateNamespace) || !IsIdentifier(candidateClass)) return false;
 
         classNamespace = candidateNamespace;

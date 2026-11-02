@@ -36,13 +36,13 @@ internal readonly record struct BrokerAttempt(
 /// so a slow or hung broker never blocks the UI thread; a timed-out request drops the connection. The broker's log
 /// lines arrive on the same connection ahead of each response and are written into this app's log.
 /// </summary>
-internal sealed class ElevationBrokerClient : IDisposable
+internal sealed class ElevationBrokerClient(Action<string>? log) : IDisposable
 {
     private const int ConnectAttempts = 25;
     private const int ConnectRetryDelayMilliseconds = 200;
     private const int ConnectTimeoutMilliseconds = 250;
 
-    private readonly Action<string>? _log;
+    private readonly Action<string>? _log = log;
     private readonly SemaphoreSlim _gate = new(initialCount: 1, maxCount: 1);
 
     private NamedPipeClientStream? _pipe;
@@ -50,8 +50,6 @@ internal sealed class ElevationBrokerClient : IDisposable
     private StreamWriter? _writer;
     private long _correlationCounter;
     private bool _disposed;
-
-    public ElevationBrokerClient(Action<string>? log) => _log = log;
 
     /// <summary>
     /// Runs one op through the broker, starting it on demand. <paramref name="confirmAsync"/> shows the

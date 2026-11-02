@@ -295,10 +295,8 @@ public sealed class BatteryTimeEstimatorTests
     [InlineData("1800 twelve")]
     [InlineData("-1 12")]
     [InlineData("1800 NaN")]
-    public void StoreRejectsMalformedOrUnusableText(string text)
-    {
+    public void StoreRejectsMalformedOrUnusableText(string text) =>
         Assert.Null(BatteryLearnedUsageStore.Parse(text));
-    }
 
     [Fact]
     public void StoreSavesAndLoadsAFile()

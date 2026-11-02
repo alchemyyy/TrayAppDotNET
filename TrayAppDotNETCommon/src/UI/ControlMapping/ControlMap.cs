@@ -20,16 +20,10 @@ public class ControlMap
     private Dictionary<string, ControlMapNode>? _nodesByPath;
 
     /// <summary>Initializes a map whose node ids carry the given map name.</summary>
-    protected ControlMap(string name)
-    {
-        Name = name;
-    }
+    protected ControlMap(string name) => Name = name;
 
     /// <summary>Initializes an unnamed map; AXAML tooling requires a parameterless constructor on the root type.</summary>
-    public ControlMap()
-    {
-        Name = string.Empty;
-    }
+    public ControlMap() => Name = string.Empty;
 
     /// <summary>Gets the map name used by node ids, which is the x:Class simple name.</summary>
     public string Name { get; }

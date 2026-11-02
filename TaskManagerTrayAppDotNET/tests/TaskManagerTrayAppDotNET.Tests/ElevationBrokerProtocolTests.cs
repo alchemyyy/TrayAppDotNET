@@ -35,10 +35,7 @@ public sealed class ElevationBrokerProtocolTests
     [InlineData("x|1|2|3|4|")]               // non-numeric correlation id
     [InlineData("1|1|2|3|notanumber|")]      // non-numeric argument
     [InlineData("1|999|2|3|4|")]             // undefined op value
-    public void BrokerRequestRejectsMalformedLines(string? line)
-    {
-        Assert.False(BrokerRequest.TryParse(line, out _));
-    }
+    public void BrokerRequestRejectsMalformedLines(string? line) => Assert.False(BrokerRequest.TryParse(line, out _));
 
     [Theory]
     [InlineData(7L, 0, "")]                                                 // Success
@@ -73,10 +70,7 @@ public sealed class ElevationBrokerProtocolTests
     [InlineData("1|0")]        // too few fields
     [InlineData("x|0|ok")]     // non-numeric correlation id
     [InlineData("1|999|ok")]   // undefined result code
-    public void BrokerResponseRejectsMalformedLines(string? line)
-    {
-        Assert.False(BrokerResponse.TryParse(line, out _));
-    }
+    public void BrokerResponseRejectsMalformedLines(string? line) => Assert.False(BrokerResponse.TryParse(line, out _));
 
     [Fact]
     public void CreatePipeNameIsUniqueAndPrefixed()

@@ -23,10 +23,8 @@ public sealed class AppVolumeScaleTests
     [Theory]
     [InlineData(-25.0, 0f)]
     [InlineData(250.0, 1f)]
-    public void OutOfRangePercentsClampToTheEndpoints(double percent, float expected)
-    {
+    public void OutOfRangePercentsClampToTheEndpoints(double percent, float expected) =>
         Assert.Equal(expected, AppVolumeScale.LevelFromSliderPercent(percent, isLogarithmic: true));
-    }
 
     [Fact]
     public void LogarithmicLevelRisesStrictlyWithSliderPosition()
@@ -163,28 +161,22 @@ public sealed class AppVolumeScaleTests
     [InlineData(0.25f, 0.5f)]
     [InlineData(1f, 0.003f)]
     [InlineData(0.8f, 0f)]
-    public void SettingOffPassesMeterPeaksThrough(float peak, float level)
-    {
+    public void SettingOffPassesMeterPeaksThrough(float peak, float level) =>
         Assert.Equal(peak, AppVolumeScale.MeterPeakFraction(peak, level, isLogarithmic: false));
-    }
 
     [Theory]
     [InlineData(1f)]
     [InlineData(0.5f)]
     [InlineData(0.02f)]
-    public void FullScalePeakReachesTheThumb(float level)
-    {
+    public void FullScalePeakReachesTheThumb(float level) =>
         Assert.Equal(1.0, AppVolumeScale.MeterPeakFraction(1f, level, isLogarithmic: true), precision: 5);
-    }
 
     [Theory]
     [InlineData(0f, 0.5f)]
     [InlineData(0.5f, 0f)]
     [InlineData(float.NaN, 0.5f)]
-    public void SilentPeakOrSilentLevelDrawsNoMeter(float peak, float level)
-    {
+    public void SilentPeakOrSilentLevelDrawsNoMeter(float peak, float level) =>
         Assert.Equal(0f, AppVolumeScale.MeterPeakFraction(peak, level, isLogarithmic: true));
-    }
 
     [Fact]
     public void MeterEndsWhereTheThumbWouldSitForTheLevelReachingTheDevice()

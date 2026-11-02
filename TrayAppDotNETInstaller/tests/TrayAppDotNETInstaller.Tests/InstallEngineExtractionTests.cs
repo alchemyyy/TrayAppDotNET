@@ -20,10 +20,7 @@ public sealed class InstallEngineExtractionTests : IDisposable
         "TrayAppDotNETInstaller.Tests",
         Guid.NewGuid().ToString("N"));
 
-    public InstallEngineExtractionTests()
-    {
-        Directory.CreateDirectory(_root);
-    }
+    public InstallEngineExtractionTests() => Directory.CreateDirectory(_root);
 
     public void Dispose()
     {
@@ -95,7 +92,7 @@ public sealed class InstallEngineExtractionTests : IDisposable
         Assert.Equal(4, reports.Count);
         Assert.All(reports, report => Assert.False(report.IsFailure));
         Assert.All(reports, report => Assert.InRange(report.Percent, slice.StartPercent, slice.EndPercent));
-        Assert.Equal(slice.EndPercent, reports[reports.Count - 1].Percent);
+        Assert.Equal(slice.EndPercent, reports[^1].Percent);
         for (int index = 1; index < reports.Count; index++)
             Assert.True(reports[index].Percent >= reports[index - 1].Percent, "progress must not go backwards");
         Assert.Contains("readme.txt", reports[0].Message);
@@ -156,7 +153,7 @@ public sealed class InstallEngineExtractionTests : IDisposable
         Assert.True(File.Exists(Path.Combine(target, "FakeTrayAppDotNET.exe")));
         Assert.True(File.Exists(Path.Combine(target, "LICENSE.txt")));
         Assert.Equal([Path.Combine(target, "FakeTrayAppDotNET.exe")], outcome.InstalledExecutables);
-        Assert.True(reports[reports.Count - 1].IsComplete);
+        Assert.True(reports[^1].IsComplete);
         Assert.Equal(
             [
                 new InstallApplicationStatus("FakeTrayAppDotNET", InstallApplicationState.Installing),
@@ -185,7 +182,7 @@ public sealed class InstallEngineExtractionTests : IDisposable
         Assert.False(outcome.Success);
         Assert.NotNull(outcome.ErrorMessage);
         Assert.Contains("FakeTrayAppDotNET.exe", outcome.ErrorMessage);
-        Assert.True(reports[reports.Count - 1].IsFailure);
+        Assert.True(reports[^1].IsFailure);
         Assert.Empty(outcome.InstalledExecutables);
         Assert.Equal(
             [
@@ -220,7 +217,7 @@ public sealed class InstallEngineExtractionTests : IDisposable
             CancellationToken.None);
 
         Assert.False(outcome.Success);
-        Assert.True(reports[reports.Count - 1].IsFailure);
+        Assert.True(reports[^1].IsFailure);
         Assert.Equal([Path.Combine(target, ExecutableName(FirstApplicationName))], outcome.InstalledExecutables);
         Assert.False(File.Exists(Path.Combine(target, ExecutableName(ThirdApplicationName))));
         Assert.Equal(
@@ -261,7 +258,7 @@ public sealed class InstallEngineExtractionTests : IDisposable
             cancellation.Token);
 
         Assert.False(outcome.Success);
-        Assert.True(reports[reports.Count - 1].IsFailure);
+        Assert.True(reports[^1].IsFailure);
         Assert.Equal(
             [
                 new InstallApplicationStatus(FirstApplicationName, InstallApplicationState.Installing),
@@ -303,7 +300,7 @@ public sealed class InstallEngineExtractionTests : IDisposable
             outcome.InstalledExecutables);
         // The file every package shares reaches the folder intact despite three writers
         Assert.Equal(SharedEntryContent, File.ReadAllText(Path.Combine(target, SharedEntryName)));
-        Assert.True(reports[reports.Count - 1].IsComplete);
+        Assert.True(reports[^1].IsComplete);
         for (int index = 1; index < reports.Count; index++)
             Assert.True(reports[index].Percent >= reports[index - 1].Percent, "progress must not go backwards");
         foreach (string applicationName in applicationNames)
@@ -340,7 +337,7 @@ public sealed class InstallEngineExtractionTests : IDisposable
 
         Assert.False(outcome.Success);
         Assert.Contains("escaped.txt", outcome.ErrorMessage);
-        Assert.True(reports[reports.Count - 1].IsFailure);
+        Assert.True(reports[^1].IsFailure);
         Assert.Single(reports, report => report.IsFailure);
         Assert.Equal(
             [

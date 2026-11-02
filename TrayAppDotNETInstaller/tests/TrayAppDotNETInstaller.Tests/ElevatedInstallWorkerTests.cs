@@ -223,8 +223,7 @@ public sealed class ElevatedInstallWorkerTests
     {
         List<string> lines = [];
         using StreamReader reader = new(stream);
-        string? line;
-        while ((line = await reader.ReadLineAsync()) != null) lines.Add(line);
+        while (await reader.ReadLineAsync() is { } line) lines.Add(line);
         return lines;
     }
 

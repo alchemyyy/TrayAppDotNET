@@ -48,15 +48,15 @@ public sealed record TrayAppDotNETInstallProgress(int Percent, string Message, b
         int closeIndex = trimmed.IndexOf(LineClose);
         if (closeIndex <= 1) return false;
 
-        string token = trimmed.Substring(1, closeIndex - 1);
-        string message = trimmed.Substring(closeIndex + 1).Trim();
+        string token = trimmed[1..closeIndex];
+        string message = trimmed[(closeIndex + 1)..].Trim();
         if (string.Equals(token, FailureToken, StringComparison.Ordinal))
         {
             progress = Failed(message);
             return true;
         }
 
-        if (token[token.Length - 1] != PercentSign) return false;
+        if (token[^1] != PercentSign) return false;
         if (!TryParseDigits(token, token.Length - 1, out int percent)) return false;
 
         progress = At(percent, message);

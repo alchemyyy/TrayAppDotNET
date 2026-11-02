@@ -815,8 +815,10 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 Margin = stopwatchMargin
             };
             if (monitor.IsCurveStopwatchEnabled)
+            {
                 stopwatch.Children.Add(BuildCurveStopwatchNumberBox(monitor, candidate, resources)
                     .MapTo(nodes.StopwatchMinutes));
+            }
             stopwatch.Children.Add(BuildCurveStopwatchButton(monitor, palette).MapTo(nodes.Stopwatch));
             TrayAppDotNETToolTip.SetTip(stopwatch, monitor.CurveStopwatchToolTip);
             Grid.SetColumn(stopwatch, placeStopwatchInPowerButtonArea ? 3 : 2);

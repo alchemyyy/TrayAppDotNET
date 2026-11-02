@@ -2914,6 +2914,7 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         {
             if (IsSemanticSectionHeaderLayout(treeLayoutKey)
                 && HasTreeExpanderSlot(treeLayoutKey))
+            {
                 DrawTreeExpander(
                     context,
                     nameColumn,
@@ -2921,6 +2922,7 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
                     top,
                     hierarchyInset,
                     isSemanticSectionHeader: true);
+            }
             return;
         }
 
@@ -4688,10 +4690,7 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         RowHoverGeometryChanged?.Invoke(geometry);
     }
 
-    private void UpdateSelectionOverlay()
-    {
-        InvalidateLayers(RenderLayerMask.Selection);
-    }
+    private void UpdateSelectionOverlay() => InvalidateLayers(RenderLayerMask.Selection);
 
     private void RebuildVisibleRows()
     {
@@ -5426,10 +5425,10 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
 
     private static bool ShouldShareCell(ProcessTableColumnKind column, string value)
     {
-        if (value == ZeroText
-            || value == ZeroMemoryText
-            || value == ZeroCPUTimeText
-            || value == UnavailableText)
+        if (value is ZeroText
+            or ZeroMemoryText
+            or ZeroCPUTimeText
+            or UnavailableText)
             return true;
         if (ProcessRowIndexComparer.IsDisplayCodeColumn(column)) return true;
 

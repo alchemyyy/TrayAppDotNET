@@ -236,10 +236,8 @@ public sealed class ProgramStartupTests
     [InlineData("", "\"\"")]
     [InlineData("say \"hi\"", "\"say \\\"hi\\\"\"")]
     [InlineData("a\\\"b", "\"a\\\\\\\"b\"")]
-    public void CommandLineArgumentsAreQuotedForCommandLineToArgv(string argument, string expected)
-    {
+    public void CommandLineArgumentsAreQuotedForCommandLineToArgv(string argument, string expected) =>
         Assert.Equal(expected, TrayAppDotNETProgram.QuoteCommandLineArgument(argument));
-    }
 
     private sealed class FakeRunningApplication : IDisposable
     {

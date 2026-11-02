@@ -408,18 +408,12 @@ public static class LzmaDecoder
     /// Circular output window. Decoded bytes are flushed to the sink whenever the buffer wraps, so only the
     /// dictionary stays resident no matter how large the payload is.
     /// </summary>
-    private sealed class LzmaOutputWindow
+    private sealed class LzmaOutputWindow(Stream output, int windowSize)
     {
-        private readonly Stream _output;
-        private readonly byte[] _buffer;
+        private readonly Stream _output = output;
+        private readonly byte[] _buffer = new byte[windowSize];
         private int _position;
         private int _flushedPosition;
-
-        public LzmaOutputWindow(Stream output, int windowSize)
-        {
-            _output = output;
-            _buffer = new byte[windowSize];
-        }
 
         public void PutByte(byte value)
         {

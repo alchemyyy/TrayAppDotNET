@@ -388,8 +388,10 @@ public sealed class FlyoutSlider : Control, IDisposable
             : availableSize.Width;
         double hitHeight = FlyoutSliderLayout.TrackHeight + HitTestVerticalPadding * 2.0;
         if (TickValues is { Count: > 0 })
+        {
             hitHeight = Math.Max(hitHeight, FlyoutSliderLayout.TrackHeight
                 + 2 * (FlyoutSliderLayout.TickGap + FlyoutSliderLayout.TickHeight));
+        }
         double secondaryThumbHeight = SecondaryThumb?.Height ?? 0;
         double height = Math.Max(hitHeight, Math.Max(val1: 1, Math.Max(Thumb.Height, secondaryThumbHeight)));
         return new Size(width, height);

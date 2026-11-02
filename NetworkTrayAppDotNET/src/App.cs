@@ -241,10 +241,7 @@ internal sealed class NetworkAvaloniaApp : Application
         });
     }
 
-    private void ApplyKeepWarmPolicies()
-    {
-        _trayMenu?.ApplyKeepWarmPolicy();
-    }
+    private void ApplyKeepWarmPolicies() => _trayMenu?.ApplyKeepWarmPolicy();
 
     private void ApplyToolTipDelayToOpenWindows()
     {

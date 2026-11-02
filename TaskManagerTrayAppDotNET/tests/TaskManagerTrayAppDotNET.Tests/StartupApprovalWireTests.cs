@@ -45,8 +45,5 @@ public sealed class StartupApprovalWireTests
     [InlineData("x\u001F1\u001Fsub\u001Fval")]            // non-numeric scope
     [InlineData("9\u001F1\u001Fsub\u001Fval")]            // undefined scope value
     [InlineData("0\u001F9\u001Fsub\u001Fval")]            // undefined registry view value
-    public void RejectsMalformedText(string? text)
-    {
-        Assert.False(StartupApprovalWire.TryDecode(text, out _));
-    }
+    public void RejectsMalformedText(string? text) => Assert.False(StartupApprovalWire.TryDecode(text, out _));
 }

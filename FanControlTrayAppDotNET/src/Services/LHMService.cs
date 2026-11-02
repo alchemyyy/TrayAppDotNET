@@ -753,10 +753,12 @@ public sealed class LHMService : IDisposable
         if (fallback == FanCurveFallback.None)
             TADNLog.Log($"LHMService curve control resumed for {fan.DataSourceKey}");
         else if (command.Action == FanCurveAction.Drive)
+        {
             TADNLog.Log(
                 $"LHMService curve control fallback for {fan.DataSourceKey}: {fallback}; writing Max Duty "
                 + $"{command.DutyCyclePercent:0.#}% instead of SetDefault because firmware defaults are untrusted "
                 + "after an unclean exit earlier this boot");
+        }
         else
             TADNLog.Log($"LHMService curve control handed {fan.DataSourceKey} back to hardware: {fallback}");
         fan.CurveFallback = fallback;

@@ -11,7 +11,7 @@ public sealed class HotkeyKeyNameTests
     [Fact]
     public void EveryCapturableKeyHasAName()
     {
-        string fallbackOf(uint vk) =>
+        static string fallbackOf(uint vk) =>
             TrayAppDotNETHotkeyKeys.KeyName(vk) == string.Format(
                 System.Globalization.CultureInfo.InvariantCulture,
                 LocalizationManager.Instance[nameof(CommonStrings.Settings_Hotkeys_Key_VK_Format)],

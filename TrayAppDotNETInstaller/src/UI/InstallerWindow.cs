@@ -665,8 +665,7 @@ public sealed class InstallerWindow : Window
     {
         base.OnApplyTemplate();
 
-        Button? closeButton = GetTemplateChild(CloseButtonPartName) as Button;
-        if (closeButton != null)
+        if (GetTemplateChild(CloseButtonPartName) is Button closeButton)
         {
             // The button shows only a glyph, so screen readers need its name spelled out
             AutomationProperties.SetName(closeButton, L(nameof(AppStrings.Installer_Button_Close)));
@@ -844,10 +843,12 @@ public sealed class InstallerWindow : Window
             if (_isExample)
                 outcome = await ExampleMode.RunAsync(plan, progress, applicationProgress, _exampleFails, cancellationToken);
             else
+            {
                 outcome = plan.Mode == InstallMode.System
                     ? await Task.Run(() => ElevatedInstallWorker.RunElevatedAsync(
                         plan, progress, applicationProgress, cancellationToken))
                     : await Task.Run(() => InstallEngine.RunAsync(plan, progress, applicationProgress, cancellationToken));
+            }
         }
         catch (Exception exception)
         {
@@ -1132,9 +1133,7 @@ public sealed class InstallerWindow : Window
     /// </summary>
     private sealed class DispatcherProgress<TReport>(Dispatcher dispatcher, Action<TReport> handler) : IProgress<TReport>
     {
-        public void Report(TReport value)
-        {
+        public void Report(TReport value) =>
             _ = dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(() => handler(value)));
-        }
     }
 }

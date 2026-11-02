@@ -110,16 +110,10 @@ internal sealed class SemanticProcessTreeState
 {
     private readonly Dictionary<ProcessInstanceKey, SemanticRetainedProcessState> _processes;
 
-    public SemanticProcessTreeState()
-    {
-        _processes = [];
-    }
+    public SemanticProcessTreeState() => _processes = [];
 
     internal SemanticProcessTreeState(
-        Dictionary<ProcessInstanceKey, SemanticRetainedProcessState> processes)
-    {
-        _processes = processes;
-    }
+        Dictionary<ProcessInstanceKey, SemanticRetainedProcessState> processes) => _processes = processes;
 
     internal IReadOnlyDictionary<ProcessInstanceKey, SemanticRetainedProcessState> Processes =>
         _processes;

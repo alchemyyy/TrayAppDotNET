@@ -43,8 +43,10 @@ public sealed class PipeSecurityTests
     public async Task BothEndsIdentifyTheProcessAtTheOtherEnd()
     {
         string pipeName = TrayAppDotNETPipeSecurity.CreatePipeName("TrayAppDotNET.Tests.PipeSecurity");
-        using NamedPipeServerStream server = TrayAppDotNETPipeSecurity.CreateServer(pipeName, PipeDirection.InOut);
-        using NamedPipeClientStream client = TrayAppDotNETPipeSecurity.CreateClient(pipeName, PipeDirection.InOut);
+        await using NamedPipeServerStream server =
+            TrayAppDotNETPipeSecurity.CreateServer(pipeName, PipeDirection.InOut);
+        await using NamedPipeClientStream client =
+            TrayAppDotNETPipeSecurity.CreateClient(pipeName, PipeDirection.InOut);
 
         Task accept = server.WaitForConnectionAsync();
         await client.ConnectAsync(5_000);

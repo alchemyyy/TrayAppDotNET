@@ -10,30 +10,21 @@ namespace TrayAppDotNETCommon.UI;
 /// button. A release or a lost capture commits the position through the docking controller, which snaps back to the
 /// dock inside the snap tolerance; <see cref="Cancel"/> releases the pointer without committing.
 /// </summary>
-public sealed class FlyoutChromeDragController : IDisposable
+public sealed class FlyoutChromeDragController(
+    Window owner,
+    FlyoutDockingController docking,
+    Func<bool> canStart,
+    Action<bool>? draggingChanged = null,
+    Action? completed = null) : IDisposable
 {
-    private readonly Window _owner;
-    private readonly FlyoutDockingController _docking;
-    private readonly Func<bool> _canStart;
-    private readonly Action<bool>? _draggingChanged;
-    private readonly Action? _completed;
+    private readonly Window _owner = owner ?? throw new ArgumentNullException(nameof(owner));
+    private readonly FlyoutDockingController _docking = docking ?? throw new ArgumentNullException(nameof(docking));
+    private readonly Func<bool> _canStart = canStart ?? throw new ArgumentNullException(nameof(canStart));
+    private readonly Action<bool>? _draggingChanged = draggingChanged;
+    private readonly Action? _completed = completed;
     private Control? _captureOwner;
     private IPointer? _capturedPointer;
     private bool _disposed;
-
-    public FlyoutChromeDragController(
-        Window owner,
-        FlyoutDockingController docking,
-        Func<bool> canStart,
-        Action<bool>? draggingChanged = null,
-        Action? completed = null)
-    {
-        _owner = owner ?? throw new ArgumentNullException(nameof(owner));
-        _docking = docking ?? throw new ArgumentNullException(nameof(docking));
-        _canStart = canStart ?? throw new ArgumentNullException(nameof(canStart));
-        _draggingChanged = draggingChanged;
-        _completed = completed;
-    }
 
     /// <summary>Gets whether a chrome drag currently holds the pointer.</summary>
     public bool IsDragging => _capturedPointer != null;

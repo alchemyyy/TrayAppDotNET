@@ -17,7 +17,7 @@ namespace FanControlTrayAppDotNET.Services;
 /// uptime, so a Fast Startup power cycle counts as the same boot. That keeps defaults untrusted (curve fallbacks write
 /// Max Duty instead of SetDefault) until a full restart: the loud, safe side.
 /// </summary>
-internal sealed class FanControlDirtyShutdownMarker
+internal sealed class FanControlDirtyShutdownMarker(string path, string? legacyPath = null)
 {
     internal const string FileName = "fan-control-active.marker";
 
@@ -26,16 +26,13 @@ internal sealed class FanControlDirtyShutdownMarker
     /// <summary>Where builds before the shared-root move wrote the marker: the app's settings folder.</summary>
     internal static string LegacyPath => Path.Combine(AppSettings.GetDefaultDirectory(), FileName);
 
-    private readonly string _path;
-    private readonly string? _legacyPath;
+    private readonly string _path = path;
+
+    private readonly string? _legacyPath =
+        string.Equals(legacyPath, path, StringComparison.OrdinalIgnoreCase) ? null : legacyPath;
+
     private readonly Lock _lock = new();
     private bool _written;
-
-    public FanControlDirtyShutdownMarker(string path, string? legacyPath = null)
-    {
-        _path = path;
-        _legacyPath = string.Equals(legacyPath, path, StringComparison.OrdinalIgnoreCase) ? null : legacyPath;
-    }
 
     /// <summary>
     /// False after Load found a marker from this boot: SetDefault would restore a crashed instance's duty.

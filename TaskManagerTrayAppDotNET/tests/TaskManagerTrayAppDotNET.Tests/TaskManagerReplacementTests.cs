@@ -34,10 +34,8 @@ public sealed class TaskManagerReplacementTests
     [InlineData(@"c:\program files\trayappdotnet\taskmanagertrayappdotnet.exe")]
     [InlineData("\"C:\\Program Files\\TrayAppDotNET\\TaskManagerTrayAppDotNET.exe\"")]
     [InlineData(@"C:\Program Files\TrayAppDotNET\.\TaskManagerTrayAppDotNET.exe")]
-    public void OwnershipMatchesTheExactExecutablePath(string registeredExecutable)
-    {
+    public void OwnershipMatchesTheExactExecutablePath(string registeredExecutable) =>
         Assert.True(TaskManagerReplacement.IsOwnedBy(registeredExecutable, [SystemExecutable]));
-    }
 
     [Theory]
     [InlineData(null)]
@@ -48,10 +46,8 @@ public sealed class TaskManagerReplacementTests
     [InlineData("TaskManagerTrayAppDotNET.exe")]
     [InlineData(@"C:\Windows\System32\Taskmgr.exe")]
     [InlineData(@"C:\Tools\SystemInformer\SystemInformer.exe")]
-    public void OwnershipRejectsTheSameFileNameElsewhereAndOtherTargets(string? registeredExecutable)
-    {
+    public void OwnershipRejectsTheSameFileNameElsewhereAndOtherTargets(string? registeredExecutable) =>
         Assert.False(TaskManagerReplacement.IsOwnedBy(registeredExecutable, [SystemExecutable]));
-    }
 
     [Fact]
     public void OwnershipIgnoresMissingOrRelativeCandidates()
@@ -94,10 +90,8 @@ public sealed class TaskManagerReplacementTests
     [InlineData("\"C:\\App\\tmtadn.exe\" \"C:\\Windows\\System32\\Taskmgr.exe\"", @"C:\App\tmtadn.exe")]
     [InlineData(@"C:\App\tmtadn.exe", @"C:\App\tmtadn.exe")]
     [InlineData(@"C:\App\tmtadn.exe /flag", @"C:\App\tmtadn.exe")]
-    public void ExtractExecutableUnquotesAndDropsArguments(string debuggerValue, string expected)
-    {
+    public void ExtractExecutableUnquotesAndDropsArguments(string debuggerValue, string expected) =>
         Assert.Equal(expected, IfeoRegistry.ExtractExecutable(debuggerValue));
-    }
 
     [Theory]
     [InlineData(null)]
@@ -105,10 +99,8 @@ public sealed class TaskManagerReplacementTests
     [InlineData("   ")]
     [InlineData("\"")]
     [InlineData("\"\"")]
-    public void ExtractExecutableReturnsNullForEmptyOrMalformedValues(string? debuggerValue)
-    {
+    public void ExtractExecutableReturnsNullForEmptyOrMalformedValues(string? debuggerValue) =>
         Assert.Null(IfeoRegistry.ExtractExecutable(debuggerValue));
-    }
 
     [Fact]
     public void ToggleNeedsASystemInstallUnlessTurningOurRedirectOff()

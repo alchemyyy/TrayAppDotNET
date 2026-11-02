@@ -58,7 +58,7 @@ public sealed class ControlMapGenerator : IIncrementalGenerator
     private static ControlMapOwner? ReadOwner(GeneratorSyntaxContext context, CancellationToken cancellationToken)
     {
         ClassDeclarationSyntax declaration = (ClassDeclarationSyntax)context.Node;
-        if (context.SemanticModel.GetDeclaredSymbol(declaration, cancellationToken) is not INamedTypeSymbol owner
+        if (context.SemanticModel.GetDeclaredSymbol(declaration, cancellationToken) is not { } owner
             || owner.ContainingType != null
             || owner.BaseType == null
             || !string.Equals(owner.BaseType.ToDisplayString(), ControlMapTypeName, StringComparison.Ordinal))

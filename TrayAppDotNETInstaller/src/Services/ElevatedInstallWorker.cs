@@ -318,8 +318,7 @@ public static class ElevatedInstallWorker
         HashSet<string> installedApplications = new(StringComparer.OrdinalIgnoreCase);
         using (StreamReader reader = new(server, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), detectEncodingFromByteOrderMarks: false, bufferSize: 1024, leaveOpen: true))
         {
-            string? line;
-            while ((line = await reader.ReadLineAsync().ConfigureAwait(false)) != null)
+            while (await reader.ReadLineAsync().ConfigureAwait(false) is { } line)
             {
                 TrayAppDotNETInstallProgress? relayed = RelayWorkerLine(line, progress, applicationProgress, installedApplications);
                 if (relayed?.IsFailure == true) failureMessage = relayed.Message;
@@ -379,7 +378,7 @@ public static class ElevatedInstallWorker
     {
         if (line.StartsWith(LogLinePrefix, StringComparison.Ordinal))
         {
-            InstallerLog.Write($"worker: {line.Substring(LogLinePrefix.Length)}");
+            InstallerLog.Write($"worker: {line[LogLinePrefix.Length..]}");
             return null;
         }
 

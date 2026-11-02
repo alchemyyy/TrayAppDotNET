@@ -80,7 +80,7 @@ public ref struct ComApartmentScope
 
     public readonly bool OwnsInitialization => _ownsInitialization;
 
-    public readonly bool IsUsable => HResult >= 0 || HResult == Ole32.RPC_E_CHANGED_MODE;
+    public readonly bool IsUsable => HResult is >= 0 or Ole32.RPC_E_CHANGED_MODE;
 
     public static ComApartmentScope Enter(uint coInit) => new(Ole32.CoInitializeEx(IntPtr.Zero, coInit));
 

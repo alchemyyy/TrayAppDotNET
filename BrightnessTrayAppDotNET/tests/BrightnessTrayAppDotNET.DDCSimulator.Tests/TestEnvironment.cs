@@ -11,10 +11,8 @@ internal static class TestEnvironment
     public static string RootDirectory { get; private set; } = string.Empty;
 
     [ModuleInitializer]
-    internal static void Redirect()
-    {
+    internal static void Redirect() =>
         RootDirectory = TestSettingsDirectory.Redirect("BrightnessTrayAppDotNET.DDCSimulator.Tests");
-    }
 
     /// <summary>Fresh per-world directory for displays.json and other persisted state.</summary>
     public static string CreateWorldDirectory(string name)

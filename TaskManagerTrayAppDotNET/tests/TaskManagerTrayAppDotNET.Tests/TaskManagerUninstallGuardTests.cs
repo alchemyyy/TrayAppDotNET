@@ -21,30 +21,24 @@ public sealed class TaskManagerUninstallGuardTests
     }
 
     [Fact]
-    public void ElevatedHelperRemovesTheRedirectItself()
-    {
+    public void ElevatedHelperRemovesTheRedirectItself() =>
         Assert.False(TaskManagerUninstallGuard.BlocksUninstall(PerUserExecutable, PerUserExecutable, helperElevated: true));
-    }
 
     [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData(@"C:\Program Files\TrayAppDotNET\TaskManagerTrayAppDotNET.exe")]
     [InlineData(@"C:\Tools\SystemInformer\SystemInformer.exe")]
-    public void RedirectToAnythingElseNeverStopsTheUninstall(string? registeredExecutable)
-    {
+    public void RedirectToAnythingElseNeverStopsTheUninstall(string? registeredExecutable) =>
         Assert.False(TaskManagerUninstallGuard.BlocksUninstall(registeredExecutable, PerUserExecutable, helperElevated: false));
-    }
 
     [Theory]
     [InlineData(InstallScope.ProgramFiles, false, true)]
     [InlineData(InstallScope.ProgramFiles, true, true)]
     [InlineData(InstallScope.LocalAppData, false, false)]
     [InlineData(InstallScope.LocalAppData, true, true)]
-    public void HelperElevationFollowsScopeAndStartingProcess(InstallScope scope, bool startedElevated, bool expected)
-    {
+    public void HelperElevationFollowsScopeAndStartingProcess(InstallScope scope, bool startedElevated, bool expected) =>
         Assert.Equal(expected, TaskManagerUninstallGuard.HelperIsElevated(scope, startedElevated));
-    }
 
     [Fact]
     public void UninstallHookChecksBeforeStartingAndCanStopPreparation()

@@ -9,14 +9,9 @@ namespace TrayAppDotNETCommon.UI;
 /// <c>FlyoutTrayPlacement.axaml</c> and is scaled with the flyout's render scaling, so margins keep their size on every
 /// monitor.
 /// </summary>
-public sealed class FlyoutTrayPlacement
+public sealed class FlyoutTrayPlacement(Window window)
 {
-    private readonly Window _window;
-
-    public FlyoutTrayPlacement(Window window)
-    {
-        _window = window ?? throw new ArgumentNullException(nameof(window));
-    }
+    private readonly Window _window = window ?? throw new ArgumentNullException(nameof(window));
 
     /// <summary>Gets or sets the tray icon the docked flyout centers on.</summary>
     public TrayAppDotNETShellTrayIcon? TrayIcon { get; set; }

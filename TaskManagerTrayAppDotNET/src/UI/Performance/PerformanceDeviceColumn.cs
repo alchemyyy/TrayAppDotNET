@@ -147,8 +147,10 @@ internal sealed class PerformanceDeviceColumn : StackPanel, IDisposable
             if (!requestedStableIDs.Add(row.StableID))
                 throw new ArgumentException($"Duplicate device stable ID '{row.StableID}'.", nameof(rows));
             if (!requestedContent.Add(row.Content))
+            {
                 throw new ArgumentException(message: "A device row control cannot be used more than once.",
                     nameof(rows));
+            }
 
             requestedRows.Add(row);
         }

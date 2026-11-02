@@ -119,7 +119,7 @@ public sealed class AppShellLifecycleTests
         Queue<bool> shuttingDown = new([true, true, false]);
         List<int> sleeps = [];
 
-        CrashHandler.WaitForSessionToContinue(() => shuttingDown.Dequeue(), sleeps.Add);
+        CrashHandler.WaitForSessionToContinue(shuttingDown.Dequeue, sleeps.Add);
 
         Assert.Empty(shuttingDown);
         Assert.Equal(

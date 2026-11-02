@@ -19,22 +19,22 @@ namespace System
             _value = fromEnd ? ~value : value;
         }
 
-        public static Index Start => new Index(0);
+        public static Index Start => new(0);
 
-        public static Index End => new Index(0, fromEnd: true);
+        public static Index End => new(0, fromEnd: true);
 
         public int Value => _value < 0 ? ~_value : _value;
 
         public bool IsFromEnd => _value < 0;
 
-        public static Index FromStart(int value) => new Index(value);
+        public static Index FromStart(int value) => new(value);
 
-        public static Index FromEnd(int value) => new Index(value, fromEnd: true);
+        public static Index FromEnd(int value) => new(value, fromEnd: true);
 
         /// <summary>Resolves this position against a known collection length.</summary>
         public int GetOffset(int length) => IsFromEnd ? length + _value + 1 : _value;
 
-        public static implicit operator Index(int value) => new Index(value);
+        public static implicit operator Index(int value) => new(value);
 
         public bool Equals(Index other) => _value == other._value;
 
@@ -52,11 +52,11 @@ namespace System
 
         public Index End { get; } = end;
 
-        public static Range All => new Range(Index.Start, Index.End);
+        public static Range All => new(Index.Start, Index.End);
 
-        public static Range StartAt(Index start) => new Range(start, Index.End);
+        public static Range StartAt(Index start) => new(start, Index.End);
 
-        public static Range EndAt(Index end) => new Range(Index.Start, end);
+        public static Range EndAt(Index end) => new(Index.Start, end);
 
         public bool Equals(Range other) => Start.Equals(other.Start) && End.Equals(other.End);
 

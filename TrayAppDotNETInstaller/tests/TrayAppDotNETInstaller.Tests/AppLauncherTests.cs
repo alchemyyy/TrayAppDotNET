@@ -26,8 +26,6 @@ public sealed class AppLauncherTests
     }
 
     [Fact]
-    public void FormatArguments_IsEmptyWithoutArguments()
-    {
+    public void FormatArguments_IsEmptyWithoutArguments() =>
         Assert.Equal(string.Empty, AppLauncher.FormatArguments([]));
-    }
 }
