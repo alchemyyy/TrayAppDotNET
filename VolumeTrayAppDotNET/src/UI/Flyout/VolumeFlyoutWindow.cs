@@ -327,7 +327,6 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
                     device,
                     visibleGroupsByDevice[device],
                     flyoutPalette,
-                    index == 0,
                     index == devices.Count - 1));
             }
 
@@ -552,7 +551,6 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
         AudioDevice device,
         List<AudioAppGroup> groups,
         FlyoutPalette p,
-        bool isFirst,
         bool isLast)
     {
         bool expanded = IsAppDrawerExpanded(device);
@@ -1658,7 +1656,6 @@ public sealed partial class VolumeFlyoutWindow : FlyoutWindowCommon
     {
         if (!device.IsCaptureDevice || !_settings.ShowListenButtonForRecording) return null;
 
-        VolumeFlyoutContentGeneration content = BuildingContent;
         Border? button = null;
         button = DeviceIconButton(GlyphCatalog.EAR_LISTEN, p, e =>
         {

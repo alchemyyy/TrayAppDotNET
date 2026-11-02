@@ -48,7 +48,7 @@ public sealed class DetachedCleanupTests : IDisposable
         File.WriteAllText(file, "in use");
 
         Process process;
-        using (FileStream holder = new(file, FileMode.Open, FileAccess.Read, FileShare.Read))
+        using (new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read))
         {
             process = Start([new DetachedCleanupTarget(DetachedCleanupAction.DeleteFile, file)]);
             Thread.Sleep(1500);

@@ -44,11 +44,7 @@ public sealed class DeviceSettingsTests
             DeviceSettings settings = new();
             settings.GetOrCreate("locked-temporary-file").CustomFriendlyName = "Headphones";
 
-            using (FileStream legacyTemporaryFile = new(
-                       legacyTemporaryPath,
-                       FileMode.Create,
-                       FileAccess.ReadWrite,
-                       FileShare.None))
+            using (new FileStream(legacyTemporaryPath, FileMode.Create, FileAccess.ReadWrite, FileShare.None))
                 TrayXmlSerializer.WriteFile(path, settings);
 
             DeviceSettings loaded = DeviceSettings.LoadOrDefault(path);

@@ -438,7 +438,7 @@ public sealed partial class EnvironmentalCurveEditor
                 double cursor = plotMid - totalWidth / 2.0;
                 foreach (int entryIndex in cluster)
                 {
-                    (Series series, LimitKind kind, TextLayout text, double left, double top, double width,
+                    (Series series, LimitKind kind, TextLayout text, _, double top, double width,
                         double height) = entries[entryIndex];
                     entries[entryIndex] = (series, kind, text, cursor, top, width, height);
                     cursor += width + horizontalGap;

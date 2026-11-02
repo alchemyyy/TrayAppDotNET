@@ -533,7 +533,7 @@ internal static class SettingsSearchScorer
     private static int RuneLength(string value)
     {
         int length = 0;
-        foreach (Rune rune in value.EnumerateRunes())
+        foreach (Rune _ in value.EnumerateRunes())
             length++;
         return length;
     }

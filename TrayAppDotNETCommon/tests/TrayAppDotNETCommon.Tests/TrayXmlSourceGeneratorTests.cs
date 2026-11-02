@@ -19,7 +19,7 @@ public sealed class TrayXmlSourceGeneratorTests
     {
         GeneratedAssembly generated = GeneratorHost.CompileAndLoad(RichModelSource);
         Type settingsType = generated.Assembly.GetRequiredType("GeneratorSamples.Settings");
-        Type childType = generated.Assembly.GetRequiredType("GeneratorSamples.Child");
+        _ = generated.Assembly.GetRequiredType("GeneratorSamples.Child");
         Type pointType = generated.Assembly.GetRequiredType("GeneratorSamples.Point");
         Type entryType = generated.Assembly.GetRequiredType("GeneratorSamples.Entry");
         Type modeType = generated.Assembly.GetRequiredType("GeneratorSamples.Mode");

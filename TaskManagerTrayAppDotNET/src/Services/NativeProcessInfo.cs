@@ -472,12 +472,12 @@ internal static unsafe class NativeProcessInfo
         uint nameLength = 0;
         uint domainLength = 0;
         _ = LookupAccountSidW(systemName: null, sid, name: null, ref nameLength, referencedDomainName: null,
-            ref domainLength, out int use);
+            ref domainLength, out _);
         if (Marshal.GetLastPInvokeError() != ErrorInsufficientBuffer || nameLength == 0) return Unavailable;
 
         StringBuilder name = new((int)nameLength);
         StringBuilder domain = new((int)Math.Max(val1: 1, domainLength));
-        if (!LookupAccountSidW(systemName: null, sid, name, ref nameLength, domain, ref domainLength, out use))
+        if (!LookupAccountSidW(systemName: null, sid, name, ref nameLength, domain, ref domainLength, out _))
             return Unavailable;
 
         return domain.Length == 0 ? name.ToString() : string.Concat(domain, arg1: "\\", name);
@@ -493,7 +493,7 @@ internal static unsafe class NativeProcessInfo
             IntPtr buffer = Marshal.AllocHGlobal(sizeof(int));
             try
             {
-                if (!GetTokenInformation(tokenHandle, informationClass, buffer, sizeof(int), out int returnedLength))
+                if (!GetTokenInformation(tokenHandle, informationClass, buffer, sizeof(int), out _))
                     return false;
                 value = Marshal.ReadInt32(buffer);
                 return true;
