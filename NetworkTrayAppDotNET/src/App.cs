@@ -11,7 +11,6 @@ using Avalonia.Threading;
 using NetworkTrayAppDotNET.Interop;
 using NetworkTrayAppDotNET.Models;
 using NetworkTrayAppDotNET.Services;
-using NetworkTrayAppDotNET.UI;
 using NetworkTrayAppDotNET.UI.Settings;
 
 namespace NetworkTrayAppDotNET;

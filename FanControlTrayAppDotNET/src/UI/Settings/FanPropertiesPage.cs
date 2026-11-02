@@ -3,7 +3,6 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
-using FanControlTrayAppDotNET.Services;
 using TrayAppDotNETCommon.UI.ControlMapping;
 using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 

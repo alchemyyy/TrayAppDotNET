@@ -1,7 +1,5 @@
-using System.Diagnostics;
 using System.IO.Pipes;
 using System.Text;
-using TrayAppDotNETCommon.Services;
 using TrayAppDotNETCommon.Services.Ipc;
 
 namespace TaskManagerTrayAppDotNET.Services;

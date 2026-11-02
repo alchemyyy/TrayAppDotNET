@@ -2,7 +2,6 @@ using Avalonia.Threading;
 using BrightnessTrayAppDotNET.Interop.NightLight;
 using BrightnessTrayAppDotNET.UI.Flyout;
 using BrightnessTrayAppDotNET.Utils;
-using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services;
 using TrayAppDotNETCommon.Services.Install;
 using BrightnessHotkeyBinding = BrightnessTrayAppDotNET.Models.HotkeyBinding;

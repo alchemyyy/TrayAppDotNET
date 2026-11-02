@@ -1,6 +1,4 @@
-using Avalonia;
 using Avalonia.LogicalTree;
-using Avalonia.Themes.Fluent;
 using TaskManagerTrayAppDotNET.Models;
 using TaskManagerTrayAppDotNET.UI.ProcessesPage;
 using TrayAppDotNETCommon.UI.Controls;

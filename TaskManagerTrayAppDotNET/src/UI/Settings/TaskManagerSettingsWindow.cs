@@ -1,14 +1,6 @@
-using System.ComponentModel;
 using System.Globalization;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Media;
 using TrayAppDotNETCommon.UI.ControlMapping;
-using TrayAppDotNETCommon.UI.Controls;
-using TrayAppDotNETCommon.UI;
-using TrayAppDotNETCommon.UI.Settings;
 using TrayAppDotNETCommon.Visuals;
-using TaskManagerTrayAppDotNET.Services;
 using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
 
 namespace TaskManagerTrayAppDotNET.UI;

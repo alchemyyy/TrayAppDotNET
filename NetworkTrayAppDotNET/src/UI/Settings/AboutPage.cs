@@ -1,7 +1,5 @@
 using Avalonia.Controls;
 using NetworkTrayAppDotNET.Models;
-using TrayAppDotNETCommon.UI;
-using TrayAppDotNETCommon.UI.Settings;
 
 namespace NetworkTrayAppDotNET.UI.Settings;
 

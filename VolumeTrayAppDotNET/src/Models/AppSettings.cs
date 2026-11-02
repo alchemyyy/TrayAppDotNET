@@ -1,5 +1,4 @@
 using System.Xml.Serialization;
-using TrayAppDotNETCommon.Serialization;
 using Color = Avalonia.Media.Color;
 
 namespace VolumeTrayAppDotNET.Models;

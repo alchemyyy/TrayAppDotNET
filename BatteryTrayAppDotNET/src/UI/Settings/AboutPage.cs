@@ -1,5 +1,4 @@
 using Avalonia.Controls;
-using TrayAppDotNETCommon.UI;
 
 namespace BatteryTrayAppDotNET.UI.Settings;
 

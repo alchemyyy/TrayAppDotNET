@@ -1,5 +1,4 @@
 using System.Globalization;
-using TaskManagerTrayAppDotNET.Models;
 
 namespace TaskManagerTrayAppDotNET.Services;
 

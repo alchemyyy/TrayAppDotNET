@@ -3,12 +3,10 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
-using Avalonia.Themes.Fluent;
 using Avalonia.Threading;
 using TaskManagerTrayAppDotNET.Models;
 using TaskManagerTrayAppDotNET.UI;
 using TaskManagerTrayAppDotNET.UI.ProcessesPage;
-using TrayAppDotNETCommon.UI.Controls;
 using Xunit;
 
 namespace TaskManagerTrayAppDotNET.Tests;

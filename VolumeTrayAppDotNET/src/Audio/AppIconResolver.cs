@@ -1,10 +1,5 @@
-using System.Runtime.InteropServices;
 using System.Text;
-using Avalonia;
 using Avalonia.Media;
-using Avalonia.Media.Imaging;
-using Avalonia.Platform;
-using TrayAppDotNETCommon.Utils;
 
 namespace VolumeTrayAppDotNET.Audio;
 

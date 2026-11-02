@@ -1,4 +1,3 @@
-using TrayAppDotNETCommon.UI.ContextMenus;
 using TrayLocalization = TrayAppDotNETCommon.Localization.LocalizationManager;
 
 namespace BrightnessTrayAppDotNET.UI.Tray;

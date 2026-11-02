@@ -1,5 +1,3 @@
-using TaskManagerTrayAppDotNET.Models;
-
 namespace TaskManagerTrayAppDotNET.Services;
 
 /// <summary>Retains the latest valid network rate across process snapshot schemas.</summary>

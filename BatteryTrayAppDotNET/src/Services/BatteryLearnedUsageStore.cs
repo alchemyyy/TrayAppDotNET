@@ -1,5 +1,4 @@
 using System.Globalization;
-using BatteryTrayAppDotNET.Models;
 using TrayAppDotNETCommon.Serialization;
 
 namespace BatteryTrayAppDotNET.Services;

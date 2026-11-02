@@ -1,8 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.ApplicationLifetimes;
 using TrayAppDotNETCommon.Models;
-using TrayAppDotNETCommon.Services;
 using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Controls;
 

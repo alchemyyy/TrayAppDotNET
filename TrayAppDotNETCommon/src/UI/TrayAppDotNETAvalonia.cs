@@ -1,16 +1,11 @@
-using System.Globalization;
 using System.Xml;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Media;
 using Avalonia.Themes.Fluent;
 using Avalonia.Threading;
-using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services;
-using TrayAppDotNETCommon.Services.Install;
-using TrayAppDotNETCommon.Utils;
 
 namespace TrayAppDotNETCommon.UI;
 

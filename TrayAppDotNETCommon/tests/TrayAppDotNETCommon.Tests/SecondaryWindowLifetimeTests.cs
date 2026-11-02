@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Controls;
@@ -15,7 +14,6 @@ using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.WarmWindows;
 using Xunit;
-using ControlMap = TrayAppDotNETCommon.UI.ControlMap;
 
 namespace TrayAppDotNETCommon.Tests;
 

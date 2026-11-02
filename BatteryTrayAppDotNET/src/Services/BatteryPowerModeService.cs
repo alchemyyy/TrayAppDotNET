@@ -1,6 +1,3 @@
-using BatteryTrayAppDotNET.Models;
-using TrayAppDotNETCommon.Services;
-
 namespace BatteryTrayAppDotNET.Services;
 
 /// <summary>Keeps the latest requested power mode visible while serializing OS writes and guarded reads.</summary>

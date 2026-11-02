@@ -1,6 +1,4 @@
 using System.Xml.Serialization;
-using Avalonia.Media;
-using NetworkTrayAppDotNET.Models;
 using TrayAppDotNETCommon.Visuals;
 
 namespace NetworkTrayAppDotNET.Visuals;

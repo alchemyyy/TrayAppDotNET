@@ -5,7 +5,6 @@ using Avalonia.Layout;
 using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Settings;
-using BrightnessInstallScope = TrayAppDotNETCommon.Models.InstallScope;
 
 namespace BrightnessTrayAppDotNET.UI.Settings;
 

@@ -1,12 +1,10 @@
 using System.Reflection;
 using Avalonia;
 using Avalonia.Input;
-using Avalonia.Themes.Fluent;
 using TaskManagerTrayAppDotNET.Models;
 using TaskManagerTrayAppDotNET.Services;
 using TaskManagerTrayAppDotNET.UI;
 using TaskManagerTrayAppDotNET.UI.ProcessesPage;
-using TrayAppDotNETCommon.UI.Controls;
 using Xunit;
 
 namespace TaskManagerTrayAppDotNET.Tests;

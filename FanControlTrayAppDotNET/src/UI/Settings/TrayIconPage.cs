@@ -1,5 +1,4 @@
 using Avalonia.Controls;
-using TrayAppDotNETCommon.UI.ControlMapping;
 
 namespace FanControlTrayAppDotNET.UI.Settings;
 

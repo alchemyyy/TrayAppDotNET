@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using Avalonia;
 using Avalonia.Media.Imaging;
 using TrayAppDotNETCommon.UI.Tray;
 using Xunit;

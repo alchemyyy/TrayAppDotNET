@@ -1,5 +1,3 @@
-using System.Runtime.InteropServices;
-
 namespace TaskManagerTrayAppDotNET.Services;
 
 /// <summary>Finds processes that own a hung user-interactive window, using Task Manager's window rules.</summary>

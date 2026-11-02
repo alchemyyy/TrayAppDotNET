@@ -1,5 +1,3 @@
-using BatteryTrayAppDotNET.Models;
-
 namespace BatteryTrayAppDotNET.Services;
 
 /// <summary>Estimates battery time from monotonic observations without querying hardware or wall-clock time.</summary>

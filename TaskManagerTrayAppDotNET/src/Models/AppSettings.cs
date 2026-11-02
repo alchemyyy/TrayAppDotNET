@@ -1,5 +1,4 @@
 using System.Xml.Serialization;
-using TrayAppDotNETCommon.Serialization;
 
 namespace TaskManagerTrayAppDotNET.Models;
 

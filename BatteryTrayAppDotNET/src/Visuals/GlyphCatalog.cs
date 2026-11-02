@@ -1,4 +1,3 @@
-using TrayAppDotNETCommon.Visuals;
 using CommonGlyphCatalog = TrayAppDotNETCommon.Visuals.GlyphCatalog;
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;
 

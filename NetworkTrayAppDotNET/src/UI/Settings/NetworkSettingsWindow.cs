@@ -1,8 +1,6 @@
 #pragma warning disable CA1822
 
-using Avalonia.Controls;
 using NetworkTrayAppDotNET.Models;
-using TrayAppDotNETCommon.UI.Settings;
 using CommonSettingsNavigationGlyphs = TrayAppDotNETCommon.Visuals.SettingsNavigationGlyphs;
 
 namespace NetworkTrayAppDotNET.UI.Settings;

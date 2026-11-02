@@ -11,7 +11,6 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using FanControlTrayAppDotNET.Services;
-using FanControlTrayAppDotNET.UI.Settings;
 using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Drag;
 using Glyph = TrayAppDotNETCommon.Visuals.Glyph;

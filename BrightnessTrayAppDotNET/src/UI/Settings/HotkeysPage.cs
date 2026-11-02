@@ -1,7 +1,6 @@
 using System.Globalization;
 using Avalonia.Controls;
 using Avalonia.Layout;
-using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.UI.Settings;

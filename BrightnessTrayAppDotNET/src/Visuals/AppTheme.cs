@@ -1,9 +1,5 @@
 using System.Xml.Serialization;
-using Avalonia.Controls;
 using Avalonia.Media;
-using Avalonia.Platform;
-using TrayAppDotNETCommon.UI;
-using TrayAppDotNETCommon.UI.Tray;
 using TrayAppDotNETCommon.Visuals;
 using CommonAppTheme = TrayAppDotNETCommon.Visuals.AppTheme;
 

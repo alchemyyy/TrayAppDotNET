@@ -1,5 +1,3 @@
-using TaskManagerTrayAppDotNET.Models;
-
 namespace TaskManagerTrayAppDotNET.UI.ProcessesPage;
 
 internal readonly record struct ProcessSelectionResult(

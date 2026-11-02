@@ -1,5 +1,4 @@
 using Avalonia.Controls;
-using TrayAppDotNETCommon.UI;
 using TrayAppDotNETCommon.UI.Settings;
 
 namespace VolumeTrayAppDotNET.UI.Settings;

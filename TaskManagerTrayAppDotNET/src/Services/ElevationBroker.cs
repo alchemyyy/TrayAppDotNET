@@ -1,8 +1,6 @@
 using System.IO.Pipes;
 using System.Text;
 using Microsoft.Win32.SafeHandles;
-using TaskManagerTrayAppDotNET.Models;
-using TrayAppDotNETCommon.Interop;
 using TrayAppDotNETCommon.Services.Ipc;
 
 namespace TaskManagerTrayAppDotNET.Services;

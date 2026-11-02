@@ -1,4 +1,3 @@
-using Avalonia.Controls;
 using Avalonia.Media;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services.Install;

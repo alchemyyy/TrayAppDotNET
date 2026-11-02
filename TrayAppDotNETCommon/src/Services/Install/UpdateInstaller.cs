@@ -6,7 +6,6 @@ using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text;
 using TrayAppDotNETCommon.Interop;
-using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services.Ipc;
 using TrayAppDotNETCommon.Utils;

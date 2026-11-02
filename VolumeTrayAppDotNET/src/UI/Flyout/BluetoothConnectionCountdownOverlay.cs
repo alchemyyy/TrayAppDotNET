@@ -4,7 +4,6 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Avalonia.Threading;
-using TrayAppDotNETCommon.UI;
 
 namespace VolumeTrayAppDotNET.UI.Flyout;
 

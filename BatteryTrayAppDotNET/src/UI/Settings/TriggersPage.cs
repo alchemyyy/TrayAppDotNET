@@ -8,8 +8,6 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 using TrayAppDotNETCommon.UI.ControlMapping;
-using TrayAppDotNETCommon.UI.Settings;
-using GlyphApplicator = TrayAppDotNETCommon.Visuals.GlyphApplicator;
 
 namespace BatteryTrayAppDotNET.UI.Settings;
 

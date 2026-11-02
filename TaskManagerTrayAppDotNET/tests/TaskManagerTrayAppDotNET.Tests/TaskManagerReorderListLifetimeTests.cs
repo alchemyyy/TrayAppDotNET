@@ -1,8 +1,6 @@
 #if DEBUG
 using System.Reflection;
-using Avalonia;
 using TaskManagerTrayAppDotNET.UI;
-using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.Visuals;
 using Xunit;
 

@@ -4,7 +4,6 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
 using TrayAppDotNETCommon.Interop;
-using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.Utils;
 
 namespace TrayAppDotNETCommon;

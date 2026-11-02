@@ -1,7 +1,5 @@
 using System.Reflection;
-using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Themes.Fluent;
 using TaskManagerTrayAppDotNET.Models;
 using TaskManagerTrayAppDotNET.Services;
 using TaskManagerTrayAppDotNET.UI;

@@ -1,12 +1,10 @@
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Layout;
 using Avalonia.Threading;
 using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.Models;
-using TrayAppDotNETCommon.Services;
 using TrayAppDotNETCommon.Services.Install;
 using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Controls;

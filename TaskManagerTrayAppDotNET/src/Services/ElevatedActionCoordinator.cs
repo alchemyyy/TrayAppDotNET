@@ -1,6 +1,5 @@
 using System.Globalization;
 using Microsoft.Win32.SafeHandles;
-using TaskManagerTrayAppDotNET.Models;
 
 namespace TaskManagerTrayAppDotNET.Services;
 

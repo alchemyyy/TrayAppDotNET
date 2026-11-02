@@ -3,7 +3,6 @@ using GlyphCatalogHotReload = TrayAppDotNETCommon.Visuals.GlyphCatalogHotReload;
 #endif
 using System.Collections.Specialized;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
@@ -13,7 +12,6 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
-using Avalonia.VisualTree;
 using VolumeTrayAppDotNET.Audio;
 using VolumeTrayAppDotNET.Interop;
 using TrayAppDotNETCommon.UI.ControlMapping;

@@ -1,6 +1,5 @@
 using System.Globalization;
 using TrayAppDotNETCommon.Localization;
-using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.UI;
 using Xunit;
 
