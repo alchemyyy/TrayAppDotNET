@@ -43,7 +43,7 @@ history holds at most 36,000 samples). PDH counters are set up lazily on that th
 setup fails; the CPU sample covers every processor group; the D3D12 feature level is probed once per adapter without
 creating a device; physical-memory metadata is read from WMI in a background task with bounded waits and retries.
 
-### Render-thread row hover
+### Render-thread hover
 
 Process-row hover is a non-hit-testable `CompositionCustomVisual`, not a UI-thread pointer-event effect.
 `ProcessTableCanvas` publishes immutable table geometry only when structural table state changes.
@@ -58,6 +58,14 @@ minimized. `GPUPreferred` is the default rendering backend; software rendering r
 The implementation is in `src/UI/ProcessesPage/ProcessRowHoverVisual.cs`, with geometry produced by
 `src/UI/ProcessesPage/ProcessTableCanvas.cs`. The full design and verification checklist are in
 `../.agents/UI_TRAY_PLAYBOOK.md`.
+
+Performance graphs draw their hover line and metric label the same way, through
+`src/UI/Performance/PerformanceGraphHoverPresenter.cs`. Each graph's sampling clock runs only after the UI thread sees
+the pointer enter its hover area, which includes a logical-processor graph's trailing hit-test spacing. Movement and
+exit are then handled on the render thread: the line snaps to the nearest sample (or follows the pointer on the disk
+and GPU memory graphs), and the label and the gap the line leaves around it move with every frame. Text cannot be
+shaped on the render thread, so the UI thread lays out the label for its own latest pointer sample and hands over its
+glyph runs; during fast movement the label's number can trail the line by the UI thread's latency.
 
 ## Termination path
 

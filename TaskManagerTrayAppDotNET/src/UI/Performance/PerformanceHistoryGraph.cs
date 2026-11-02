@@ -3,7 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
-using Avalonia.Media.TextFormatting;
+using Avalonia.Media.Immutable;
 
 namespace TaskManagerTrayAppDotNET.UI.Performance;
 
@@ -13,14 +13,7 @@ internal sealed class PerformanceHistoryGraph : Control
     private readonly IBrush _backgroundBrush;
     private readonly Pen _borderPen;
     private readonly Pen _gridPen;
-    private readonly Pen _hoverLinePen;
-    private readonly Pen _hoverLineTerminalPen;
-    private readonly IBrush _hoverTextBrush;
-    private readonly Typeface _hoverTypeface;
-    private readonly double _hoverFontSize;
-    private readonly double _hoverLineClipPadding;
-    private readonly double _hoverLineDashGapLength;
-    private readonly double _hoverTextCursorGap;
+    private readonly PerformanceGraphHoverPresenter _hover;
     private readonly double _hoverTextInset;
     private readonly int _hoverMaximumTextLines;
     private readonly double _lineThickness;
@@ -38,7 +31,11 @@ internal sealed class PerformanceHistoryGraph : Control
     private Pen _secondaryLinePen;
     private IBrush _underfillBrush;
     private Point _hoverPointerPosition;
-    private bool _isPointerOver;
+    private Size _hoverTrailingExtent;
+    private double[] _hoverSampleFractions = [];
+    private PerformanceHistory? _hoverTimelineHistory;
+    private int _hoverTimelineCount;
+    private long _hoverTimelineTimestamp;
     private bool _showUnderfill = true;
 
     public PerformanceHistoryGraph(
@@ -74,32 +71,33 @@ internal sealed class PerformanceHistoryGraph : Control
                 resources.AxamlTaskManagerPerformance.GraphHoverLineOpacity,
                 min: 0,
                 max: 1));
-        IBrush hoverLineBrush = new SolidColorBrush(Color.FromArgb(
+        ImmutableSolidColorBrush hoverLineBrush = new(Color.FromArgb(
             hoverLineAlpha,
             hoverLineColor.R,
             hoverLineColor.G,
             hoverLineColor.B));
         double hoverLineThickness =
             resources.AxamlTaskManagerPerformance.GraphHoverLineThickness;
-        // AXAML hot-reload exception: DashStyle is not a linker-supported AXAML primitive, so
-        // the immutable Pen retains Avalonia's built-in Dash preset
-        _hoverLinePen = new Pen(
-            hoverLineBrush,
-            hoverLineThickness,
-            DashStyle.Dash);
-        _hoverLineTerminalPen = new Pen(hoverLineBrush, hoverLineThickness);
-        _hoverTextBrush = TrayAppDotNETSettingsUI.Brush(palette.Foreground);
-        _hoverTypeface = new Typeface(TrayAppDotNETSettingsUI.UIFont);
-        _hoverFontSize = resources.AxamlTaskManagerPerformance.DeviceSummaryFontSize;
-        _hoverLineClipPadding =
-            resources.AxamlTaskManagerPerformance.GraphHoverLineClipPadding;
-        _hoverLineDashGapLength =
-            resources.AxamlTaskManagerPerformance.GraphHoverLineDashGapLength;
-        _hoverTextCursorGap = resources.AxamlTaskManagerPerformance.GraphHoverTextCursorGap;
         _hoverTextInset = resources.AxamlTaskManagerPerformance.GraphHoverTextInset;
         _hoverMaximumTextLines = Math.Max(
             val1: 1,
             resources.AxamlTaskManagerPerformance.GraphHoverMaximumTextLines);
+        _hover = new PerformanceGraphHoverPresenter(
+            this,
+            new PerformanceGraphHoverStyle(
+                new PerformanceGraphHoverMetrics(
+                    PerformanceGraphHoverLineMode.SnapToSample,
+                    _hoverTextInset,
+                    resources.AxamlTaskManagerPerformance.GraphHoverTextCursorGap,
+                    resources.AxamlTaskManagerPerformance.GraphHoverLineClipPadding,
+                    hoverLineThickness * resources.AxamlTaskManagerPerformance.GraphHoverLineDashGapLength),
+                // AXAML hot-reload exception: DashStyle is not a linker-supported AXAML primitive, so
+                // the immutable Pen retains Avalonia's built-in Dash preset
+                new ImmutablePen(hoverLineBrush, hoverLineThickness, DashStyle.Dash.ToImmutable()),
+                new ImmutablePen(hoverLineBrush, hoverLineThickness),
+                palette.Foreground,
+                new Typeface(TrayAppDotNETSettingsUI.UIFont),
+                resources.AxamlTaskManagerPerformance.DeviceSummaryFontSize));
         _lineThickness = resources.AxamlTaskManagerPerformance.GraphLineThickness;
         _secondaryLineThickness =
             resources.AxamlTaskManagerPerformance.GraphSecondaryLineThickness;
@@ -126,6 +124,7 @@ internal sealed class PerformanceHistoryGraph : Control
         ArgumentNullException.ThrowIfNull(history);
         _history = history;
         InvalidateVisual();
+        UpdateHover();
     }
 
     /// <summary>Changes the optional history drawn beneath the primary utilization trace.</summary>
@@ -158,12 +157,35 @@ internal sealed class PerformanceHistoryGraph : Control
     }
 
     /// <summary>Schedules a repaint after the current history receives a sample.</summary>
-    public void Refresh() => InvalidateVisual();
+    public void Refresh()
+    {
+        InvalidateVisual();
+        UpdateHover();
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs eventArgs)
+    {
+        base.OnAttachedToVisualTree(eventArgs);
+        _hover.Attach();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs eventArgs)
+    {
+        _hover.Detach();
+        base.OnDetachedFromVisualTree(eventArgs);
+    }
+
+    protected override void OnSizeChanged(SizeChangedEventArgs eventArgs)
+    {
+        base.OnSizeChanged(eventArgs);
+        _hover.SetSize(eventArgs.NewSize);
+        UpdateHover();
+    }
 
     protected override void OnPointerEntered(PointerEventArgs eventArgs)
     {
         base.OnPointerEntered(eventArgs);
-        TrackPointer(eventArgs.GetPosition(this));
+        TrackPointer(eventArgs.GetLatestPosition(this));
     }
 
     protected override void OnPointerMoved(PointerEventArgs eventArgs)
@@ -178,23 +200,70 @@ internal sealed class PerformanceHistoryGraph : Control
         ClearPointer();
     }
 
+    /// <summary>Extends the hover area over the hit-test spacing an enclosing hit target adds after the graph.</summary>
+    internal void SetHoverTrailingExtent(Size trailingExtent)
+    {
+        _hoverTrailingExtent = trailingExtent;
+        UpdateHover();
+    }
+
     /// <summary>Tracks a pointer supplied by this graph or an enclosing hit target.</summary>
     internal void TrackPointer(Point pointerPosition)
     {
-        if (_isPointerOver && _hoverPointerPosition == pointerPosition) return;
-
-        _isPointerOver = true;
         _hoverPointerPosition = pointerPosition;
-        InvalidateVisual();
+        _hover.SetPointerOver(true);
+        UpdateHover();
     }
 
     /// <summary>Clears hover state when the pointer leaves this graph's full hit target.</summary>
-    internal void ClearPointer()
-    {
-        if (!_isPointerOver) return;
+    internal void ClearPointer() => _hover.SetPointerOver(false);
 
-        _isPointerOver = false;
-        InvalidateVisual();
+    /// <summary>Sends the render-thread hover the current timeline and the label for the latest UI pointer sample.</summary>
+    private void UpdateHover()
+    {
+        if (!_hover.IsActive) return;
+
+        // Snapshot the timeline only after the history changes, not on every pointer move
+        if (!ReferenceEquals(_hoverTimelineHistory, _history)
+            || _hoverTimelineCount != _history.Count
+            || _hoverTimelineTimestamp != _history.CurrentTimestamp)
+        {
+            _hoverSampleFractions = PerformanceHistoryGraphLayout.CreateSampleFractions(_history);
+            _hoverTimelineHistory = _history;
+            _hoverTimelineCount = _history.Count;
+            _hoverTimelineTimestamp = _history.CurrentTimestamp;
+        }
+
+        Size graphSize = Bounds.Size;
+        double maximumTextWidth = Math.Max(val1: 0, graphSize.Width - _hoverTextInset * 2);
+        bool hasSample = PerformanceHistoryGraphLayout.TryGetHoverSample(
+            _hoverSampleFractions,
+            _hoverPointerPosition.X,
+            graphSize.Width,
+            out int sampleIndex,
+            out _);
+        _hover.Update(
+            graphSize,
+            new Rect(
+                x: 0,
+                y: 0,
+                graphSize.Width + _hoverTrailingExtent.Width,
+                graphSize.Height + _hoverTrailingExtent.Height),
+            _hoverSampleFractions,
+            hasSample,
+            hasSample && maximumTextWidth > 0 ? FormatHoverMetric(sampleIndex) : null,
+            maximumTextWidth,
+            _hoverMaximumTextLines);
+    }
+
+    private string FormatHoverMetric(int sampleIndex)
+    {
+        string? providedMetric = _hoverMetricProvider?.Invoke(_history.GetTimestampChronological(sampleIndex));
+        return string.IsNullOrEmpty(providedMetric)
+            ? string.Concat(
+                _history.GetChronological(sampleIndex).ToString(format: "N0", CultureInfo.CurrentCulture),
+                str1: "%")
+            : providedMetric;
     }
 
     public override void Render(DrawingContext context)
@@ -223,119 +292,6 @@ internal sealed class PerformanceHistoryGraph : Control
         if (_secondaryHistory != null)
             DrawHistoryTrace(context, _secondaryHistory, _secondaryLinePen, width, height);
         DrawHistoryTrace(context, _history, _linePen, width, height);
-
-        DrawHover(context, width, height);
-    }
-
-    /// <summary>Draws the hovered sample marker and its bounded metric label.</summary>
-    private void DrawHover(DrawingContext context, double width, double height)
-    {
-        if (!_isPointerOver
-            || !PerformanceHistoryGraphLayout.TryGetHoverSample(
-                _history,
-                _hoverPointerPosition.X,
-                width,
-                out PerformanceHistoryGraphHoverSample sample))
-            return;
-
-        double maximumTextWidth = Math.Max(val1: 0, width - _hoverTextInset * 2);
-        if (maximumTextWidth <= 0)
-        {
-            context.DrawLine(
-                _hoverLinePen,
-                new Point(sample.PositionX, y: 0),
-                new Point(sample.PositionX, height));
-            return;
-        }
-
-        string? providedMetric = _hoverMetricProvider?.Invoke(sample.Timestamp);
-        string metric = string.IsNullOrEmpty(providedMetric)
-            ? string.Concat(
-                sample.Value.ToString(format: "N0", CultureInfo.CurrentCulture),
-                str1: "%")
-            : providedMetric;
-        using TextLayout metricText = new(
-            metric,
-            _hoverTypeface,
-            _hoverFontSize,
-            _hoverTextBrush,
-            textWrapping: TextWrapping.NoWrap,
-            textTrimming: TextTrimming.CharacterEllipsis,
-            maxWidth: maximumTextWidth,
-            maxLines: _hoverMaximumTextLines);
-
-        double preferredTextLeft = sample.PositionX - metricText.Width / 2;
-        double textLeft = ClampMetricCoordinate(
-            preferredTextLeft,
-            width,
-            metricText.Width);
-        double preferredTextTop = _hoverPointerPosition.Y
-                                  - _hoverTextCursorGap
-                                  - metricText.Height;
-        double textTop = ClampMetricCoordinate(
-            preferredTextTop,
-            height,
-            metricText.Height);
-        Rect textBounds = new(textLeft, textTop, metricText.Width, metricText.Height);
-        double metricInkBottom = textBounds.Top
-                                 + metricText.Height
-                                 + metricText.OverhangAfter;
-        double metricInkTop = metricInkBottom - metricText.Extent;
-        DrawHoverLineAroundMetric(
-            context,
-            sample.PositionX,
-            height,
-            metricInkTop,
-            metricInkBottom);
-        metricText.Draw(context, textBounds.TopLeft);
-    }
-
-    /// <summary>Clamps one label coordinate while preserving an edge inset when space permits.</summary>
-    private double ClampMetricCoordinate(
-        double preferredCoordinate,
-        double availableLength,
-        double metricLength)
-    {
-        double maximumCoordinate = Math.Max(val1: 0, availableLength - metricLength);
-        double edgeInset = Math.Min(_hoverTextInset, maximumCoordinate / 2);
-        return Math.Clamp(
-            preferredCoordinate,
-            edgeInset,
-            maximumCoordinate - edgeInset);
-    }
-
-    /// <summary>Draws the indicator above and below a transparent gap around the metric text.</summary>
-    private void DrawHoverLineAroundMetric(
-        DrawingContext context,
-        double positionX,
-        double height,
-        double metricInkTop,
-        double metricInkBottom)
-    {
-        double upperLineEnd = Math.Clamp(metricInkTop - _hoverLineClipPadding, min: 0, height);
-        double lowerLineStart = Math.Clamp(metricInkBottom + _hoverLineClipPadding, min: 0, height);
-        if (upperLineEnd > 0)
-        {
-            context.DrawLine(
-                _hoverLinePen,
-                new Point(positionX, y: 0),
-                new Point(positionX, upperLineEnd));
-            double terminalStart = Math.Max(
-                val1: 0,
-                upperLineEnd - _hoverLineTerminalPen.Thickness * _hoverLineDashGapLength);
-            context.DrawLine(
-                _hoverLineTerminalPen,
-                new Point(positionX, terminalStart),
-                new Point(positionX, upperLineEnd));
-        }
-
-        if (lowerLineStart < height)
-        {
-            context.DrawLine(
-                _hoverLinePen,
-                new Point(positionX, lowerLineStart),
-                new Point(positionX, height));
-        }
     }
 
     /// <summary>Draws one history against its fixed-duration timeline.</summary>

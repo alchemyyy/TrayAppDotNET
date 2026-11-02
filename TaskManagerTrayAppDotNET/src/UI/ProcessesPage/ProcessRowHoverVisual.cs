@@ -455,20 +455,13 @@ internal sealed class ProcessRowHoverVisual : Control, IDisposable
         {
             if (!_isRunning
                 || !_state.HasCoordinateMap
-                || !User32.GetCursorPos(out User32.POINT screenPosition))
+                || !RenderThreadCursor.TryGetLocalPosition(
+                    windowHandle,
+                    _state.ClientOrigin,
+                    _state.RenderScaling,
+                    out Point localPosition))
                 return -1;
 
-            IntPtr pointedWindow = User32.WindowFromPoint(screenPosition);
-            if (pointedWindow == IntPtr.Zero
-                || User32.GetAncestor(pointedWindow, User32.GA_ROOT) != windowHandle)
-                return -1;
-
-            User32.POINT clientPosition = screenPosition;
-            if (!User32.ScreenToClient(windowHandle, ref clientPosition)) return -1;
-
-            Point localPosition = new(
-                clientPosition.X / _state.RenderScaling - _state.ClientOrigin.X,
-                clientPosition.Y / _state.RenderScaling - _state.ClientOrigin.Y);
             return _state.Geometry.HitTest(localPosition);
         }
 

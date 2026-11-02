@@ -1734,6 +1734,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         {
             _graph = graph;
             _graph.IsHitTestVisible = false;
+            _graph.SetHoverTrailingExtent(new Size(trailingHitTestWidth, trailingHitTestHeight));
             Background = Brushes.Transparent;
             Padding = new Thickness(left: 0, top: 0, trailingHitTestWidth, trailingHitTestHeight);
             Child = graph;
@@ -1742,7 +1743,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         protected override void OnPointerEntered(PointerEventArgs eventArgs)
         {
             base.OnPointerEntered(eventArgs);
-            _graph.TrackPointer(eventArgs.GetPosition(_graph));
+            _graph.TrackPointer(eventArgs.GetLatestPosition(_graph));
         }
 
         protected override void OnPointerMoved(PointerEventArgs eventArgs)

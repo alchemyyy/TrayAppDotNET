@@ -86,8 +86,8 @@ the normal Avalonia UI path.
   property changes to reach the compositor. It does not make hover state render-thread-owned.
 - A dispatcher timer or UI-thread polling loop has the same scheduling limitation and adds latency or extra wakeups.
 
-For native-style process-row hover, the cursor sample, hit test, hover transition, invalidation, and paint decision all
-run in a `CompositionCustomVisualHandler`.
+For native-style process-row and performance-graph hover, the cursor sample, hit test, hover transition,
+invalidation, and paint decision all run in a `CompositionCustomVisualHandler`.
 
 ### Task Manager Architecture
 
@@ -104,6 +104,30 @@ run in a `CompositionCustomVisualHandler`.
 
 The render thread never sends a per-frame message back to the UI thread. Scrolling, layout, column interaction, row
 count changes, and DPI changes cause the UI thread to send a new structural snapshot instead.
+
+### Performance Graph Hover
+
+`PerformanceGraphHoverPresenter` applies the same pattern to `PerformanceHistoryGraph` and
+`PerformanceMetricHistoryGraph`, with these differences:
+
+1. The presenter attaches its `CompositionCustomVisual` as the graph's element child visual instead of a separate
+   overlay control.
+2. The sampling clock runs only while the UI thread reports the pointer over the graph's hover area, so dozens of
+   idle graphs never tick. Entry waits for `PointerEntered`; exit does not, because the handler hides the line as soon
+   as the cursor leaves the hover bounds and keeps sampling until `PointerExited` stops it. A hit target's trailing
+   spacing is part of the hover bounds.
+3. Content messages carry the graph size, the hover bounds, the sample timeline from
+   `PerformanceHistoryGraphLayout.CreateSampleFractions`, and the label. Both threads resolve the snapped sample with
+   `PerformanceHistoryGraphLayout.TryGetHoverSample`, so a still cursor shows the label of the sample under the line.
+4. Text cannot be shaped on the render thread. The UI thread lays out the label for its own latest pointer sample and
+   sends `IImmutableGlyphRunReference`s placed as `TextLine.Draw` places baseline-aligned runs. The handler owns each
+   sent label and disposes it when new content replaces it or sampling stops. During fast movement the label text can
+   trail by the UI thread's latency; the line, the label position, and the gap around the label never do.
+5. A graph can move without being arranged itself, so the presenter resends the coordinate map on pointer events and
+   on `LayoutUpdated` while sampling.
+6. Any change to the placement or content invalidates the whole handler visual rather than the old and new line
+   rectangles; rectangle invalidation left stale lines and labels behind during fast pointer movement. `OnRender` paints
+   the placement the frame's animation update resolved and does not sample the cursor again.
 
 ### Win32 Cursor And Coordinate Mapping
 

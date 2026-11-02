@@ -11,49 +11,49 @@ public sealed class PerformanceHistoryGraphLayoutTests
     public void HoverSelectsTheNearestSampleOnTheFixedDurationTimeline()
     {
         const double GraphWidth = 200;
-        PerformanceHistory history = CreateHistoryWithSamples(
-            (0.25, 25),
-            (0.50, 50),
-            (0.75, 75));
+        double[] sampleFractions = PerformanceHistoryGraphLayout.CreateSampleFractions(
+            CreateHistoryWithSamples(
+                (0.25, 25),
+                (0.50, 50),
+                (0.75, 75)));
 
         bool wasFound = PerformanceHistoryGraphLayout.TryGetHoverSample(
-            history,
+            sampleFractions,
             pointerPositionX: 108,
             GraphWidth,
-            out PerformanceHistoryGraphHoverSample sample);
+            out int sampleIndex,
+            out double samplePositionX);
 
         Assert.True(wasFound);
-        Assert.Equal(expected: 1, sample.ChronologicalIndex);
-        Assert.Equal(history.GetTimestampChronological(1), sample.Timestamp);
-        Assert.Equal(expected: 50, sample.Value);
-        Assert.Equal(expected: 100, sample.PositionX, precision: 6);
+        Assert.Equal(expected: 1, sampleIndex);
+        Assert.Equal(expected: 100, samplePositionX, precision: 6);
     }
 
     [Theory]
-    [InlineData(-20, 0, 25, 50)]
-    [InlineData(400, 2, 75, 150)]
+    [InlineData(-20, 0, 50)]
+    [InlineData(400, 2, 150)]
     public void HoverOutsideTheGraphClampsToTheNearestEndpointSample(
         double pointerPositionX,
         int expectedIndex,
-        double expectedValue,
         double expectedPositionX)
     {
         const double GraphWidth = 200;
-        PerformanceHistory history = CreateHistoryWithSamples(
-            (0.25, 25),
-            (0.50, 50),
-            (0.75, 75));
+        double[] sampleFractions = PerformanceHistoryGraphLayout.CreateSampleFractions(
+            CreateHistoryWithSamples(
+                (0.25, 25),
+                (0.50, 50),
+                (0.75, 75)));
 
         bool wasFound = PerformanceHistoryGraphLayout.TryGetHoverSample(
-            history,
+            sampleFractions,
             pointerPositionX,
             GraphWidth,
-            out PerformanceHistoryGraphHoverSample sample);
+            out int sampleIndex,
+            out double samplePositionX);
 
         Assert.True(wasFound);
-        Assert.Equal(expectedIndex, sample.ChronologicalIndex);
-        Assert.Equal(expectedValue, sample.Value);
-        Assert.Equal(expectedPositionX, sample.PositionX, precision: 6);
+        Assert.Equal(expectedIndex, sampleIndex);
+        Assert.Equal(expectedPositionX, samplePositionX, precision: 6);
     }
 
     [Theory]
@@ -63,13 +63,15 @@ public sealed class PerformanceHistoryGraphLayoutTests
     [InlineData(double.PositiveInfinity)]
     public void HoverRejectsAnInvalidGraphWidth(double graphWidth)
     {
-        PerformanceHistory history = CreateHistoryWithSamples((0.50, 50));
+        double[] sampleFractions = PerformanceHistoryGraphLayout.CreateSampleFractions(
+            CreateHistoryWithSamples((0.50, 50)));
 
         bool wasFound = PerformanceHistoryGraphLayout.TryGetHoverSample(
-            history,
+            sampleFractions,
             pointerPositionX: 10,
             graphWidth,
-            out PerformanceHistoryGraphHoverSample _);
+            out _,
+            out _);
 
         Assert.False(wasFound);
     }
@@ -77,13 +79,14 @@ public sealed class PerformanceHistoryGraphLayoutTests
     [Fact]
     public void HoverRejectsAnEmptyHistory()
     {
-        PerformanceHistory history = new();
+        double[] sampleFractions = PerformanceHistoryGraphLayout.CreateSampleFractions(new PerformanceHistory());
 
         bool wasFound = PerformanceHistoryGraphLayout.TryGetHoverSample(
-            history,
+            sampleFractions,
             pointerPositionX: 10,
             graphWidth: 100,
-            out PerformanceHistoryGraphHoverSample _);
+            out _,
+            out _);
 
         Assert.False(wasFound);
     }
