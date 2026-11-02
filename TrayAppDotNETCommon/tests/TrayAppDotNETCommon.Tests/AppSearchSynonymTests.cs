@@ -26,6 +26,8 @@ public sealed class AppSearchSynonymTests
                 CultureInfo.InvariantCulture));
         string appDefinitions = Assert.IsType<string>(
             new ResourceManager("AppResources.Volume", typeof(AppSearchSynonymTests).Assembly).GetString(
+                // Volume's Strings.resx is embedded under a LogicalName ReSharper does not map back to the file
+                // ReSharper disable once ResourceItemNotResolved
                 "SettingsWindow_SearchSynonymGroups_App",
                 CultureInfo.InvariantCulture));
         SettingsSearchSynonymMap synonymMap = SettingsSearchSynonymMap.Parse(

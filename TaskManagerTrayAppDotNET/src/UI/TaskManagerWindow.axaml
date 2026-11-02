@@ -163,7 +163,7 @@
   <sys:Int32 x:Key="TaskManagerPerformance.GraphHoverMaximumTextLines">2</sys:Int32>
   <sys:Int32 x:Key="TaskManagerPerformance.GraphGridColumns">10</sys:Int32>
   <sys:Int32 x:Key="TaskManagerPerformance.GraphGridRows">4</sys:Int32>
-  <sys:Double x:Key="TaskManagerPerformance.DeviceColumnWidth">207</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.DeviceColumnWidth">220</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.DeviceColumnSpacing">2</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.DeviceCardHeight">64</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.DeviceGraphWidth">56</sys:Double>
@@ -210,7 +210,7 @@
   <Color x:Key="TaskManagerPerformance.NetworkAccentColor">#D04780</Color>
   <Color x:Key="TaskManagerPerformance.DiskAccentColor">#8BAD3C</Color>
   <Thickness x:Key="TaskManagerPerformance.BodyMargin">8,8,16,16</Thickness>
-  <Thickness x:Key="TaskManagerPerformance.DeviceColumnPadding">4,0,12,0</Thickness>
+  <Thickness x:Key="TaskManagerPerformance.DeviceColumnPadding">4,0,4,0</Thickness>
   <Thickness x:Key="TaskManagerPerformance.DeviceCardPadding">7,5</Thickness>
   <Thickness x:Key="TaskManagerPerformance.DeviceGraphMargin">0,0,10,0</Thickness>
   <Thickness x:Key="TaskManagerPerformance.DetailMargin">18,0,0,0</Thickness>
