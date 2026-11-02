@@ -198,7 +198,7 @@ internal static class PerformanceDevicePresentationFactory
                 FormatBytes(sample.Composition.CompressedBytes),
                 str3: ")")
             : used;
-        string usedOfTotal = sample.HasMemoryData ? string.Concat(used, "/", total) : Unavailable;
+        string usedOfTotal = sample.HasMemoryData ? string.Concat(used, " / ", total) : Unavailable;
         string freeSummary = sample.HasMemoryData
             ? F(
                 nameof(AppStrings.Perf_Memory_DeviceFreeFormat),
