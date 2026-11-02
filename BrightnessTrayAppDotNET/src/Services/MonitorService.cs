@@ -625,11 +625,7 @@ public sealed class MonitorService : IDisposable
     {
         if (overrides.TryGetValue(info.EDIDKey, out string? over) && !string.IsNullOrWhiteSpace(over)) return over;
 
-        if (!string.IsNullOrWhiteSpace(info.OriginalName)) return info.OriginalName;
-
-        if (info.DisplayNumber > 0) return $"Display {info.DisplayNumber}";
-
-        return "Display";
+        return !string.IsNullOrWhiteSpace(info.OriginalName) ? info.OriginalName : $"Display {info.DisplayNumber}";
     }
 
     /// <summary>
@@ -642,10 +638,10 @@ public sealed class MonitorService : IDisposable
     // During CollectionChanged.Add, lets the flyout reuse the retained slider intent instead of
     // treating a reconnect as first enrollment and overwriting it with the saved profile.
     internal bool IsRestoringDisconnectedMonitor(MonitorInfo monitor) =>
-        _disconnectedMonitors.TryGetValue(monitor, out var retained) && retained.PreserveIntent;
+        _disconnectedMonitors.TryGetValue(monitor, out (MonitorIdentityStrategy Strategy, bool PreserveIntent) retained) && retained.PreserveIntent;
 
     internal bool ShouldRestoreDisconnectedMonitorProfile(MonitorInfo monitor) =>
-        _disconnectedMonitors.TryGetValue(monitor, out var retained) && !retained.PreserveIntent;
+        _disconnectedMonitors.TryGetValue(monitor, out (MonitorIdentityStrategy Strategy, bool PreserveIntent) retained) && !retained.PreserveIntent;
 
     // A profile selection or reorder replaces the retained intent. Reconnecting displays must then
     // enroll from the current profile, including when a reconnect probe is already in flight.
