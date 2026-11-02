@@ -21,6 +21,9 @@ public sealed class FanCurveEditor : Control, IDisposable
     private const double KeyboardStepFinePixels = 1;
     private const double KeyboardStepCoarseMultiplier = 10;
 
+    // Both output modes plot from zero; the curve's minimum output is drawn as a band above it
+    private const double YMinimum = 0.0;
+
     private Curve? _curve;
     private DataSource? _dataSource;
     private Curve? _subscribedCurve;
@@ -749,8 +752,6 @@ public sealed class FanCurveEditor : Control, IDisposable
     private double XMinimum => _dataSource?.DisplayMinimum ?? 0.0;
 
     private double XMaximum => _dataSource?.DisplayMaximum ?? 100.0;
-
-    private double YMinimum => _curve?.ActiveYMinimum ?? 0.0;
 
     private double YMaximum => _curve?.ActiveYMaximum ?? 100.0;
 

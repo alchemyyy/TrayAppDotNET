@@ -927,9 +927,6 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
         if (IsManagedByWarmSlot)
         {
             Hide();
-            if (this is ITrayAppDotNETWarmResourceOwner resourceOwner)
-                resourceOwner.TrimHiddenWarmResources();
-
             WarmDismissed?.Invoke(this, EventArgs.Empty);
             return;
         }
@@ -947,9 +944,6 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
         }
 
         CloseDescendantMenus();
-        if (this is ITrayAppDotNETWarmResourceOwner resourceOwner)
-            resourceOwner.DisposeWarmResources();
-
         IsManagedByWarmSlot = false;
         Close();
     }

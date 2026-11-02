@@ -76,7 +76,6 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private readonly BrightnessFlyoutSession _session;
     private readonly UIResourceScope _externalResources = new(nameof(BrightnessFlyoutWindow) + ".External");
     private readonly HashSet<MonitorInfo> _subscribedMonitors = [];
-    private readonly HashSet<string> _curveStopwatchReengageBlockedByMaster = [];
     private readonly HashSet<MonitorInfo> _deferredManualCurveOverrideResync = [];
     private readonly AnimationGenerationTracker _previewSweepFrames = new();
 
@@ -2932,9 +2931,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     private void UpdateCurveStopwatchVisibility(MonitorInfo monitor, bool saveIfDisabled = true)
     {
-        bool visible = IsManualCurveOverride(monitor);
-        monitor.IsCurveStopwatchVisible = visible;
-        if (!visible) _curveStopwatchReengageBlockedByMaster.Remove(CurveStopwatchKeyFor(monitor));
+        monitor.IsCurveStopwatchVisible = IsManualCurveOverride(monitor);
 
         if (!monitor.IsCurveStopwatchEnabled) return;
         if (ShouldKeepCurveStopwatch(IsCurveEnabledForStopwatch(monitor), IsCurveAbsoluteMode, monitor)) return;
@@ -3053,8 +3050,6 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         }
         else if (monitor.IsNightLight || !IsMasterStopwatchBlockingReengage())
             ReengageCurveReleasedMonitor(monitor);
-        else
-            _curveStopwatchReengageBlockedByMaster.Add(CurveStopwatchKeyFor(monitor));
     }
 
     private void ReengageIndividualBrightnessCurveOverridesFromMaster()
@@ -3068,7 +3063,6 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         }
 
         ReengageFailedCurveReleases();
-        _curveStopwatchReengageBlockedByMaster.Clear();
     }
 
     /// <summary>
@@ -3126,7 +3120,6 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
             monitor.IsCurveStopwatchEnabled = false;
             monitor.CurveStopwatchEngagedAtUtc = default;
             monitor.CurveStopwatchReenableAtUtc = default;
-            _curveStopwatchReengageBlockedByMaster.Remove(CurveStopwatchKeyFor(monitor));
             PersistCurveStopwatch(monitor, enabled: false);
             StartCurveStopwatchTimerIfNeeded();
             RebuildNow();
@@ -3138,7 +3131,6 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         monitor.CurveStopwatchEngagedAtUtc = now;
         monitor.CurveStopwatchReenableAtUtc = now.AddMinutes(minutes);
         monitor.IsCurveStopwatchEnabled = true;
-        _curveStopwatchReengageBlockedByMaster.Remove(CurveStopwatchKeyFor(monitor));
         PersistCurveStopwatch(monitor, enabled: true);
         StartCurveStopwatchTimerIfNeeded();
         RebuildNow();

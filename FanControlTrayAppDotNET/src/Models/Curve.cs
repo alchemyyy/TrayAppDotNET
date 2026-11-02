@@ -134,8 +134,6 @@ public class Curve : INotifyPropertyChanged
         ? Math.Clamp(y, MinRPM, Math.Max(MinRPM, MaxRPM))
         : Math.Clamp(y, MinDutyCycle, Math.Max(MinDutyCycle, MaxDutyCycle));
 
-    public double ActiveYMinimum => RPMMode ? 0.0 : 0.0;
-
     public double ActiveYMaximum => RPMMode
         ? Math.Max(val1: 1, MaxRPM)
         : Math.Max(val1: 1, MaxDutyCycle);

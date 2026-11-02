@@ -14,8 +14,6 @@ public sealed partial class FanSettingsWindow
     private const double NonFunctioningFanColumnGap = 8.0;
     private const double NonFunctioningFanCardBottomGap = 6.0;
 
-    private readonly List<FanPropertiesPageGeneration> _fanPropertiesPageGenerations = [];
-
     private StackPanel BuildFanPropertiesPage()
     {
         SettingsPalette p = Palette;
@@ -70,7 +68,6 @@ public sealed partial class FanSettingsWindow
 
         FanPropertiesPageGeneration pageGeneration = new();
         ControlNames.Assign(pageGeneration.FanSlotPanel, parentName: "FanSlots");
-        _fanPropertiesPageGenerations.Add(pageGeneration);
         AddPageCleanup(() => RetireFanPropertiesPage(pageGeneration));
         RebuildFanSlots(pageGeneration);
         stack.Children.Add(RawCard(
@@ -503,7 +500,7 @@ public sealed partial class FanSettingsWindow
         }
     }
 
-    private void RetireFanPropertiesPage(FanPropertiesPageGeneration pageGeneration)
+    private static void RetireFanPropertiesPage(FanPropertiesPageGeneration pageGeneration)
     {
         pageGeneration.IsRetiring = true;
         try
@@ -514,7 +511,6 @@ public sealed partial class FanSettingsWindow
         {
             pageGeneration.FanSlotPanel.Children.Clear();
             pageGeneration.FanSlots.Clear();
-            _fanPropertiesPageGenerations.Remove(pageGeneration);
         }
     }
 
