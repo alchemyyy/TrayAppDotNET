@@ -4,6 +4,7 @@
 // NOTE: array slicing such as "bytes[..4]" additionally needs RuntimeHelpers.GetSubArray, which lives in
 // mscorlib and cannot be supplied from here, so array ranges are written out by hand instead.
 
+// ReSharper disable once CheckNamespace
 namespace System
 {
     /// <summary>A position in a collection, counted either from the start or from the end.</summary>

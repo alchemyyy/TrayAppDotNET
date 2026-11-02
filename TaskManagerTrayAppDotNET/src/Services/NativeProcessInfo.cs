@@ -511,6 +511,8 @@ internal static unsafe class NativeProcessInfo
 
     private static int ToSignedCount(uint value) => value > int.MaxValue ? int.MaxValue : (int)value;
 
+    // Without the cast ReSharper reads the comparison as nuint and reports CS0652
+    // ReSharper disable once RedundantCast
     private static long ToLong(nuint value) => (ulong)value > long.MaxValue ? long.MaxValue : (long)value;
 
     [DllImport("kernel32.dll", SetLastError = true)]

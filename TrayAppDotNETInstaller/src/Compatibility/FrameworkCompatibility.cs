@@ -5,6 +5,8 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 
+// Compatibility is an implementation grouping, not a namespace boundary
+// ReSharper disable once CheckNamespace
 namespace TrayAppDotNETInstaller;
 
 /// <summary>

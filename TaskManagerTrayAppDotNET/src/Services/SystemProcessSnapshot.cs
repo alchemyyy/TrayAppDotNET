@@ -375,8 +375,9 @@ internal sealed unsafe class SystemProcessSnapshot : IDisposable
         _bufferSize = 0;
     }
 
-    private static long ToNonNegativeLong(nuint value) =>
-        (ulong)value > long.MaxValue ? long.MaxValue : (long)value;
+    // Without the cast ReSharper reads the comparison as nuint and reports CS0652
+    // ReSharper disable once RedundantCast
+    private static long ToNonNegativeLong(nuint value) => (ulong)value > long.MaxValue ? long.MaxValue : (long)value;
 
     private static ulong ToNonNegativeUInt64(long value) => value <= 0 ? 0 : (ulong)value;
 

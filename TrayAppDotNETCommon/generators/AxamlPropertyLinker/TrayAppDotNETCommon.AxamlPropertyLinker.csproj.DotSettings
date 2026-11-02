@@ -4,4 +4,7 @@
                         xmlns:ss="urn:shemas-jetbrains-com:settings-storage-xaml"
                         xmlns:settings="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
   <s:Boolean x:Key="/Default/CodeInspection/NamespaceProvider/FoldersProvideNamespacesByDefault/@EntryValue">False</s:Boolean>
+  <s:Boolean x:Key="/Default/CodeInspection/NamespaceProvider/NamespaceFoldersToSkip/=ControlMaps/@EntryIndexedValue">True</s:Boolean>
+  <s:Boolean x:Key="/Default/CodeInspection/NamespaceProvider/NamespaceFoldersToSkip/=Debugging/@EntryIndexedValue">True</s:Boolean>
+  <s:Boolean x:Key="/Default/CodeInspection/NamespaceProvider/NamespaceFoldersToSkip/=Debugging_005CProvenance/@EntryIndexedValue">True</s:Boolean>
 </settings:ResourceDictionary>

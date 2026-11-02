@@ -719,6 +719,8 @@ public sealed class SecondaryWindowLifetimeTests
         }
     }
 
+    // TrayAppDotNETCommon.UI also declares a ControlMap, so the base type needs its namespace
+    // ReSharper disable once RedundantNameQualifier
     private sealed class FlyoutTestControlMap() : TrayAppDotNETCommon.UI.ControlMapping.ControlMap(FlyoutMapName);
 
     private sealed class TestFlyoutWindow : FlyoutWindowCommon

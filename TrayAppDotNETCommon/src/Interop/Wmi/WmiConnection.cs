@@ -178,6 +178,8 @@ public sealed class WmiConnection : IDisposable
     /// <summary>Reads a non-array string property.</summary>
     public static bool TryGetString(IWbemClassObject item, string name, out string value)
     {
+        // Explicit parameter types keep T non-nullable; without them value = text raises CS8601
+        // ReSharper disable once RedundantLambdaParameterType
         if (TryGet(item, name, static (in WmiVariant v, out string s) => v.TryGetString(out s), out string? text))
         {
             value = text;
