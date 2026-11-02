@@ -192,7 +192,7 @@ COMMON_RELEASE_NOTES_ROOT = "TrayAppDotNETCommon"
 INSTALL_CONTRACT_PATH = REPO_ROOT / "TrayAppDotNETCommon" / "src" / "Contracts" / "InstallContract.cs"
 # PublishAfterBuild in the shared targets prunes the same Native AOT sidecars from local publishes.
 PARENT_TARGETS_PATH = REPO_ROOT / "TrayAppDotNET.Parent.targets"
-SHARED_NATIVE_DLL_NAMES_PATTERN = re.compile(r"SharedNativeDllNames\s*=\s*\{(.*?)\};", re.DOTALL)
+SHARED_NATIVE_DLL_NAMES_PATTERN = re.compile(r"\bSharedNativeDllNames\s*=\s*[\[{](.*?)[\]}];", re.DOTALL)
 # Matches the endpoint updater's RELEASE_TAG_PATTERN and MINIMUM_RELEASE_VERSION in manifest.ts.
 RELEASE_TAG_PATTERN = re.compile(r"^TrayAppDotNET_(\d+)$")
 MINIMUM_RELEASE_TAG_VERSION = 100

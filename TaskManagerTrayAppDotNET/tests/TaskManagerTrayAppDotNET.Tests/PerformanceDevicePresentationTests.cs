@@ -41,7 +41,7 @@ public sealed class PerformanceDevicePresentationTests
         Assert.Equal(
             expected: string.Concat(
                 PerformanceDevicePresentationFactory.FormatBytes(memory.UsedPhysicalBytes),
-                "/",
+                " / ",
                 PerformanceDevicePresentationFactory.FormatBytes(memory.TotalPhysicalBytes)),
             device.Subtitle);
         Assert.Equal(
