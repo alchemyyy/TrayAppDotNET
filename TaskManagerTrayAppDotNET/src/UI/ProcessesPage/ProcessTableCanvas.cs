@@ -1629,7 +1629,7 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
     protected override void OnPointerMoved(PointerEventArgs eventArgs)
     {
         base.OnPointerMoved(eventArgs);
-        Point position = GetLatestPointerPosition(eventArgs);
+        Point position = eventArgs.GetLatestPosition(this);
         if (_headerInteraction != HeaderInteractionMode.None
             && ReferenceEquals(_capturedHeaderPointer, eventArgs.Pointer))
         {
@@ -1641,17 +1641,6 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         UpdateHeaderCursor(position);
         UpdateHoveredHeader(position);
         SetStatusToolTipText(ResolveStatusToolTipText(position));
-    }
-
-    private Point GetLatestPointerPosition(PointerEventArgs eventArgs)
-    {
-        // Read the live OS cursor so queued PointerMoved events cannot replay obsolete rows
-        if (eventArgs.Pointer.Type == PointerType.Mouse
-            && OperatingSystem.IsWindows()
-            && User32.GetCursorPos(out User32.POINT cursorPosition))
-            return this.PointToClient(new PixelPoint(cursorPosition.X, cursorPosition.Y));
-
-        return eventArgs.GetPosition(this);
     }
 
     protected override void OnPointerReleased(PointerReleasedEventArgs eventArgs)

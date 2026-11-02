@@ -1748,7 +1748,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         protected override void OnPointerMoved(PointerEventArgs eventArgs)
         {
             base.OnPointerMoved(eventArgs);
-            _graph.TrackPointer(eventArgs.GetPosition(_graph));
+            _graph.TrackPointer(eventArgs.GetLatestPosition(_graph));
         }
 
         protected override void OnPointerExited(PointerEventArgs eventArgs)

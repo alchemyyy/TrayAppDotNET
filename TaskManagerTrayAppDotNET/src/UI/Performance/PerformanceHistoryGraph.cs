@@ -169,7 +169,7 @@ internal sealed class PerformanceHistoryGraph : Control
     protected override void OnPointerMoved(PointerEventArgs eventArgs)
     {
         base.OnPointerMoved(eventArgs);
-        TrackPointer(eventArgs.GetPosition(this));
+        TrackPointer(eventArgs.GetLatestPosition(this));
     }
 
     protected override void OnPointerExited(PointerEventArgs eventArgs)
