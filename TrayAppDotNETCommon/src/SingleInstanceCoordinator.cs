@@ -38,6 +38,27 @@ public sealed class SingleInstanceCoordinator : IDisposable
     public static SingleInstanceCoordinator AcquireOrTakeover(SingleInstanceIdentity identity) =>
         AcquireOrTakeover(identity, Environment.ProcessId, monitoredPID: 0);
 
+    /// <summary>
+    /// Returns whether a watcher of this app holds the single-instance mutex in this session, without taking it.
+    /// </summary>
+    public static bool IsRunning(SingleInstanceIdentity identity)
+    {
+        ArgumentNullException.ThrowIfNull(identity);
+
+        try
+        {
+            if (!Mutex.TryOpenExisting(identity.SingleInstanceMutexName, out Mutex? mutex)) return false;
+
+            mutex.Dispose();
+            return true;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // An elevated owner's mutex exists but denies this unelevated process
+            return true;
+        }
+    }
+
     public static SingleInstanceCoordinator AcquireOrTakeover(
         SingleInstanceIdentity identity,
         int watcherPID,

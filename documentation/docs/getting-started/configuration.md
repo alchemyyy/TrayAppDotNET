@@ -118,4 +118,6 @@ The full list of arguments is in [Launch Arguments](launch-arguments.md).
 
 Each app runs once per Windows session. Starting it again, from any copy, replaces the running one: the old copy is ended and the new one takes over. That includes a second copy with a different `--settings-dir`, so you can't run two sets of settings side by side. (The install and uninstall arguments are the exception, they run alongside without replacing anything.)
 
+Task Manager is the exception for a plain start (no arguments, like opening it from the Start menu or a shortcut): if it's already running, the running copy's window comes forward and nothing gets replaced. Starts with arguments, `--settings-dir` included, still replace it.
+
 You'll still see two processes per app in Task Manager. That's the crash watcher and the app itself, see [Crash Recovery](../shared/crash-recovery.md).

@@ -7,10 +7,10 @@ namespace TaskManagerTrayAppDotNET.Services;
 
 /// <summary>
 /// A tiny named-pipe server, hosted by the running Task Manager instance, that a second launch can
-/// signal to bring the existing window forward instead of starting a duplicate. This backs the
-/// graceful hand-off for taskmgr.exe launches redirected through Image File Execution Options: when
-/// tmtadn is already running, the redirected process connects here, the window is activated, and the
-/// redirected process exits. When no server answers, the caller knows to cold-start normally.
+/// signal to bring the existing window forward instead of starting a duplicate. This backs the hand-off for a plain
+/// second start of the app and for taskmgr.exe launches redirected through Image File Execution Options: when tmtadn
+/// is already running, the new process connects here, the window is activated, and the new process exits. When no
+/// server answers, the caller knows to cold-start normally.
 ///
 /// Named pipes are machine-global, so the session number in the name is not a scope by itself. The name
 /// also carries the user SID, the pipe's DACL grants only that user, and its owner is set explicitly to the
@@ -81,11 +81,34 @@ internal sealed class TaskManagerActivationServer : IDisposable
         _listenerThread.Start();
     }
 
+    /// <summary>
+    /// For a plain start (no arguments) while an instance runs, brings that instance's window forward. Returns true
+    /// when it answered and this process should exit; false means the caller starts normally, and the single-instance
+    /// takeover then replaces whatever is still running. Mode, startup, hidden and --settings-dir starts never hand off,
+    /// and neither does a debugger session, which stays in this process.
+    /// </summary>
+    public static bool TryHandOffPlainLaunch(string[] arguments)
+    {
+        ArgumentNullException.ThrowIfNull(arguments);
+        if (arguments.Length != 0 || System.Diagnostics.Debugger.IsAttached) return false;
+
+        // Connecting to a pipe nobody hosts waits out the whole timeout, so a cold start skips it
+        SingleInstanceIdentity identity = new(Constants.ApplicationName, Constants.AppGUID);
+        if (!SingleInstanceCoordinator.IsRunning(identity)) return false;
+
+        if (!TryActivateRunningInstance(TimeConstants.ActivationHandOffTimeoutMilliseconds, TADNLog.Log)) return false;
+
+        TADNLog.Log("TaskManagerActivationServer: brought the running instance forward instead of starting another");
+        return true;
+    }
+
     /// <summary>Signals a running instance to show its window; returns false when none is listening.</summary>
     public static bool TryActivateRunningInstance(int timeoutMilliseconds, Action<string>? log)
     {
         try
         {
+            // This launch was started by the user, so it may pass its foreground right to the instance it activates
+            _ = User32.AllowSetForegroundWindow(User32.ASFW_ANY);
             SecurityIdentifier currentUser = CurrentUserSid();
             return TryActivate(ResolvePipeName(currentUser, CurrentSessionId()), currentUser, timeoutMilliseconds, log);
         }

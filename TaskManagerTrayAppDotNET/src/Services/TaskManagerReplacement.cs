@@ -32,8 +32,6 @@ internal static class TaskManagerReplacement
     // Elevated self-relaunch mode that performs the HKLM write or removal, then exits
     public const string ConfigureModeArgument = "--set-taskmgr-replacement";
 
-    private const int ActivationTimeoutMilliseconds = 1_500;
-
     /// <summary>Reads the current redirect state from the registry.</summary>
     public static TaskManagerReplacementState GetState()
     {
@@ -82,7 +80,9 @@ internal static class TaskManagerReplacement
     public static bool TryHandOffRedirectedLaunch(string[] arguments)
     {
         if (!IsRedirectedLaunch(arguments)) return false;
-        return TaskManagerActivationServer.TryActivateRunningInstance(ActivationTimeoutMilliseconds, TADNLog.Log);
+        return TaskManagerActivationServer.TryActivateRunningInstance(
+            TimeConstants.ActivationHandOffTimeoutMilliseconds,
+            TADNLog.Log);
     }
 
     /// <summary>Returns true when this launch is the elevated taskmgr.exe redirect change.</summary>

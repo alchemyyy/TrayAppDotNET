@@ -44,6 +44,11 @@ internal static class Program
             return ElevationBroker.Run(args);
         }
 
+        // A plain start while an instance runs brings that instance forward instead of replacing it. Checked before the
+        // Always run as administrator hand-off, whose elevated start would otherwise take the running instance over.
+        if (TaskManagerActivationServer.TryHandOffPlainLaunch(args))
+            return 0;
+
         // A taskmgr.exe launch redirected here: bring a running instance forward instead of duplicating.
         // When nothing is running this returns false and we cold-start normally below.
         if (TaskManagerReplacement.TryHandOffRedirectedLaunch(args))

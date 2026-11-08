@@ -424,6 +424,10 @@
   so its watcher stops too). Only when the single-instance mutex is still held after
   `TimeConstants.GracefulExitRequestTimeoutMs` are the old processes killed, each one first proven by image name and
   start time. Uninstall preparation and the update installer stop running copies the same way.
+- Task Manager exception: a plain start (no arguments, no debugger) first checks
+  `SingleInstanceCoordinator.IsRunning` and, when the watcher mutex exists, asks the running instance to show its
+  window through `TaskManagerActivationServer.TryHandOffPlainLaunch` (the redirected-taskmgr.exe pipe) and exits;
+  `Program.Main` runs it before the Always run as administrator hand-off. No answer falls through to the takeover.
 - Exit paths: tray Exit, watcher death, exit requests, update install, the rendering restart, Restart from installed
   and a Windows session end all run the host's shutdown core once (hooked to both `ShutdownRequested` and `Exit`).
   A session end exits with `CrashHandler.SessionEndingExitCode` (3). The watcher honors that code only when it sees

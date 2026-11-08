@@ -15,6 +15,9 @@ public abstract class TimeConstants : CommonTimeConstants
     // How long the sidebar's zoom and stretch indicator stays up after the last table zoom or stretch gesture
     public const int GridMetricIndicatorDecayMilliseconds = 2_000;
 
+    // How long a second launch waits for the running instance's activation pipe to answer before starting on its own
+    public const int ActivationHandOffTimeoutMilliseconds = 1_500;
+
     public new const int DrainPollIntervalMs = CommonTimeConstants.DrainPollIntervalMs;
     public new const int SettingsSaveDebounceMs = CommonTimeConstants.SettingsSaveDebounceMs;
     public new const int UpdateCheckIntervalDefaultMs = CommonTimeConstants.UpdateCheckIntervalDefaultMs;
