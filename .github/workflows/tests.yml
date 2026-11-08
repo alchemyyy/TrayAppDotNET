@@ -1,7 +1,7 @@
 name: Tests
 
 # The test gate: every .NET test project in TrayAppDotNET.slnx, the release script tests and the version endpoint
-# updater tests. publish.yml calls it before planning a release.
+# updater tests. publish.yml runs it alongside planning and the app builds; the draft release waits for it.
 on:
   push:
     branches: [main]

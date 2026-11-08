@@ -379,10 +379,10 @@
   caller.
 - GitHub workflows:
   - `.github/workflows/tests.yml`: every test project of `TrayAppDotNET.slnx`, `.github/scripts/tests` and the
-    endpoint updater tests (push to main, pull requests, and the first job of `publish.yml`)
+    endpoint updater tests (push to main, pull requests, and a job of `publish.yml`)
   - `.github/workflows/<slug>-debug.yml`: per-app triggers and path filters calling `_app-build.yml`
-  - `.github/workflows/publish.yml`: tests, plan (`release_matrix` from `publish.py`), one `app-release.yml` run per
-    app, then the draft release
+  - `.github/workflows/publish.yml`: tests in parallel with the plan (`release_matrix` from `publish.py`) and one
+    `app-release.yml` run per app; the draft release needs all of them to succeed
   - `.github/workflows/trigger-version-endpoint.yml`: asks the Cloudflare updater to republish `versions.xml`; its
     manual `force` input allows a rollback, and a refusal (HTTP 409) is not retried
   - Self-hosted runners: `.github/bootstrap-{windows,debian}-runner-fleet.py` register runners labelled

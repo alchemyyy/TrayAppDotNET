@@ -11,16 +11,12 @@ partition "Manual dispatch" {
   (comma-separated names from apps.json);
 }
 
-partition "Test gate" {
+fork
+partition "Test gate (parallel with planning and packaging)" {
   :Run tests.yml: every .NET test project,
   the publish.py tests and the endpoint updater tests;
-  if (Any test failed?) then (yes)
-    :Fail without planning;
-    stop
-  else (no)
-  endif
 }
-
+fork again
 partition "Plan app actions" {
   :Checkout the selected ref;
   :Fetch complete Git history and tags;
@@ -108,9 +104,10 @@ partition "Package included apps in parallel" {
   :Write each app package manifest;
   :Upload each package as an Actions artifact;
 }
+end fork
 
 partition "Assemble and publish" {
-  if (Any app release job failed?) then (yes)
+  if (Any test or app release job failed?) then (yes)
     :Fail without publishing the draft release;
     stop
   else (no)

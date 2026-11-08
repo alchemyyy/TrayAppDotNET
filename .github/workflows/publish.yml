@@ -32,13 +32,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Tests run alongside planning and the app builds rather than before them; only the draft release waits for them.
   tests:
     name: Tests
     uses: ./.github/workflows/tests.yml
 
   prepare:
     name: Plan Publish Versions
-    needs: tests
     runs-on: windows-latest
     # This job also publishes the single shared installer factory, so it is not a plain planning job.
     timeout-minutes: 45
@@ -52,7 +52,7 @@ jobs:
       installer_factory_artifact: installer-factory-${{ github.run_id }}
 
     steps:
-      # The tests job checked out github.sha; planning (and therefore every build and the release) uses the same
+      # The tests job checks out github.sha; planning (and therefore every build and the release) uses the same
       # commit, so a push to the branch while the tests run cannot ship untested code.
       - name: Checkout
         uses: actions/checkout@v7
@@ -141,11 +141,13 @@ jobs:
     name: Publish Draft Release
     runs-on: windows-latest
     needs:
+      - tests
       - prepare
       - release
     if: >-
       ${{
         always() &&
+        needs.tests.result == 'success' &&
         needs.prepare.result == 'success' &&
         needs.release.result == 'success'
       }}
