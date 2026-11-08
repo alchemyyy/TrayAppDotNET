@@ -96,6 +96,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     private bool _wndProcHookAttached;
     private int? _nativeCornerPreference;
     private SettingsPalette? _palette;
+    private bool _screenProportionalDefaultHeightApplied;
 
     private enum SettingsWindowSizeProfile
     {
@@ -137,6 +138,8 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     protected Control? SidebarFooterStatus => _sidebarFooterStatus;
 
     protected virtual bool EnableRoundedCorners => CommonSettings?.EnableRoundedCorners ?? false;
+    /// <summary>Opts an app's settings window into a first-show height that is a share of its monitor's height.</summary>
+    protected virtual bool OpensAtScreenProportionalHeight => false;
     protected abstract TPageKey DefaultPageKey { get; }
     protected abstract string HeaderText { get; }
     /// <summary>The window palette; the default reads <see cref="Theme"/> and <see cref="CommonSettings"/>.</summary>
@@ -450,6 +453,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
     {
         if (!IsVisible)
         {
+            ApplyScreenProportionalDefaultHeightBeforeFirstShow();
             Show();
             BringToForeground();
             return;
@@ -501,6 +505,7 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
 
         try
         {
+            ApplyScreenProportionalDefaultHeightBeforeFirstShow();
             Show();
         }
         catch
@@ -564,6 +569,47 @@ public abstract partial class SettingsWindowCommon<TPageKey> : Window
             DWMAPI.DWMWA_CLOAK,
             ref cloakValue,
             sizeof(int)) == 0;
+    }
+
+    /// <summary>
+    /// Sets an opted-in window's first-show height to its share of the monitor that unowned
+    /// <see cref="WindowStartupLocation.CenterScreen"/> placement will center it on.
+    /// </summary>
+    private void ApplyScreenProportionalDefaultHeightBeforeFirstShow()
+    {
+        if (!OpensAtScreenProportionalHeight || _screenProportionalDefaultHeightApplied) return;
+
+        _screenProportionalDefaultHeightApplied = true;
+        // Same screen choice as Avalonia's CenterScreen placement for a window shown without an owner
+        Avalonia.Platform.Screen? screen = Screens.ScreenFromPoint(Position) ?? Screens.Primary;
+        if (screen == null) return;
+
+        Height = ResolveScreenProportionalHeight(
+            screen.Bounds.Height,
+            screen.WorkingArea.Height,
+            screen.Scaling,
+            _settingsResources.AxamlSettingsWindow.DefaultScreenHeightFraction,
+            MinHeight,
+            Height);
+    }
+
+    /// <summary>
+    /// Returns the DIP height for <paramref name="fraction"/> of a monitor's pixel height, capped to its work area
+    /// and floored at <paramref name="minHeight"/>; an unusable scale keeps <paramref name="fallbackHeight"/>.
+    /// </summary>
+    internal static double ResolveScreenProportionalHeight(
+        int screenPixelHeight,
+        int workAreaPixelHeight,
+        double scaling,
+        double fraction,
+        double minHeight,
+        double fallbackHeight)
+    {
+        if (!double.IsFinite(scaling) || scaling <= 0 || screenPixelHeight <= 0) return fallbackHeight;
+
+        double pixelHeight = screenPixelHeight * fraction;
+        if (workAreaPixelHeight > 0) pixelHeight = Math.Min(pixelHeight, workAreaPixelHeight);
+        return Math.Max(minHeight, pixelHeight / scaling);
     }
 
     protected void SelectPage(TPageKey key) => NavigateToSettingsPage(key);

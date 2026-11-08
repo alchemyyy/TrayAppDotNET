@@ -63,6 +63,8 @@ public sealed partial class TaskManagerSettingsWindow : SettingsWindowCommon<Tas
 
     protected override AppTheme? SettingsTheme => AppServices.Theme;
 
+    protected override bool OpensAtScreenProportionalHeight => true;
+
     protected override TaskManagerSettingsPage DefaultPageKey => TaskManagerSettingsPage.General;
 
     protected override string HeaderText => L(nameof(AppStrings.TaskManager_SettingsWindow_Header));

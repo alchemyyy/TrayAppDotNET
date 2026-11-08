@@ -13,6 +13,8 @@
     <sys:Double x:Key="SettingsWindow.CompactWindowHeight">640</sys:Double>
     <sys:Double x:Key="SettingsWindow.CompactWindowMinWidth">680</sys:Double>
     <sys:Double x:Key="SettingsWindow.CompactWindowMinHeight">500</sys:Double>
+    <!-- Opted-in settings windows first open at this share of their monitor's height, capped to its work area -->
+    <sys:Double x:Key="SettingsWindow.DefaultScreenHeightFraction">0.6</sys:Double>
     <sys:Double x:Key="SettingsWindow.TitleBarHeight">32</sys:Double>
     <sys:Double x:Key="SettingsWindow.TitleBarDragZoneHeight">72</sys:Double>
     <sys:Double x:Key="SettingsWindow.DefaultSidebarWidth">230</sys:Double>

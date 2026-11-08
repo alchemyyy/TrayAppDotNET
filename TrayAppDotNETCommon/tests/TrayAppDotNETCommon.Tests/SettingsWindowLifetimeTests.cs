@@ -212,6 +212,32 @@ public sealed class SettingsWindowLifetimeTests
     }
 #endif
 
+    [Theory]
+    // 60% of a 1440 px monitor at 150% scaling
+    [InlineData(1440, 1392, 1.5, 576)]
+    // A short work area caps the share of the monitor
+    [InlineData(1440, 800, 1.0, 800)]
+    // The window minimum wins over a small monitor's share
+    [InlineData(600, 560, 1.0, 500)]
+    // An unusable scale keeps the profile height
+    [InlineData(1440, 1392, 0.0, 640)]
+    public void ScreenProportionalHeightUsesMonitorShareWithinWorkAreaAndMinimum(
+        int screenPixelHeight,
+        int workAreaPixelHeight,
+        double scaling,
+        double expected)
+    {
+        double height = SettingsWindowCommon<TestPage>.ResolveScreenProportionalHeight(
+            screenPixelHeight,
+            workAreaPixelHeight,
+            scaling,
+            fraction: 0.6,
+            minHeight: 500,
+            fallbackHeight: 640);
+
+        Assert.Equal(expected, height, precision: 6);
+    }
+
 #if DEBUG
     [Fact]
     public void CommonAXAMLSynchronizationReplacesEntriesInPlace()
