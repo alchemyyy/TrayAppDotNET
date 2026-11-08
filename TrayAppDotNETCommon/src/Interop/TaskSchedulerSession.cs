@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
+using TrayAppDotNETCommon.Utils;
 
-namespace TaskManagerTrayAppDotNET.Interop;
+namespace TrayAppDotNETCommon.Interop;
 
 /// <summary>
 /// One connection to the local Task Scheduler, working on folders directly under its root. Members return the HRESULT

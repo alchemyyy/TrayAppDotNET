@@ -22,8 +22,8 @@ public sealed record TrayAppDotNETInstallerWindowOptions
     public TrayAppDotNETInstallOptions InitialInstallOptions { get; init; } = new();
 
     /// <summary>
-    /// The app's Always run as administrator setting, or null when it has none. The window then shows a check box with
-    /// its warning, which applies to the system location only.
+    /// The app's Always run as administrator setting, or null when it has none. An optional setting shows a check box
+    /// with its warning, which applies to the system location only; a required one shows nothing.
     /// </summary>
     public TrayAppDotNETRunAsAdministratorOption? RunAsAdministrator { get; init; }
 }
@@ -77,9 +77,9 @@ public sealed class TrayAppDotNETInstallerWindow : Window, IDisposable
                 StartMenuPreset(options.InitialScope))
             .MapTo(ControlMap.Installer.Shortcuts.StartMenuShortcut);
         // Checked by default for every system install, including a reinstall over a copy that never had it on
-        if (options.RunAsAdministrator is { } runAsAdministrator)
+        if (options.RunAsAdministrator is { IsRequired: false, Title: { } runAsAdministratorTitle })
         {
-            _runAsAdministrator = BuildShortcutCheckBox(runAsAdministrator.Title(), isChecked: true)
+            _runAsAdministrator = BuildShortcutCheckBox(runAsAdministratorTitle(), isChecked: true)
                 .MapTo(ControlMap.Installer.Shortcuts.RunAsAdministrator);
         }
 
@@ -230,8 +230,8 @@ public sealed class TrayAppDotNETInstallerWindow : Window, IDisposable
         {
             Children = { BuildShortcutCard(_desktopShortcut), BuildShortcutCard(_startMenuShortcut) }
         };
-        if (_runAsAdministrator != null && _options.RunAsAdministrator != null)
-            shortcuts.Children.Add(BuildRunAsAdministratorCard(_runAsAdministrator, _options.RunAsAdministrator));
+        if (_runAsAdministrator != null && _options.RunAsAdministrator is { Warning: { } runAsAdministratorWarning })
+            shortcuts.Children.Add(BuildRunAsAdministratorCard(_runAsAdministrator, runAsAdministratorWarning()));
         Grid.SetRow(shortcuts, value: 3);
         body.Children.Add(shortcuts);
 
@@ -344,10 +344,10 @@ public sealed class TrayAppDotNETInstallerWindow : Window, IDisposable
             Child = content
         };
 
-    private Border BuildRunAsAdministratorCard(CheckBox checkBox, TrayAppDotNETRunAsAdministratorOption option)
+    private Border BuildRunAsAdministratorCard(CheckBox checkBox, string warningText)
     {
         TextBlock warning = TrayAppDotNETSettingsUI.DescriptionText(
-            option.Warning(),
+            warningText,
             _options.Palette,
             TrayAppDotNETDialogChromeLayout.InstallerOptionWarningMargin);
         warning.TextWrapping = TextWrapping.Wrap;

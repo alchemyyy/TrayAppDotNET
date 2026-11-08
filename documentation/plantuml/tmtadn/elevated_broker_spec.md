@@ -62,7 +62,7 @@ There is no "run an arbitrary executable" op.
 
 Process termination still runs on its existing path (`ProcessTerminationService` + the native kill
 helper), not through the broker. The kill helper makes no eager startup elevation attempt, so there is
-no eager UAC prompt; Always run as administrator (`ElevatedStartTask`, a per-account scheduled task)
+no eager UAC prompt; Always run as administrator (`TrayAppDotNETElevatedStartTask`, a per-account scheduled task)
 starts the whole app elevated instead. Routing terminate through the broker - having the broker spawn
 and drive the kill helper - is the deferred next step, because it re-architects the critical kill path
 and needs runtime verification.

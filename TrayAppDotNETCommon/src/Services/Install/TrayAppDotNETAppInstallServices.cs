@@ -35,19 +35,33 @@ public sealed class TrayAppDotNETUninstallHook
 }
 
 /// <summary>
-/// An app's Always run as administrator setting, offered at install time. Only a system install applies it, in the
-/// elevated install process after the files are in place, for the installing account.
+/// An app's Always run as administrator setting, applied at install time. Only a system install applies it, in the
+/// elevated install process after the files are in place, for the installing account. An optional setting shows a
+/// check box with <see cref="Title"/> and <see cref="Warning"/>; a required one (<see cref="IsRequired"/>) shows nothing
+/// and is always turned on.
 /// </summary>
 public sealed class TrayAppDotNETRunAsAdministratorOption
 {
-    /// <summary>The installer check box's label.</summary>
-    public required Func<string> Title { get; init; }
+    /// <summary>
+    /// The app always runs as administrator: a system install always turns the setting on, whatever the install
+    /// choices say, and the installer offers no choice.
+    /// </summary>
+    public bool IsRequired { get; init; }
 
-    /// <summary>The warning the installer shows under the check box.</summary>
-    public required Func<string> Warning { get; init; }
+    /// <summary>The installer check box's label; required unless <see cref="IsRequired"/>.</summary>
+    public Func<string>? Title { get; init; }
+
+    /// <summary>The warning the installer shows under the check box; required unless <see cref="IsRequired"/>.</summary>
+    public Func<string>? Warning { get; init; }
 
     /// <summary>Turns the setting on or off for the current account; runs elevated. Returns whether it succeeded.</summary>
     public required Func<bool, bool> SetEnabled { get; init; }
+
+    /// <summary>
+    /// The choice a system install applies: on for a required setting, otherwise <paramref name="requested"/>, where
+    /// null leaves the setting as it is.
+    /// </summary>
+    public bool? EffectiveChoice(bool? requested) => IsRequired ? true : requested;
 }
 
 public sealed class TrayAppDotNETAppInstallServicesOptions
@@ -91,6 +105,8 @@ public sealed class TrayAppDotNETAppInstallServices
         ArgumentException.ThrowIfNullOrWhiteSpace(options.ApplicationName);
         ArgumentException.ThrowIfNullOrWhiteSpace(options.AppGuid);
         ArgumentNullException.ThrowIfNull(options.PostToUIThread);
+        if (options.RunAsAdministrator is { IsRequired: false, Title: null } or { IsRequired: false, Warning: null })
+            throw new ArgumentException("An optional Always run as administrator setting needs a title and a warning.", nameof(options));
         _options = options;
 
         _layout = new Lazy<TrayAppDotNETInstallLayout>(() => TrayAppDotNETInstallLayout.Create(

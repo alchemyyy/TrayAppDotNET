@@ -4,37 +4,51 @@ using System.Security;
 using System.Security.Principal;
 using System.Text;
 using System.Xml;
-using TaskManagerTrayAppDotNET.Interop;
 using TrayAppDotNETCommon.Contracts;
+using TrayAppDotNETCommon.Interop;
+using TrayAppDotNETCommon.Models;
+using TrayAppDotNETCommon.Utils;
 
-namespace TaskManagerTrayAppDotNET.Services;
+namespace TrayAppDotNETCommon.Services.Install;
 
-/// <summary>The current account's Always run as administrator task, as the settings card shows it.</summary>
+/// <summary>The current account's Always run as administrator task, as a settings card shows it.</summary>
 /// <param name="IsRegistered">The account's task exists.</param>
 /// <param name="IsUsable">The task still starts the system install elevated: nothing outside the app changed or disabled it.</param>
 /// <param name="TaskPath">Where Task Scheduler lists the task.</param>
-internal readonly record struct ElevatedStartState(bool IsRegistered, bool IsUsable, string TaskPath);
+public readonly record struct TrayAppDotNETElevatedStartState(bool IsRegistered, bool IsUsable, string TaskPath);
 
 /// <summary>Whether Always run as administrator may be turned on from this copy and this account.</summary>
 /// <param name="IsSystemInstall">This process is the Program Files system install, the only exe the task may start.</param>
 /// <param name="AccountCanElevate">The account is an administrator, so elevating keeps it the same account.</param>
-internal readonly record struct ElevatedStartAvailability(bool IsSystemInstall, bool AccountCanElevate);
+public readonly record struct TrayAppDotNETElevatedStartAvailability(bool IsSystemInstall, bool AccountCanElevate);
 
 /// <summary>
-/// Always run as administrator: a scheduled task per account that starts the Program Files system install with the
-/// account's highest privileges (an interactive-token principal at the HighestAvailable run level). An unelevated
+/// Always run as administrator: a scheduled task per account that starts an app's Program Files system install with
+/// the account's highest privileges (an interactive-token principal at the HighestAvailable run level). An unelevated
 /// plain start hands off to the task and exits, so the app comes up elevated without a UAC prompt. An account may run
 /// its own task without elevation, but creating or changing a task that runs elevated needs administrator rights, so
-/// the settings toggle relaunches this exe elevated with <see cref="ConfigureModeArgument"/> (see
-/// <see cref="ElevatedSettingChange"/>), which registers or deletes the task and exits.
+/// a change relaunches this exe elevated with <see cref="ConfigureModeArgument"/> (see
+/// <see cref="TrayAppDotNETElevatedSettingChange"/>), which registers or deletes the task and exits.
+///
+/// Task Manager offers it as a setting (<see cref="TryHandOffLaunch"/>); Fan Control always runs this way
+/// (<see cref="TryHandOffRequiredLaunch"/>).
 ///
 /// Only the system install may be the task's target: any program the user runs could replace a copy in the user's
 /// profile and would then start elevated without a prompt. The task passes the start flags through its $(Arg0)
 /// parameter, which any program running as the user can set when it runs the task, so a start by the task
-/// (<see cref="TaskLaunchArgument"/> first) accepts nothing but --autostart and --hidden, and Program.Main checks for it
-/// before every other mode.
+/// (<see cref="TaskLaunchArgument"/> first) accepts nothing but --autostart and --hidden, and the app's Program.Main
+/// checks for it before every other mode.
 /// </summary>
-internal static class ElevatedStartTask
+/// <param name="applicationName">The app's name, which names its tasks.</param>
+/// <param name="systemInstallExecutable">The Program Files install's executable, the only one a task may start.</param>
+/// <param name="isPassThroughLaunch">
+/// Starts that hand off as a plain start although they carry arguments the app ignores (Task Manager's redirected
+/// taskmgr.exe start), or null.
+/// </param>
+public sealed class TrayAppDotNETElevatedStartTask(
+    string applicationName,
+    Func<string> systemInstallExecutable,
+    Func<string[], bool>? isPassThroughLaunch = null)
 {
     /// <summary>Elevated self-relaunch mode that registers or deletes the account's task, then exits.</summary>
     public const string ConfigureModeArgument = "--set-elevated-start";
@@ -51,23 +65,33 @@ internal static class ElevatedStartTask
     internal const string TaskActionArguments = TaskLaunchArgument + " " + ParameterPlaceholder;
 
     private const string TaskFolderName = TrayAppDotNETConstants.SharedRootFolderName;
-    private const string TaskNamePrefix = Constants.ApplicationName + "-";
 
     private const string TaskSecurityDescriptorFormat = "D:(A;;FA;;;SY)(A;;FA;;;BA)(A;;FRFX;;;{0})";
-
-    private const string TaskDescription =
-        "Starts " + Constants.ApplicationName + " as administrator without a UAC prompt for the account this task " +
-        "runs as. The app's Always run as administrator setting creates and deletes this task.";
 
     private const string TaskSchemaNamespace = "http://schemas.microsoft.com/windows/2004/02/mit/task";
     private const string InteractiveTokenLogonType = "InteractiveToken";
     private const string HighestAvailableRunLevel = "HighestAvailable";
 
+    private readonly string _applicationName =
+        string.IsNullOrWhiteSpace(applicationName)
+            ? throw new ArgumentException("An application name is required.", nameof(applicationName))
+            : applicationName;
+
+    private readonly Func<string> _systemInstallExecutable =
+        systemInstallExecutable ?? throw new ArgumentNullException(nameof(systemInstallExecutable));
+
+    // Each app's tasks share the TrayAppDotNET folder; the app name followed by '-' keeps them apart
+    private string TaskNamePrefix => _applicationName + "-";
+
+    private string TaskDescription =>
+        "Starts " + _applicationName + " as administrator without a UAC prompt for the account this task runs as. " +
+        "The app creates and deletes this task.";
+
     /// <summary>The task's name for one account: the app name and the account SID, like Windows' own per-user tasks.</summary>
-    internal static string TaskName(string userSid) => TaskNamePrefix + userSid;
+    internal string TaskName(string userSid) => TaskNamePrefix + userSid;
 
     /// <summary>The task's path in Task Scheduler for one account.</summary>
-    internal static string TaskPath(string userSid) => $@"\{TaskFolderName}\{TaskName(userSid)}";
+    internal string TaskPath(string userSid) => $@"\{TaskFolderName}\{TaskName(userSid)}";
 
     /// <summary>
     /// The task's security descriptor: the account may read and run its task without elevation, while only SYSTEM and
@@ -76,36 +100,33 @@ internal static class ElevatedStartTask
     internal static string TaskSecurityDescriptor(string userSid) =>
         string.Format(CultureInfo.InvariantCulture, TaskSecurityDescriptorFormat, userSid);
 
-    /// <summary>The only executable the task may start.</summary>
-    private static string SystemInstallExecutable => AppServices.Install.Layout.ProgramFilesInstallExecutable;
-
     /// <summary>Reads whether this copy and this account may turn the setting on.</summary>
-    public static ElevatedStartAvailability GetAvailability()
+    public TrayAppDotNETElevatedStartAvailability GetAvailability()
     {
-        string systemInstallExecutable = SystemInstallExecutable;
-        return new ElevatedStartAvailability(
+        string systemInstallExecutable = _systemInstallExecutable();
+        return new TrayAppDotNETElevatedStartAvailability(
             IsSystemInstall: File.Exists(systemInstallExecutable) &&
                              IsSameExecutable(Environment.ProcessPath, systemInstallExecutable),
             AccountCanElevate: !TrayAppDotNETElevationPolicy.ElevationWouldUseAnotherAccount(TADNLog.Log));
     }
 
     /// <summary>
-    /// Whether the settings toggle may be used: both directions need an administrator account, turning the task on
+    /// Whether a settings toggle may be used: both directions need an administrator account, turning the task on
     /// needs this copy to be the system install, and a registered task can be turned off from any copy.
     /// </summary>
-    internal static bool CanToggle(ElevatedStartAvailability availability, ElevatedStartState state) =>
+    public static bool CanToggle(TrayAppDotNETElevatedStartAvailability availability, TrayAppDotNETElevatedStartState state) =>
         availability.AccountCanElevate && (state.IsRegistered || availability.IsSystemInstall);
 
     /// <summary>Reads the current account's task from Task Scheduler.</summary>
-    public static ElevatedStartState GetState()
+    public TrayAppDotNETElevatedStartState GetState()
     {
         string? userSid = CurrentUserSid();
-        if (userSid == null) return new ElevatedStartState(IsRegistered: false, IsUsable: false, TaskPath: string.Empty);
+        if (userSid == null) return new TrayAppDotNETElevatedStartState(IsRegistered: false, IsUsable: false, TaskPath: string.Empty);
 
         string taskPath = TaskPath(userSid);
         bool isRegistered = false;
         bool isUsable = false;
-        _ = TryWithSession("ElevatedStartTask.GetState", session =>
+        _ = TryWithSession("TrayAppDotNETElevatedStartTask.GetState", session =>
         {
             int hr = session.TryOpenTask(TaskFolderName, TaskName(userSid), out ScheduledTask? task);
             if (TaskSchedulerSession.IsNotFound(hr)) return 0;
@@ -114,44 +135,44 @@ internal static class ElevatedStartTask
             {
                 isRegistered = true;
                 hr = task.TryGetXml(out string? xml);
-                isUsable = hr >= 0 && IsUsableDefinition(xml, SystemInstallExecutable);
+                isUsable = hr >= 0 && IsUsableDefinition(xml, _systemInstallExecutable());
                 return hr;
             }
         });
-        return new ElevatedStartState(isRegistered, isUsable, taskPath);
+        return new TrayAppDotNETElevatedStartState(isRegistered, isUsable, taskPath);
     }
 
     /// <summary>Relaunches this executable elevated to register or delete the account's task.</summary>
-    public static Task<ElevatedSettingChangeResult> SetEnabledElevatedAsync(bool enable) =>
-        ElevatedSettingChange.RunElevatedAsync(
+    public static Task<TrayAppDotNETElevatedSettingChangeResult> SetEnabledElevatedAsync(bool enable) =>
+        TrayAppDotNETElevatedSettingChange.RunElevatedAsync(
             ConfigureModeArgument,
             enable,
-            logSource: "ElevatedStartTask.SetEnabledElevatedAsync");
+            logSource: "TrayAppDotNETElevatedStartTask.SetEnabledElevatedAsync");
 
     /// <summary>Returns true when this launch is the elevated change of the account's task.</summary>
     public static bool IsElevatedConfigureLaunch(string[] arguments) =>
-        ElevatedSettingChange.FindModeArgument(arguments, ConfigureModeArgument) >= 0;
+        TrayAppDotNETElevatedSettingChange.FindModeArgument(arguments, ConfigureModeArgument) >= 0;
 
     /// <summary>
     /// Registers or deletes the account's task when launched with <see cref="ConfigureModeArgument"/>, before the UI
     /// and single-instance machinery. Returns true when the launch was this change; <paramref name="exitCode"/> is the
     /// process exit code to return.
     /// </summary>
-    public static bool TryHandleElevatedConfigure(string[] arguments, out int exitCode)
+    public bool TryHandleElevatedConfigure(string[] arguments, out int exitCode)
     {
-        exitCode = ElevatedSettingChange.SuccessExitCode;
-        int modeIndex = ElevatedSettingChange.FindModeArgument(arguments, ConfigureModeArgument);
+        exitCode = TrayAppDotNETElevatedSettingChange.SuccessExitCode;
+        int modeIndex = TrayAppDotNETElevatedSettingChange.FindModeArgument(arguments, ConfigureModeArgument);
         if (modeIndex < 0) return false;
 
-        if (!ElevatedSettingChange.TryReadToggle(arguments, modeIndex, out bool enable))
+        if (!TrayAppDotNETElevatedSettingChange.TryReadToggle(arguments, modeIndex, out bool enable))
         {
-            TADNLog.Log($"ElevatedStartTask: '{ConfigureModeArgument}' requires 'on' or 'off'.");
-            exitCode = ElevatedSettingChange.FailureExitCode;
+            TADNLog.Log($"TrayAppDotNETElevatedStartTask: '{ConfigureModeArgument}' requires 'on' or 'off'.");
+            exitCode = TrayAppDotNETElevatedSettingChange.FailureExitCode;
             return true;
         }
 
         bool succeeded = SetEnabledForCurrentUser(enable);
-        exitCode = succeeded ? ElevatedSettingChange.SuccessExitCode : ElevatedSettingChange.FailureExitCode;
+        exitCode = succeeded ? TrayAppDotNETElevatedSettingChange.SuccessExitCode : TrayAppDotNETElevatedSettingChange.FailureExitCode;
         return true;
     }
 
@@ -159,17 +180,17 @@ internal static class ElevatedStartTask
     /// Registers or deletes the current account's task; needs administrator rights. The elevated configure mode and a
     /// system install's Always run as administrator choice both end here.
     /// </summary>
-    internal static bool SetEnabledForCurrentUser(bool enable) => enable ? RegisterForCurrentUser() : DeleteForCurrentUser();
+    public bool SetEnabledForCurrentUser(bool enable) => enable ? RegisterForCurrentUser() : DeleteForCurrentUser();
 
     /// <summary>
     /// Deletes every account's task during a system uninstall. The tasks only ever start the system install, so other
     /// uninstalls leave them. Best effort: a task left behind starts a missing exe and does nothing.
     /// </summary>
-    public static void RemoveForUninstall(InstallScope scope)
+    public void RemoveForUninstall(InstallScope scope)
     {
         if (scope != InstallScope.ProgramFiles) return;
 
-        _ = TryWithSession("ElevatedStartTask.RemoveForUninstall", session =>
+        _ = TryWithSession("TrayAppDotNETElevatedStartTask.RemoveForUninstall", session =>
         {
             int hr = session.DeleteTasks(TaskFolderName, IsAppTaskName);
             if (TaskSchedulerSession.IsNotFound(hr)) return 0;
@@ -184,24 +205,60 @@ internal static class ElevatedStartTask
     /// before. Only plain starts hand off (see <see cref="TryGetHandOffParameter"/>), and only to a task that starts
     /// this very exe elevated.
     /// </summary>
-    public static bool TryHandOffLaunch(string[] arguments)
+    public bool TryHandOffLaunch(string[] arguments) => HandOff(arguments) == HandOffOutcome.Started;
+
+    /// <summary>
+    /// <see cref="TryHandOffLaunch"/> for an app that always runs as administrator. When the system install has no
+    /// usable task for the account (another account installed it, an update came from a build without the task, or
+    /// something outside the app changed or deleted it) and the account is an administrator, the task is registered
+    /// again through one UAC prompt and the start hands off to it. A declined prompt or a failure starts the app
+    /// unelevated.
+    /// </summary>
+    public bool TryHandOffRequiredLaunch(string[] arguments)
+    {
+        HandOffOutcome outcome = HandOff(arguments);
+        if (outcome != HandOffOutcome.NoUsableTask) return outcome == HandOffOutcome.Started;
+
+        TrayAppDotNETElevatedStartAvailability availability = GetAvailability();
+        if (!availability.IsSystemInstall || !availability.AccountCanElevate) return false;
+
+        TADNLog.Log("TrayAppDotNETElevatedStartTask: no usable task for this account; registering it.");
+        TrayAppDotNETElevatedSettingChangeResult result = TrayAppDotNETElevatedSettingChange.RunElevated(
+            ConfigureModeArgument,
+            enable: true,
+            logSource: "TrayAppDotNETElevatedStartTask.TryHandOffRequiredLaunch");
+        if (result != TrayAppDotNETElevatedSettingChangeResult.Enabled)
+        {
+            TADNLog.Log($"TrayAppDotNETElevatedStartTask: registering the task ended {result}; starting without administrator rights.");
+            return false;
+        }
+
+        return HandOff(arguments) == HandOffOutcome.Started;
+    }
+
+    private HandOffOutcome HandOff(string[] arguments)
     {
         ArgumentNullException.ThrowIfNull(arguments);
-        if (!TryGetHandOffParameter(arguments, out string parameter)) return false;
+        if (!TryGetHandOffParameter(arguments, out string parameter)) return HandOffOutcome.NotHandedOff;
 
         // Already elevated, or UAC is off; a debugger session stays in this process
-        if (AppElevation.IsElevated || Debugger.IsAttached) return false;
+        if (TrayAppDotNETInstallationService.IsElevated(TADNLog.Log) || Debugger.IsAttached) return HandOffOutcome.NotHandedOff;
 
         string? executable = Environment.ProcessPath;
         string? userSid = CurrentUserSid();
-        if (string.IsNullOrEmpty(executable) || userSid == null) return false;
+        if (string.IsNullOrEmpty(executable) || userSid == null) return HandOffOutcome.NotHandedOff;
 
-        bool started = false;
-        _ = TryWithSession("ElevatedStartTask.TryHandOffLaunch", session =>
+        HandOffOutcome outcome = HandOffOutcome.NotHandedOff;
+        _ = TryWithSession("TrayAppDotNETElevatedStartTask.HandOff", session =>
         {
             int hr = session.TryOpenTask(TaskFolderName, TaskName(userSid), out ScheduledTask? task);
-            // The usual case: the setting is off
-            if (TaskSchedulerSession.IsNotFound(hr)) return 0;
+            // The usual case for an app that offers it as a setting: the setting is off
+            if (TaskSchedulerSession.IsNotFound(hr))
+            {
+                outcome = HandOffOutcome.NoUsableTask;
+                return 0;
+            }
+
             if (hr < 0 || task == null) return hr;
             using (task)
             {
@@ -210,33 +267,39 @@ internal static class ElevatedStartTask
 
                 // Another copy's task (the system install's, seen from a portable copy) is not this start's business
                 TaskDefinitionSummary definition = ReadTaskDefinition(xml);
-                if (!IsSameExecutable(definition.Executable, executable)) return 0;
+                if (!IsSameExecutable(definition.Executable, executable))
+                {
+                    outcome = HandOffOutcome.NoUsableTask;
+                    return 0;
+                }
+
                 if (!definition.StartsElevated)
                 {
                     TADNLog.Log(
-                        $"ElevatedStartTask: {TaskPath(userSid)} was changed or disabled outside the app; starting " +
-                        "without administrator rights.");
+                        $"TrayAppDotNETElevatedStartTask: {TaskPath(userSid)} was changed or disabled outside the app; " +
+                        "starting without administrator rights.");
+                    outcome = HandOffOutcome.NoUsableTask;
                     return 0;
                 }
 
                 hr = task.Run(parameter);
-                started = hr >= 0;
+                if (hr >= 0) outcome = HandOffOutcome.Started;
                 return hr;
             }
         });
-        return started;
+        return outcome;
     }
 
     /// <summary>
-    /// Picks the $(Arg0) text for a start that may hand off: no arguments, --autostart, --hidden, or a redirected
-    /// taskmgr.exe start (whose switches mean nothing to the app). Any other argument, --settings-dir included, keeps
-    /// the start in this process.
+    /// Picks the $(Arg0) text for a start that may hand off: no arguments, --autostart, --hidden, or a pass-through
+    /// start (whose arguments mean nothing to the app). Any other argument, --settings-dir included, keeps the start
+    /// in this process.
     /// </summary>
-    internal static bool TryGetHandOffParameter(string[] arguments, out string parameter)
+    internal bool TryGetHandOffParameter(string[] arguments, out string parameter)
     {
         ArgumentNullException.ThrowIfNull(arguments);
         parameter = string.Empty;
-        if (TaskManagerReplacement.IsRedirectedLaunch(arguments)) return true;
+        if (isPassThroughLaunch?.Invoke(arguments) == true) return true;
 
         bool isStartupLaunch = false;
         bool isHiddenLaunch = false;
@@ -272,7 +335,7 @@ internal static class ElevatedStartTask
     /// exactly as the hand-off writes them. Anything else could have come from another program through $(Arg0), so the
     /// start is refused.
     /// </summary>
-    internal static bool TryGetTaskLaunchArguments(string[] arguments, out string[] launchArguments)
+    public static bool TryGetTaskLaunchArguments(string[] arguments, out string[] launchArguments)
     {
         ArgumentNullException.ThrowIfNull(arguments);
         launchArguments = [];
@@ -299,7 +362,7 @@ internal static class ElevatedStartTask
     }
 
     /// <summary>The task definition for one account: the system install, started elevated through the app's action.</summary>
-    internal static string BuildTaskDefinition(string executable, string userSid)
+    internal string BuildTaskDefinition(string executable, string userSid)
     {
         StringBuilder builder = new();
         XmlWriterSettings settings = new() { OmitXmlDeclaration = true, Indent = true };
@@ -309,7 +372,7 @@ internal static class ElevatedStartTask
             writer.WriteAttributeString("version", "1.2");
 
             writer.WriteStartElement("RegistrationInfo", TaskSchemaNamespace);
-            writer.WriteElementString("Author", TaskSchemaNamespace, Constants.ApplicationName);
+            writer.WriteElementString("Author", TaskSchemaNamespace, _applicationName);
             writer.WriteElementString("Description", TaskSchemaNamespace, TaskDescription);
             writer.WriteEndElement();
 
@@ -428,7 +491,7 @@ internal static class ElevatedStartTask
         }
         catch (XmlException exception)
         {
-            TADNLog.Log($"ElevatedStartTask.ReadTaskDefinition: {exception.Message}");
+            TADNLog.Log($"TrayAppDotNETElevatedStartTask.ReadTaskDefinition: {exception.Message}");
             return default;
         }
 
@@ -460,12 +523,12 @@ internal static class ElevatedStartTask
         _ => []
     };
 
-    private static bool RegisterForCurrentUser()
+    private bool RegisterForCurrentUser()
     {
-        string executable = SystemInstallExecutable;
+        string executable = _systemInstallExecutable();
         if (!File.Exists(executable))
         {
-            TADNLog.Log($"ElevatedStartTask: no system install at '{executable}'; only a Program Files install can run as administrator without a prompt.");
+            TADNLog.Log($"TrayAppDotNETElevatedStartTask: no system install at '{executable}'; only a Program Files install can run as administrator without a prompt.");
             return false;
         }
 
@@ -474,7 +537,7 @@ internal static class ElevatedStartTask
 
         string definition = BuildTaskDefinition(executable, userSid);
         return TryWithSession(
-            "ElevatedStartTask.RegisterForCurrentUser",
+            "TrayAppDotNETElevatedStartTask.RegisterForCurrentUser",
             session => session.RegisterTask(
                 TaskFolderName,
                 TaskName(userSid),
@@ -483,12 +546,12 @@ internal static class ElevatedStartTask
                 TaskSecurityDescriptor(userSid)));
     }
 
-    private static bool DeleteForCurrentUser()
+    private bool DeleteForCurrentUser()
     {
         string? userSid = CurrentUserSid();
         if (userSid == null) return false;
 
-        return TryWithSession("ElevatedStartTask.DeleteForCurrentUser", session =>
+        return TryWithSession("TrayAppDotNETElevatedStartTask.DeleteForCurrentUser", session =>
         {
             int hr = session.DeleteTask(TaskFolderName, TaskName(userSid));
             if (hr < 0 && !TaskSchedulerSession.IsNotFound(hr)) return hr;
@@ -502,10 +565,10 @@ internal static class ElevatedStartTask
     {
         int hr = session.DeleteFolder(TaskFolderName);
         if (hr < 0 && !TaskSchedulerSession.IsNotEmpty(hr) && !TaskSchedulerSession.IsNotFound(hr))
-            TADNLog.Log($"ElevatedStartTask: deleting the task folder failed with 0x{hr:X8}.");
+            TADNLog.Log($"TrayAppDotNETElevatedStartTask: deleting the task folder failed with 0x{hr:X8}.");
     }
 
-    private static bool IsAppTaskName(string name) => name.StartsWith(TaskNamePrefix, StringComparison.OrdinalIgnoreCase);
+    private bool IsAppTaskName(string name) => name.StartsWith(TaskNamePrefix, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Runs <paramref name="action"/> on a Task Scheduler session and returns whether it succeeded. Failures are logged
@@ -555,13 +618,25 @@ internal static class ElevatedStartTask
         }
         catch (Exception exception) when (exception is SecurityException or UnauthorizedAccessException)
         {
-            TADNLog.Log($"ElevatedStartTask: reading the account SID failed: {exception.Message}");
+            TADNLog.Log($"TrayAppDotNETElevatedStartTask: reading the account SID failed: {exception.Message}");
             return null;
         }
     }
+
+    private enum HandOffOutcome
+    {
+        /// <summary>Not a plain unelevated start, or the hand-off could not be tried.</summary>
+        NotHandedOff,
+
+        /// <summary>The task started this exe elevated.</summary>
+        Started,
+
+        /// <summary>The account has no task that starts this exe elevated.</summary>
+        NoUsableTask
+    }
 }
 
-/// <summary>What a task definition starts, as <see cref="ElevatedStartTask.ReadTaskDefinition"/> reads it.</summary>
+/// <summary>What a task definition starts, as <see cref="TrayAppDotNETElevatedStartTask.ReadTaskDefinition"/> reads it.</summary>
 /// <param name="Executable">The Exec action's command, unquoted.</param>
 /// <param name="StartsElevated">The definition starts that command elevated through the app's own action.</param>
 internal readonly record struct TaskDefinitionSummary(string? Executable, bool StartsElevated);

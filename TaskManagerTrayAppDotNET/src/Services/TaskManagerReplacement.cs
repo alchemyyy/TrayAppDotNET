@@ -20,7 +20,7 @@ internal readonly record struct TaskManagerReplacementState(
 /// another copy (or another tool) owns.
 ///
 /// Writing and removing the value needs administrator rights (HKLM), so the settings toggle relaunches
-/// this executable elevated with <see cref="ConfigureModeArgument"/> (see <see cref="ElevatedSettingChange"/>);
+/// this executable elevated with <see cref="ConfigureModeArgument"/> (see <see cref="TrayAppDotNETElevatedSettingChange"/>);
 /// that relaunch performs the registry change and exits without starting the UI. Redirected taskmgr launches arrive
 /// with the original image path as the first argument and are handed off to any running instance.
 /// </summary>
@@ -87,7 +87,7 @@ internal static class TaskManagerReplacement
 
     /// <summary>Returns true when this launch is the elevated taskmgr.exe redirect change.</summary>
     public static bool IsElevatedConfigureLaunch(string[] arguments) =>
-        ElevatedSettingChange.FindModeArgument(arguments, ConfigureModeArgument) >= 0;
+        TrayAppDotNETElevatedSettingChange.FindModeArgument(arguments, ConfigureModeArgument) >= 0;
 
     /// <summary>
     /// Performs the elevated registry change when launched with <see cref="ConfigureModeArgument"/>.
@@ -97,25 +97,25 @@ internal static class TaskManagerReplacement
     /// </summary>
     public static bool TryHandleElevatedConfigure(string[] arguments, out int exitCode)
     {
-        exitCode = ElevatedSettingChange.SuccessExitCode;
-        int modeIndex = ElevatedSettingChange.FindModeArgument(arguments, ConfigureModeArgument);
+        exitCode = TrayAppDotNETElevatedSettingChange.SuccessExitCode;
+        int modeIndex = TrayAppDotNETElevatedSettingChange.FindModeArgument(arguments, ConfigureModeArgument);
         if (modeIndex < 0) return false;
 
-        if (!ElevatedSettingChange.TryReadToggle(arguments, modeIndex, out bool enable))
+        if (!TrayAppDotNETElevatedSettingChange.TryReadToggle(arguments, modeIndex, out bool enable))
         {
             TADNLog.Log($"TaskManagerReplacement: '{ConfigureModeArgument}' requires 'on' or 'off'.");
-            exitCode = ElevatedSettingChange.FailureExitCode;
+            exitCode = TrayAppDotNETElevatedSettingChange.FailureExitCode;
             return true;
         }
 
         bool succeeded = enable ? EnableRedirection() : DisableRedirection();
-        exitCode = succeeded ? ElevatedSettingChange.SuccessExitCode : ElevatedSettingChange.FailureExitCode;
+        exitCode = succeeded ? TrayAppDotNETElevatedSettingChange.SuccessExitCode : TrayAppDotNETElevatedSettingChange.FailureExitCode;
         return true;
     }
 
     /// <summary>Relaunches this executable elevated to apply the change, returning the observed outcome.</summary>
-    public static Task<ElevatedSettingChangeResult> SetEnabledElevatedAsync(bool enable) =>
-        ElevatedSettingChange.RunElevatedAsync(
+    public static Task<TrayAppDotNETElevatedSettingChangeResult> SetEnabledElevatedAsync(bool enable) =>
+        TrayAppDotNETElevatedSettingChange.RunElevatedAsync(
             ConfigureModeArgument,
             enable,
             logSource: "TaskManagerReplacement.SetEnabledElevatedAsync");

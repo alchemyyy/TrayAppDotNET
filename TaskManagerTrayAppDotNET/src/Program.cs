@@ -13,11 +13,11 @@ internal static class Program
     {
         // A start by the Always run as administrator task runs elevated with arguments any program running as the user
         // can set, so it is checked before every other mode and may only become a plain start
-        if (ElevatedStartTask.IsTaskLaunch(args))
+        if (TrayAppDotNETElevatedStartTask.IsTaskLaunch(args))
         {
-            return ElevatedStartTask.TryGetTaskLaunchArguments(args, out string[] launchArguments)
+            return TrayAppDotNETElevatedStartTask.TryGetTaskLaunchArguments(args, out string[] launchArguments)
                 ? RunApplication(launchArguments)
-                : ElevatedStartTask.RejectedTaskLaunchExitCode;
+                : TrayAppDotNETElevatedStartTask.RejectedTaskLaunchExitCode;
         }
 
         // Elevated modes write no file in the user's folders: a same-user process controls them and could redirect an
@@ -30,10 +30,10 @@ internal static class Program
             return configureExitCode;
         }
 
-        if (ElevatedStartTask.IsElevatedConfigureLaunch(args))
+        if (TrayAppDotNETElevatedStartTask.IsElevatedConfigureLaunch(args))
         {
             TADNLog.InitializeForElevatedProcess(forwarder: null);
-            _ = ElevatedStartTask.TryHandleElevatedConfigure(args, out int configureExitCode);
+            _ = AppServices.ElevatedStart.TryHandleElevatedConfigure(args, out int configureExitCode);
             return configureExitCode;
         }
 
@@ -55,7 +55,7 @@ internal static class Program
             return 0;
 
         // Always run as administrator: an unelevated plain start lets the account's task start this exe elevated
-        if (ElevatedStartTask.TryHandOffLaunch(args))
+        if (AppServices.ElevatedStart.TryHandOffLaunch(args))
             return 0;
 
         return RunApplication(args);

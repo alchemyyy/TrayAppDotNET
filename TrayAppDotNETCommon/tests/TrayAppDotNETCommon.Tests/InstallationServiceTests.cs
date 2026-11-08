@@ -196,6 +196,31 @@ public sealed class InstallationServiceTests
     }
 
     [Fact]
+    public void ASystemInstallAlwaysTurnsOnARequiredRunAsAdministrator()
+    {
+        using InstallationFixture fixture = new(runAsAdministratorRequired: true);
+
+        fixture.Service.ApplyInstallOptions(
+            InstallScope.ProgramFiles,
+            allUsers: true,
+            new TrayAppDotNETInstallOptions(),
+            scopeWasInstalled: true);
+        fixture.Service.ApplyInstallOptions(
+            InstallScope.ProgramFiles,
+            allUsers: true,
+            new TrayAppDotNETInstallOptions(RunAsAdministrator: false),
+            scopeWasInstalled: true);
+        // Still never for a per-user copy
+        fixture.Service.ApplyInstallOptions(
+            InstallScope.LocalAppData,
+            allUsers: false,
+            new TrayAppDotNETInstallOptions(),
+            scopeWasInstalled: false);
+
+        Assert.Equal([true, true], fixture.RunAsAdministratorChanges);
+    }
+
+    [Fact]
     public void AFailedRunAsAdministratorChangeFailsTheInstallAfterTheFilesAreIn()
     {
         using InstallationFixture fixture = new(runAsAdministratorSucceeds: false);
@@ -429,7 +454,10 @@ public sealed class InstallationServiceTests
 
     private sealed class InstallationFixture : IDisposable
     {
-        public InstallationFixture(TrayAppDotNETInstallPayload? payload = null, bool runAsAdministratorSucceeds = true)
+        public InstallationFixture(
+            TrayAppDotNETInstallPayload? payload = null,
+            bool runAsAdministratorSucceeds = true,
+            bool runAsAdministratorRequired = false)
         {
             RootDirectory = Path.Combine(
                 Path.GetTempPath(),
@@ -476,6 +504,7 @@ public sealed class InstallationServiceTests
             {
                 RunAsAdministrator = new TrayAppDotNETRunAsAdministratorOption
                 {
+                    IsRequired = runAsAdministratorRequired,
                     Title = static () => "Title",
                     Warning = static () => "Warning",
                     SetEnabled = enable =>

@@ -389,6 +389,36 @@ public sealed class SecondaryWindowLifetimeTests
     });
 
     [Fact]
+    public void InstallerOffersNoChoiceForARequiredRunAsAdministrator() => AvaloniaTestHost.Run(() =>
+    {
+        string root = Path.Combine(Path.GetTempPath(), "TrayAppDotNET-installer-window", Guid.NewGuid().ToString("N"));
+        TrayAppDotNETInstallerWindow window = new(new TrayAppDotNETInstallerWindowOptions
+        {
+            Layout = new TrayAppDotNETInstallLayout(
+                ApplicationName: "Test",
+                SharedRootFolderName: "TrayAppDotNET",
+                Path.Combine(root, "Local"),
+                Path.Combine(root, "System"),
+                InstalledExecutableFileName: "Test.exe"),
+            Icon = null,
+            Palette = TestPalettes.Default(),
+            EnableRoundedCorners = true,
+            InitialScope = InstallScope.ProgramFiles,
+            RunAsAdministrator = new TrayAppDotNETRunAsAdministratorOption
+            {
+                IsRequired = true,
+                SetEnabled = static _ => throw new InvalidOperationException("The window must not apply the choice.")
+            }
+        });
+        window.Show();
+
+        // Only the two shortcut check boxes; the install applies the required setting on its own
+        Assert.Equal(2, window.GetVisualDescendants().OfType<CheckBox>().Count());
+        Assert.Null(window.SelectedInstallOptions.RunAsAdministrator);
+        window.Dispose();
+    });
+
+    [Fact]
     public void WarmSlotDetachesAndDisposesAfterCloseFailure() => AvaloniaTestHost.Run(() =>
     {
         List<Exception> errors = [];

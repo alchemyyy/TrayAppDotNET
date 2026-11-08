@@ -14,7 +14,16 @@ If the download fails (e.g. no internet), the app runs without PawnIO and tries 
 
 Uninstalling Fan Control removes the downloaded installer. The PawnIO driver itself stays installed, since other software may use it.
 
-The app itself runs as a normal user. The PawnIO installer is the only thing that asks for admin.
+### Running as Administrator
+
+Fan control needs administrator rights, so the system-wide install always runs as administrator, without a UAC prompt at every start. There's no setting for it and no check box in the installer. It works the same way as Task Manager's [Always run as administrator](../task-manager/index.md#always-run-as-administrator): a scheduled task for your account, `\TrayAppDotNET\FanControlTrayAppDotNET-<your account's SID>`, runs the app with highest privileges, and a normal start (the Start menu entry, **Run on startup**, the restarts from **Settings**) hands off to it.
+
+- A system-wide install creates the task for the account that installs it (that install's UAC prompt covers it).
+- If your account has no working task (someone else installed the app, or the task was changed or deleted), the next start asks for administrator approval once, recreates the task and starts through it. If you decline, the app starts as you and asks again at the next start.
+- It needs an administrator account. Otherwise the app runs as you.
+- Only the system-wide install in Program Files uses the task: a copy in your user folder could be replaced by any program you run, which would then start as administrator without asking. Local and portable copies run as you, as does any start with `--settings-dir`.
+- Any program running as you can run the task, so any program you run can start Fan Control as administrator. None of them can change what the task starts: only an administrator can change or delete it.
+- Uninstalling the system-wide install deletes every account's task.
 
 ## Flyout
 

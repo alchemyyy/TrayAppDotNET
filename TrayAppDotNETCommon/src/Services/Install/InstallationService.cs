@@ -1224,8 +1224,9 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
     /// <summary>
     /// Applies the install choices. An unset desktop choice leaves the desktop shortcut as it is. An unset Start
     /// Menu choice keeps the entries in step with the installation, except that a scope that was already installed
-    /// and had its entries removed by the user does not get them back. A set Always run as administrator choice is
-    /// applied by a system install of an app that offers it, for the installing account; anything else leaves it.
+    /// and had its entries removed by the user does not get them back. A system install of an app that offers Always run
+    /// as administrator applies a set choice for the installing account, and always turns on a required one; anything
+    /// else leaves it.
     /// </summary>
     internal TrayAppDotNETInstallResult ApplyInstallOptions(
         InstallScope scope,
@@ -1252,8 +1253,8 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         }
 
         if (scope == InstallScope.ProgramFiles
-            && installOptions?.RunAsAdministrator is { } runAsAdministrator
             && options.RunAsAdministrator is { } runAsAdministratorOption
+            && runAsAdministratorOption.EffectiveChoice(installOptions?.RunAsAdministrator) is { } runAsAdministrator
             && !runAsAdministratorOption.SetEnabled(runAsAdministrator))
         {
             failures.Add(runAsAdministrator

@@ -1,16 +1,15 @@
 using System.Diagnostics;
 using System.Security.Principal;
-using TaskManagerTrayAppDotNET.Interop;
-using TaskManagerTrayAppDotNET.Services;
 using TrayAppDotNETCommon.Interop;
+using TrayAppDotNETCommon.Services.Install;
 using Xunit;
 
-namespace TaskManagerTrayAppDotNET.Tests;
+namespace TrayAppDotNETCommon.Tests;
 
 public sealed class ScheduledTaskSmokeTests
 {
     // Registering a task that runs elevated needs an elevated test run, and the probe flashes a console window
-    private const string SmokeTestEnvironmentVariable = "TASK_MANAGER_RUN_SCHEDULED_TASK_TEST";
+    private const string SmokeTestEnvironmentVariable = "TRAYAPPDOTNET_RUN_SCHEDULED_TASK_TEST";
 
     private const int OutputTimeoutMilliseconds = 15_000;
 
@@ -26,17 +25,18 @@ public sealed class ScheduledTaskSmokeTests
         Assert.True(apartment.IsUsable);
         AssertSucceeded(TaskSchedulerSession.TryConnect(out TaskSchedulerSession? connected));
         using TaskSchedulerSession session = Assert.IsType<TaskSchedulerSession>(connected);
-        string securityDescriptor = ElevatedStartTask.TaskSecurityDescriptor(userSid);
+        string securityDescriptor = TrayAppDotNETElevatedStartTask.TaskSecurityDescriptor(userSid);
+        TrayAppDotNETElevatedStartTask elevatedStart = new("TaskManagerTrayAppDotNET", () => commandProcessor);
         try
         {
             // The app's own definition, read back the way Task Scheduler stores it
-            string definition = ElevatedStartTask.BuildTaskDefinition(commandProcessor, userSid);
+            string definition = elevatedStart.BuildTaskDefinition(commandProcessor, userSid);
             AssertSucceeded(session.RegisterTask(folderName, "App", definition, userSid, securityDescriptor));
             AssertSucceeded(session.TryOpenTask(folderName, "App", out ScheduledTask? appTask));
             using (appTask)
             {
                 AssertSucceeded(Assert.IsType<ScheduledTask>(appTask).TryGetXml(out string? registered));
-                Assert.True(ElevatedStartTask.IsUsableDefinition(registered, commandProcessor));
+                Assert.True(TrayAppDotNETElevatedStartTask.IsUsableDefinition(registered, commandProcessor));
             }
 
             // A probe that records the command line Task Scheduler builds from $(Arg0)

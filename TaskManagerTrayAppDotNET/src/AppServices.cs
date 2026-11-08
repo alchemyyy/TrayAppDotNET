@@ -6,6 +6,15 @@ namespace TaskManagerTrayAppDotNET;
 
 internal static class AppServices
 {
+    /// <summary>
+    /// Always run as administrator. A redirected taskmgr.exe start hands off like a plain start: its switches mean
+    /// nothing to the app.
+    /// </summary>
+    public static TrayAppDotNETElevatedStartTask ElevatedStart { get; } = new(
+        Constants.ApplicationName,
+        SystemInstallExecutable,
+        TaskManagerReplacement.IsRedirectedLaunch);
+
     public static TrayAppDotNETAppInstallServices Install { get; } = new(new TrayAppDotNETAppInstallServicesOptions
     {
         ApplicationName = Constants.ApplicationName,
@@ -29,9 +38,11 @@ internal static class AppServices
         {
             Title = static () => LocalizationManager.Instance[nameof(AppStrings.Installer_AlwaysRunAsAdministrator_Title)],
             Warning = static () => LocalizationManager.Instance[nameof(AppStrings.Installer_AlwaysRunAsAdministrator_Warning)],
-            SetEnabled = ElevatedStartTask.SetEnabledForCurrentUser
+            SetEnabled = static enable => ElevatedStart.SetEnabledForCurrentUser(enable)
         }
     });
+
+    private static string SystemInstallExecutable() => Install.Layout.ProgramFilesInstallExecutable;
 
     public static AppIconLoader AppIcon { get; } = new(Constants.AppIconResourceUri);
 

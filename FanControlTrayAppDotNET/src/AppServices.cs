@@ -13,6 +13,13 @@ internal static class AppServices
 {
     private const string LibreHardwareMonitorFileName = "LibreHardwareMonitorLib.dll";
 
+    /// <summary>
+    /// Always run as administrator, which Fan Control always uses: a plain start of the system install hands off to the
+    /// account's scheduled task and comes up elevated without a UAC prompt.
+    /// </summary>
+    public static TrayAppDotNETElevatedStartTask ElevatedStart { get; } =
+        new(Constants.ApplicationName, SystemInstallExecutable);
+
     public static TrayAppDotNETAppInstallServices Install { get; } = new(new TrayAppDotNETAppInstallServicesOptions
     {
         ApplicationName = Constants.ApplicationName,
@@ -20,12 +27,26 @@ internal static class AppServices
         BuildNumber = BuildInfo.BuildNumber,
         PostToUIThread = static action => Dispatcher.UIThread.Post(action),
         ExtraRequiredFiles = [new TrayAppDotNETInstallFile(LibreHardwareMonitorFileName)],
-        // The PawnIO driver stays installed (other software may use it); its downloaded setup does not
+        // The PawnIO driver stays installed (other software may use it); its downloaded setup does not. A system
+        // uninstall also deletes every account's Always run as administrator task
         UninstallHook = new TrayAppDotNETUninstallHook
         {
+            BeforePrepare = static (scope, _) =>
+            {
+                ElevatedStart.RemoveForUninstall(scope);
+                return null;
+            },
             AfterPrepare = static _ => PawnIoDriverInstaller.DeleteDownloadCache()
+        },
+        // Fan control needs administrator rights, so a system install always registers the task, with no choice
+        RunAsAdministrator = new TrayAppDotNETRunAsAdministratorOption
+        {
+            IsRequired = true,
+            SetEnabled = static enable => ElevatedStart.SetEnabledForCurrentUser(enable)
         }
     });
+
+    private static string SystemInstallExecutable() => Install.Layout.ProgramFilesInstallExecutable;
 
     public static AppIconLoader AppIcon { get; } = new(Constants.AppIconResourceUri);
 

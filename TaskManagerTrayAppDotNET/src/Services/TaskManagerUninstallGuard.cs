@@ -32,7 +32,7 @@ internal static class TaskManagerUninstallGuard
     {
         if (!TaskManagerReplacement.RemoveForUninstall(scope)) return BlockedMessage;
 
-        ElevatedStartTask.RemoveForUninstall(scope);
+        AppServices.ElevatedStart.RemoveForUninstall(scope);
         return null;
     }
 

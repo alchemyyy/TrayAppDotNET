@@ -340,13 +340,16 @@
 - Processes Status column, mirrored from Taskmgr.exe: `TaskManagerTrayAppDotNET/src/Models/ProcessStatus.cs`,
   `TaskManagerTrayAppDotNET/src/Services/ProcessHungWindowCollector.cs`; rules in
   `documentation/docs/task_manager_process_status.md`
-- Always run as administrator: `TaskManagerTrayAppDotNET/src/Services/ElevatedStartTask.cs` (per-account
-  highest-privileges scheduled task, hand-off, task-start argument check) over the generated Task Scheduler COM client
-  in `src/Interop/TaskSchedulerInterfaces.cs` and `TaskSchedulerSession.cs`; the elevated relaunch both machine-level
-  toggles share is `src/Services/ElevatedSettingChange.cs`. Install-time choice: Common's
+- Always run as administrator (Task Manager as a setting, Fan Control always): Common's
+  `TrayAppDotNETCommon/src/Services/Install/ElevatedStartTask.cs` (`TrayAppDotNETElevatedStartTask`, one instance per
+  app in its `AppServices.ElevatedStart`: per-account highest-privileges scheduled task, hand-off, Fan Control's
+  re-registering `TryHandOffRequiredLaunch`, task-start argument check) over the generated Task Scheduler COM client in
+  `TrayAppDotNETCommon/src/Interop/TaskSchedulerInterfaces.cs` and `TaskSchedulerSession.cs`; the elevated relaunch
+  behind it and Task Manager's taskmgr.exe redirect is `Services/Install/ElevatedSettingChange.cs`. Install time:
   `TrayAppDotNETRunAsAdministratorOption` (`TrayAppDotNETAppInstallServicesOptions.RunAsAdministrator`), applied by
   `TrayAppDotNETInstallationService.ApplyInstallOptions` for a system install when `TrayAppDotNETInstallOptions`
-  carries `RunAsAdministrator` (`--run-as-administrator`); the installer window's check box defaults to checked
+  carries `RunAsAdministrator` (`--run-as-administrator`), or always for an `IsRequired` option (Fan Control, no check
+  box); Task Manager's installer window check box defaults to checked
 - Run new task, page shortcuts and Restart explorer's fresh shell:
   `TaskManagerTrayAppDotNET/src/Services/InteractiveUserLauncher.cs` (Windows Task Manager's
   `\Microsoft\Windows\Task Manager\Interactive` task through wdc.dll `WdcRunTaskAsInteractiveUser`; no Explorer
@@ -418,10 +421,11 @@
   folder. Elevated helpers (Task Manager's broker, `--set-taskmgr-replacement` and `--set-elevated-start`) get no
   override and use `TADNLog.InitializeForElevatedProcess`, which writes no file (the broker forwards lines to the
   app's log). The shared `LocalAppDataRoot` (versions manifest cache, install folder, download caches) does not move.
-- Task Manager's Always run as administrator task (`ElevatedStartTask`) starts the system install elevated with
-  `--elevated-start-task [--autostart] [--hidden]`; `Program.Main` checks for it before every other mode and refuses
-  any other argument. An unelevated plain start (no arguments, `--autostart`, `--hidden`, or a redirected taskmgr.exe
-  start) runs that task before the watcher hop and exits; `--settings-dir` starts never hand off.
+- The Always run as administrator task (`TrayAppDotNETElevatedStartTask`, Task Manager and Fan Control) starts the
+  system install elevated with `--elevated-start-task [--autostart] [--hidden]`; `Program.Main` checks for it before
+  every other mode and refuses any other argument. An unelevated plain start (no arguments, `--autostart`, `--hidden`,
+  or Task Manager's redirected taskmgr.exe start) runs that task before the watcher hop and exits; `--settings-dir`
+  starts never hand off. Fan Control re-registers a missing or unusable task through one UAC prompt first.
 - Single instance: a second launch's watcher asks the running app to exit through
   `Local\TrayAppDotNET-ExitRequest-<pid>` (`TrayAppDotNETExitRequest`); the app runs its normal exit (exit code 0,
   so its watcher stops too). Only when the single-instance mutex is still held after

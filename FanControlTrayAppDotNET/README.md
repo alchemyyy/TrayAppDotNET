@@ -8,6 +8,14 @@ A tray fan controller and hardware monitor, part of [TrayAppDotNET](../README.md
 - A curve editor, sensor probe cards and speed warnings.
 - Motherboard fan headers need the PawnIO driver; the app offers to download and install it (with a UAC prompt) and
   otherwise runs without it.
+- Fan control needs administrator rights, so the system install always runs as administrator without a UAC prompt
+  through Common's `TrayAppDotNETElevatedStartTask` (`AppServices.ElevatedStart`): a per-account scheduled task,
+  `\TrayAppDotNET\FanControlTrayAppDotNET-<SID>`, that the system install registers for the installing account
+  (`TrayAppDotNETRunAsAdministratorOption` with `IsRequired`, no installer check box and no setting). An unelevated
+  plain start (no arguments, `--autostart`, `--hidden`) hands off to it in `Program.Main`; when the account has no
+  usable task (another account installed the app, or the task was changed or deleted), the start registers it again
+  through one UAC prompt (`--set-elevated-start on`) and then hands off. Declining starts the app unelevated. Copies
+  outside Program Files and `--settings-dir` starts never use the task. A system uninstall deletes every account's task.
 
 User documentation: [documentation/docs/apps/fan-control](../documentation/docs/apps/fan-control/index.md)
 (also [Curve Editor](../documentation/docs/apps/fan-control/curve-editor.md) and

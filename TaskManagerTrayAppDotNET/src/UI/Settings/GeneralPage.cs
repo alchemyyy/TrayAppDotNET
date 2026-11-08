@@ -96,14 +96,14 @@ public sealed partial class TaskManagerSettingsWindow
             if (suppressReentry) return;
 
             toggle.IsEnabled = false;
-            ElevatedSettingChangeResult result = await TaskManagerReplacement.SetEnabledElevatedAsync(requestedEnabled);
+            TrayAppDotNETElevatedSettingChangeResult result = await TaskManagerReplacement.SetEnabledElevatedAsync(requestedEnabled);
             TaskManagerReplacementState state = TaskManagerReplacement.GetState();
             bool installExists = TaskManagerReplacement.IsAvailable;
             toggle.IsEnabled = TaskManagerReplacement.CanToggle(installExists, state);
 
             bool applied = requestedEnabled
-                ? result == ElevatedSettingChangeResult.Enabled
-                : result == ElevatedSettingChangeResult.Disabled;
+                ? result == TrayAppDotNETElevatedSettingChangeResult.Enabled
+                : result == TrayAppDotNETElevatedSettingChangeResult.Disabled;
             if (!applied)
             {
                 // Restore the visual state without re-entering this handler
@@ -143,12 +143,12 @@ public sealed partial class TaskManagerSettingsWindow
     }
 
     private static string DescribeReplacementResult(
-        ElevatedSettingChangeResult result,
+        TrayAppDotNETElevatedSettingChangeResult result,
         TaskManagerReplacementState state,
         bool systemInstallExists) => result switch
     {
-        ElevatedSettingChangeResult.Declined => L(nameof(AppStrings.Settings_General_ElevatedChange_Declined)),
-        ElevatedSettingChangeResult.Failed => L(nameof(AppStrings.Settings_General_ElevatedChange_Failed)),
+        TrayAppDotNETElevatedSettingChangeResult.Declined => L(nameof(AppStrings.Settings_General_ElevatedChange_Declined)),
+        TrayAppDotNETElevatedSettingChangeResult.Failed => L(nameof(AppStrings.Settings_General_ElevatedChange_Failed)),
         _ => DescribeReplacementState(state, systemInstallExists)
     };
 
@@ -160,14 +160,15 @@ public sealed partial class TaskManagerSettingsWindow
     /// </summary>
     private Border BuildAlwaysRunAsAdministratorCard(SettingsPalette palette)
     {
-        ElevatedStartState initialState = ElevatedStartTask.GetState();
-        ElevatedStartAvailability availability = ElevatedStartTask.GetAvailability();
+        TrayAppDotNETElevatedStartTask elevatedStart = AppServices.ElevatedStart;
+        TrayAppDotNETElevatedStartState initialState = elevatedStart.GetState();
+        TrayAppDotNETElevatedStartAvailability availability = elevatedStart.GetAvailability();
         bool suppressReentry = false;
 
         SettingsToggle toggle = new SettingsToggle(palette)
             {
                 IsChecked = initialState.IsRegistered,
-                IsEnabled = ElevatedStartTask.CanToggle(availability, initialState)
+                IsEnabled = TrayAppDotNETElevatedStartTask.CanToggle(availability, initialState)
             }
             .MapTo(ControlMap.Settings.GeneralPage.AlwaysRunAsAdministrator);
         Border card = MutableCard(
@@ -183,9 +184,10 @@ public sealed partial class TaskManagerSettingsWindow
             if (suppressReentry) return;
 
             toggle.IsEnabled = false;
-            ElevatedSettingChangeResult result = await ElevatedStartTask.SetEnabledElevatedAsync(requestedEnabled);
-            ElevatedStartState state = ElevatedStartTask.GetState();
-            toggle.IsEnabled = ElevatedStartTask.CanToggle(availability, state);
+            TrayAppDotNETElevatedSettingChangeResult result =
+                await TrayAppDotNETElevatedStartTask.SetEnabledElevatedAsync(requestedEnabled);
+            TrayAppDotNETElevatedStartState state = elevatedStart.GetState();
+            toggle.IsEnabled = TrayAppDotNETElevatedStartTask.CanToggle(availability, state);
 
             // Show what Task Scheduler now holds, whatever the relaunch reported
             if (toggle.IsChecked != state.IsRegistered)
@@ -197,8 +199,8 @@ public sealed partial class TaskManagerSettingsWindow
 
             descriptionText.Text = result switch
             {
-                ElevatedSettingChangeResult.Declined => L(nameof(AppStrings.Settings_General_ElevatedChange_Declined)),
-                ElevatedSettingChangeResult.Failed => L(nameof(AppStrings.Settings_General_ElevatedChange_Failed)),
+                TrayAppDotNETElevatedSettingChangeResult.Declined => L(nameof(AppStrings.Settings_General_ElevatedChange_Declined)),
+                TrayAppDotNETElevatedSettingChangeResult.Failed => L(nameof(AppStrings.Settings_General_ElevatedChange_Failed)),
                 _ => DescribeElevatedStartState(state, availability)
             };
         };
@@ -206,7 +208,9 @@ public sealed partial class TaskManagerSettingsWindow
         return card;
     }
 
-    private static string DescribeElevatedStartState(ElevatedStartState state, ElevatedStartAvailability availability)
+    private static string DescribeElevatedStartState(
+        TrayAppDotNETElevatedStartState state,
+        TrayAppDotNETElevatedStartAvailability availability)
     {
         if (state.IsRegistered)
         {

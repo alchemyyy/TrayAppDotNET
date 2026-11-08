@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.Marshalling;
 
-namespace TaskManagerTrayAppDotNET.Interop;
+namespace TrayAppDotNETCommon.Interop;
 
 // Task Scheduler 2.0 interfaces, verified against Windows SDK taskschd.h. They are dual interfaces, so IDispatch's four
 // members come first. Only the members the app calls are typed; the rest are vtable padding in declaration order.

@@ -586,8 +586,9 @@ public static class InstallEngine
 
     /// <summary>
     /// The command line of one app's headless install. An unset choice is left out, so the app's installer keeps
-    /// that setting as it is. Run as administrator goes only to a System install of Task Manager: the other apps do
-    /// not know the flag, and only the elevated System install registers the task that starts it elevated.
+    /// that setting as it is. Run as administrator goes only to a System install of Task Manager, the one app that
+    /// offers it as a choice: Fan Control's System install always registers its task without the flag, and the other
+    /// apps do not know it.
     /// </summary>
     internal static IReadOnlyList<string> BuildHeadlessInstallArguments(InstallPlan plan, string applicationName)
     {
