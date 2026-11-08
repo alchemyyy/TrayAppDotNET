@@ -22,6 +22,14 @@ internal static class AppServices
             // tasks
             CheckUninstall = TaskManagerUninstallGuard.CheckUninstall,
             BeforePrepare = static (scope, _) => TaskManagerUninstallGuard.BeforePrepare(scope)
+        },
+        // The installer turns Always run as administrator on by default for a system install, with a warning and a
+        // check box to leave it off
+        RunAsAdministrator = new TrayAppDotNETRunAsAdministratorOption
+        {
+            Title = static () => LocalizationManager.Instance[nameof(AppStrings.Installer_AlwaysRunAsAdministrator_Title)],
+            Warning = static () => LocalizationManager.Instance[nameof(AppStrings.Installer_AlwaysRunAsAdministrator_Warning)],
+            SetEnabled = ElevatedStartTask.SetEnabledForCurrentUser
         }
     });
 

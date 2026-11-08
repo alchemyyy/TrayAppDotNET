@@ -343,7 +343,10 @@
 - Always run as administrator: `TaskManagerTrayAppDotNET/src/Services/ElevatedStartTask.cs` (per-account
   highest-privileges scheduled task, hand-off, task-start argument check) over the generated Task Scheduler COM client
   in `src/Interop/TaskSchedulerInterfaces.cs` and `TaskSchedulerSession.cs`; the elevated relaunch both machine-level
-  toggles share is `src/Services/ElevatedSettingChange.cs`
+  toggles share is `src/Services/ElevatedSettingChange.cs`. Install-time choice: Common's
+  `TrayAppDotNETRunAsAdministratorOption` (`TrayAppDotNETAppInstallServicesOptions.RunAsAdministrator`), applied by
+  `TrayAppDotNETInstallationService.ApplyInstallOptions` for a system install when `TrayAppDotNETInstallOptions`
+  carries `RunAsAdministrator` (`--run-as-administrator`); the installer window's check box defaults to checked
 - Run new task, page shortcuts and Restart explorer's fresh shell:
   `TaskManagerTrayAppDotNET/src/Services/InteractiveUserLauncher.cs` (Windows Task Manager's
   `\Microsoft\Windows\Task Manager\Interactive` task through wdc.dll `WdcRunTaskAsInteractiveUser`; no Explorer

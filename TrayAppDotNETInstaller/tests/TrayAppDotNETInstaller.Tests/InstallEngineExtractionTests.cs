@@ -136,7 +136,7 @@ public sealed class InstallEngineExtractionTests : IDisposable
             ("LICENSE.txt", "license"));
         EmbeddedPayload payload = new("FakeTrayAppDotNET", 1, "FakeTrayAppDotNET_1.zip");
         string target = Path.Combine(_root, "portable");
-        InstallPlan plan = new(InstallMode.Portable, target, [payload], CreateDesktopShortcut: false, CreateStartMenuShortcut: false);
+        InstallPlan plan = new(InstallMode.Portable, target, [payload], CreateDesktopShortcut: false, CreateStartMenuShortcut: false, RunAsAdministrator: null);
         List<TrayAppDotNETInstallProgress> reports = [];
         List<InstallApplicationStatus> statuses = [];
 
@@ -167,7 +167,7 @@ public sealed class InstallEngineExtractionTests : IDisposable
     {
         string zipPath = CreateZip("FakeTrayAppDotNET_1.zip", ("readme.txt", "nothing to run"));
         EmbeddedPayload payload = new("FakeTrayAppDotNET", 1, "FakeTrayAppDotNET_1.zip");
-        InstallPlan plan = new(InstallMode.Local, Path.Combine(_root, "local"), [payload], CreateDesktopShortcut: false, CreateStartMenuShortcut: true);
+        InstallPlan plan = new(InstallMode.Local, Path.Combine(_root, "local"), [payload], CreateDesktopShortcut: false, CreateStartMenuShortcut: true, RunAsAdministrator: null);
         List<TrayAppDotNETInstallProgress> reports = [];
         List<InstallApplicationStatus> statuses = [];
 
@@ -355,7 +355,7 @@ public sealed class InstallEngineExtractionTests : IDisposable
     [Fact]
     public async Task RunAsync_EmptyPlanFails()
     {
-        InstallPlan plan = new(InstallMode.Portable, _root, [], CreateDesktopShortcut: false, CreateStartMenuShortcut: false);
+        InstallPlan plan = new(InstallMode.Portable, _root, [], CreateDesktopShortcut: false, CreateStartMenuShortcut: false, RunAsAdministrator: null);
         List<TrayAppDotNETInstallProgress> reports = [];
         List<InstallApplicationStatus> statuses = [];
 
@@ -411,7 +411,8 @@ public sealed class InstallEngineExtractionTests : IDisposable
             target,
             payloads,
             CreateDesktopShortcut: false,
-            CreateStartMenuShortcut: false);
+            CreateStartMenuShortcut: false,
+            RunAsAdministrator: null);
     }
 
     private static string ExecutableName(string applicationName) => applicationName + ".exe";

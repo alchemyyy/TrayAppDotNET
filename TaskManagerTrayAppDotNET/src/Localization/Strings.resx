@@ -132,6 +132,12 @@
   <data name="Settings_General_AlwaysRunAsAdministrator_RequiresAdministrator" xml:space="preserve">
     <value>Unavailable: your account isn't an administrator.</value>
   </data>
+  <data name="Installer_AlwaysRunAsAdministrator_Title" xml:space="preserve">
+    <value>Always run as administrator</value>
+  </data>
+  <data name="Installer_AlwaysRunAsAdministrator_Warning" xml:space="preserve">
+    <value>Warning: this creates a scheduled task for your account that starts Task Manager as administrator without asking for approval. Any program you run can then start Task Manager as administrator too. Only the system location can do this. You can turn it off later in Task Manager's settings, under General.</value>
+  </data>
   <data name="Settings_General_BypassElevationBroker_Title" xml:space="preserve">
     <value>Run admin actions directly when elevated</value>
   </data>

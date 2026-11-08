@@ -10,14 +10,17 @@ public sealed class ElevatedInstallWorkerTests
     private const string SecondApplicationName = "B";
     private const string SecondApplicationFailure = "B broke";
 
-    [Fact]
-    public void WorkerArguments_RoundTrip()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void WorkerArguments_RoundTrip(bool runAsAdministrator)
     {
         WorkerArguments original = new(
             "TrayAppDotNETInstaller.123.abc",
             CreateDesktopShortcut: true,
             CreateStartMenuShortcut: false,
-            ["VolumeTrayAppDotNET", "BatteryTrayAppDotNET"]);
+            RunAsAdministrator: runAsAdministrator,
+            ["VolumeTrayAppDotNET", "TaskManagerTrayAppDotNET"]);
 
         string[] arguments = ElevatedInstallWorker.BuildWorkerArguments(original);
         bool parsed = ElevatedInstallWorker.TryParseWorkerArguments(arguments, out WorkerArguments? result, out string? error);
@@ -29,20 +32,31 @@ public sealed class ElevatedInstallWorkerTests
         Assert.Equal(original.PipeName, result.PipeName);
         Assert.Equal(original.CreateDesktopShortcut, result.CreateDesktopShortcut);
         Assert.Equal(original.CreateStartMenuShortcut, result.CreateStartMenuShortcut);
+        Assert.Equal(runAsAdministrator, result.RunAsAdministrator);
         Assert.Equal(original.ApplicationNames, result.ApplicationNames);
     }
 
     [Fact]
-    public void WorkerArguments_LeaveOutUnsetShortcutChoices()
+    public void WorkerArguments_LeaveOutUnsetChoices()
     {
         string[] arguments = ElevatedInstallWorker.BuildWorkerArguments(new WorkerArguments(
-            "pipe", CreateDesktopShortcut: null, CreateStartMenuShortcut: true, ["A", "B"]));
+            "pipe", CreateDesktopShortcut: null, CreateStartMenuShortcut: true, RunAsAdministrator: null, ["A", "B"]));
         bool parsed = ElevatedInstallWorker.TryParseWorkerArguments(arguments, out WorkerArguments? result, out _);
 
         Assert.Equal(["--worker", "--pipe", "pipe", "--start-menu-shortcut", "true", "--apps", "A,B"], arguments);
         Assert.True(parsed);
         Assert.Null(result!.CreateDesktopShortcut);
         Assert.True(result.CreateStartMenuShortcut);
+        Assert.Null(result.RunAsAdministrator);
+    }
+
+    [Fact]
+    public void WorkerArguments_CarryTheRunAsAdministratorChoice()
+    {
+        string[] arguments = ElevatedInstallWorker.BuildWorkerArguments(new WorkerArguments(
+            "pipe", CreateDesktopShortcut: null, CreateStartMenuShortcut: null, RunAsAdministrator: false, ["A"]));
+
+        Assert.Equal(["--worker", "--pipe", "pipe", "--run-as-administrator", "false", "--apps", "A"], arguments);
     }
 
     [Theory]
@@ -50,6 +64,8 @@ public sealed class ElevatedInstallWorkerTests
     [InlineData("--worker --pipe p --desktop-shortcut yes --start-menu-shortcut true --apps A")]
     [InlineData("--worker --pipe p --desktop-shortcut true --start-menu-shortcut true")]
     [InlineData("--worker --pipe p --desktop-shortcut true --start-menu-shortcut true --apps ,")]
+    [InlineData("--worker --pipe p --run-as-administrator maybe --apps A")]
+    [InlineData("--worker --pipe p --apps A --run-as-administrator")]
     public void TryParseWorkerArguments_RejectsIncompleteOrInvalidInput(string commandLine)
     {
         // The .NET Framework has no Split(char, StringSplitOptions) overload, so the separator is an array
@@ -76,7 +92,7 @@ public sealed class ElevatedInstallWorkerTests
         // elevated or not
         string pipeName = $"TrayAppDotNETInstaller.Tests.{FrameworkCompatibility.ProcessID}.{Guid.NewGuid():N}";
         using NamedPipeServerStream server = ElevatedInstallWorker.CreateProgressPipeServer(pipeName);
-        WorkerArguments arguments = new(pipeName, CreateDesktopShortcut: false, CreateStartMenuShortcut: true, ["A"]);
+        WorkerArguments arguments = new(pipeName, CreateDesktopShortcut: false, CreateStartMenuShortcut: true, RunAsAdministrator: null, ["A"]);
 
         Task<int> workerTask = ElevatedInstallWorker.RunWorkerAsync(arguments, (progress, _, _) =>
         {
@@ -98,7 +114,7 @@ public sealed class ElevatedInstallWorkerTests
     {
         string pipeName = $"TrayAppDotNETInstaller.Tests.{FrameworkCompatibility.ProcessID}.{Guid.NewGuid():N}";
         using NamedPipeServerStream server = ElevatedInstallWorker.CreateProgressPipeServer(pipeName);
-        WorkerArguments arguments = new(pipeName, CreateDesktopShortcut: null, CreateStartMenuShortcut: null, ["A"]);
+        WorkerArguments arguments = new(pipeName, CreateDesktopShortcut: null, CreateStartMenuShortcut: null, RunAsAdministrator: null, ["A"]);
 
         Task<int> workerTask = ElevatedInstallWorker.RunWorkerAsync(arguments, static async (progress, _, cancellationToken) =>
         {
@@ -124,7 +140,7 @@ public sealed class ElevatedInstallWorkerTests
     {
         string pipeName = $"TrayAppDotNETInstaller.Tests.{FrameworkCompatibility.ProcessID}.{Guid.NewGuid():N}";
         using NamedPipeServerStream server = ElevatedInstallWorker.CreateProgressPipeServer(pipeName);
-        WorkerArguments arguments = new(pipeName, CreateDesktopShortcut: null, CreateStartMenuShortcut: true, ["A"]);
+        WorkerArguments arguments = new(pipeName, CreateDesktopShortcut: null, CreateStartMenuShortcut: true, RunAsAdministrator: null, ["A"]);
 
         Task<int> workerTask = ElevatedInstallWorker.RunWorkerAsync(arguments, static (progress, _, _) =>
         {
@@ -149,6 +165,7 @@ public sealed class ElevatedInstallWorkerTests
             pipeName,
             CreateDesktopShortcut: false,
             CreateStartMenuShortcut: true,
+            RunAsAdministrator: null,
             [FirstApplicationName]);
 
         Task<int> workerTask = ElevatedInstallWorker.RunWorkerAsync(arguments, static (progress, applicationProgress, _) =>

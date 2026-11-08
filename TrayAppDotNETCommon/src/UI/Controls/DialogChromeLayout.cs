@@ -49,6 +49,10 @@ internal static class TrayAppDotNETDialogChromeLayout
 
     public static Thickness InstallerShortcutMargin => AXAMLResources.AxamlDialogChrome.InstallerShortcutMargin;
     public static Thickness InstallerShortcutPadding => AXAMLResources.AxamlDialogChrome.InstallerShortcutPadding;
+
+    public static Thickness InstallerOptionWarningMargin =>
+        AXAMLResources.AxamlDialogChrome.InstallerOptionWarningMargin;
+
     public static double InstallerPathFontSize => AXAMLResources.AxamlDialogChrome.InstallerPathFontSize;
     public static Thickness ActionButtonPadding => AXAMLResources.AxamlDialogChrome.ActionButtonPadding;
     public static Thickness CancelButtonMargin => AXAMLResources.AxamlDialogChrome.CancelButtonMargin;

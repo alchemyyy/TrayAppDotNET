@@ -268,7 +268,8 @@ public sealed class ExampleModeTests
             TargetDirectory: @"C:\example",
             Payloads: [],
             CreateDesktopShortcut: false,
-            CreateStartMenuShortcut: false);
+            CreateStartMenuShortcut: false,
+            RunAsAdministrator: null);
 
         InstallOutcome outcome = await ExampleMode.RunAsync(
             plan, progress, progress, simulateFailure: false, CancellationToken.None);
@@ -293,7 +294,8 @@ public sealed class ExampleModeTests
             TargetDirectory: @"C:\example",
             payloads,
             CreateDesktopShortcut: false,
-            CreateStartMenuShortcut: true);
+            CreateStartMenuShortcut: true,
+            RunAsAdministrator: null);
     }
 
     /// <summary>

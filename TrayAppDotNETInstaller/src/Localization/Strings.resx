@@ -231,6 +231,12 @@
   <data name="Installer_Options_Launch" xml:space="preserve">
     <value>Launch when finished</value>
   </data>
+  <data name="Installer_Options_RunAsAdministrator" xml:space="preserve">
+    <value>Always run Task Manager as administrator</value>
+  </data>
+  <data name="Installer_Options_RunAsAdministrator_Warning" xml:space="preserve">
+    <value>This creates a scheduled task for your account that starts Task Manager as administrator without a UAC prompt. Any program running as you could then start Task Manager with administrator rights. It applies to the System installation (all users, Program Files) only. You can turn it off later in Task Manager's settings under General &gt; Always run as administrator.</value>
+  </data>
   <data name="Installer_Button_Install" xml:space="preserve">
     <value>Install</value>
   </data>

@@ -237,7 +237,8 @@ public sealed class TrayAppDotNETAppHost<TSettings, TTheme> : ITrayAppDotNETAppE
                 Layout = Install.Layout,
                 Icon = _options.LoadAppIcon(),
                 Palette = palette,
-                EnableRoundedCorners = roundedCorners ?? true
+                EnableRoundedCorners = roundedCorners ?? true,
+                RunAsAdministrator = Install.RunAsAdministrator
             });
         }
 

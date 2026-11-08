@@ -150,10 +150,16 @@ internal static class ElevatedStartTask
             return true;
         }
 
-        bool succeeded = enable ? RegisterForCurrentUser() : DeleteForCurrentUser();
+        bool succeeded = SetEnabledForCurrentUser(enable);
         exitCode = succeeded ? ElevatedSettingChange.SuccessExitCode : ElevatedSettingChange.FailureExitCode;
         return true;
     }
+
+    /// <summary>
+    /// Registers or deletes the current account's task; needs administrator rights. The elevated configure mode and a
+    /// system install's Always run as administrator choice both end here.
+    /// </summary>
+    internal static bool SetEnabledForCurrentUser(bool enable) => enable ? RegisterForCurrentUser() : DeleteForCurrentUser();
 
     /// <summary>
     /// Deletes every account's task during a system uninstall. The tasks only ever start the system install, so other

@@ -27,6 +27,9 @@ public static class InstallEngine
     private const char ZipDirectorySeparator = '/';
     private const string InstallScriptFileName = "install.bat";
 
+    /// <summary>The one app whose System install takes the run as administrator choice.</summary>
+    internal const string RunAsAdministratorApplicationName = "TaskManagerTrayAppDotNET";
+
     private sealed record AppInstallResult(string? Error, string? InstalledExecutable, bool ChildKilled = false);
 
     /// <summary>How one application's run ended: not started, failed (no executable) or installed.</summary>
@@ -517,22 +520,7 @@ public static class InstallEngine
             StandardErrorEncoding = Encoding.UTF8
         };
         // AddArgument stands in for ProcessStartInfo.ArgumentList, which the .NET Framework lacks
-        startInfo.AddArgument(TrayAppDotNETInstallContract.HeadlessInstallArgument);
-        startInfo.AddArgument(plan.Mode == InstallMode.System
-            ? TrayAppDotNETInstallContract.SystemScopeArgument
-            : TrayAppDotNETInstallContract.LocalScopeArgument);
-        // An unset choice is left out, so the app's installer keeps that shortcut as it is
-        if (plan.CreateDesktopShortcut is { } createDesktopShortcut)
-        {
-            startInfo.AddArgument(TrayAppDotNETInstallContract.DesktopShortcutArgument);
-            startInfo.AddArgument(createDesktopShortcut ? TrueValue : FalseValue);
-        }
-
-        if (plan.CreateStartMenuShortcut is { } createStartMenuShortcut)
-        {
-            startInfo.AddArgument(TrayAppDotNETInstallContract.StartMenuShortcutArgument);
-            startInfo.AddArgument(createStartMenuShortcut ? TrueValue : FalseValue);
-        }
+        foreach (string argument in BuildHeadlessInstallArguments(plan, applicationName)) startInfo.AddArgument(argument);
         InstallerLog.Write($"InstallEngine: starting {executablePath} {startInfo.Arguments}");
 
         using Process process = new();
@@ -594,6 +582,45 @@ public static class InstallEngine
         }
 
         return new AppInstallResult(Error: null, output.InstalledExecutable);
+    }
+
+    /// <summary>
+    /// The command line of one app's headless install. An unset choice is left out, so the app's installer keeps
+    /// that setting as it is. Run as administrator goes only to a System install of Task Manager: the other apps do
+    /// not know the flag, and only the elevated System install registers the task that starts it elevated.
+    /// </summary>
+    internal static IReadOnlyList<string> BuildHeadlessInstallArguments(InstallPlan plan, string applicationName)
+    {
+        FrameworkCompatibility.ThrowIfNull(plan, nameof(plan));
+        FrameworkCompatibility.ThrowIfNull(applicationName, nameof(applicationName));
+
+        bool system = plan.Mode == InstallMode.System;
+        List<string> arguments =
+        [
+            TrayAppDotNETInstallContract.HeadlessInstallArgument,
+            system ? TrayAppDotNETInstallContract.SystemScopeArgument : TrayAppDotNETInstallContract.LocalScopeArgument
+        ];
+        if (plan.CreateDesktopShortcut is { } createDesktopShortcut)
+        {
+            arguments.Add(TrayAppDotNETInstallContract.DesktopShortcutArgument);
+            arguments.Add(createDesktopShortcut ? TrueValue : FalseValue);
+        }
+
+        if (plan.CreateStartMenuShortcut is { } createStartMenuShortcut)
+        {
+            arguments.Add(TrayAppDotNETInstallContract.StartMenuShortcutArgument);
+            arguments.Add(createStartMenuShortcut ? TrueValue : FalseValue);
+        }
+
+        if (system
+            && plan.RunAsAdministrator is { } runAsAdministrator
+            && string.Equals(applicationName, RunAsAdministratorApplicationName, StringComparison.OrdinalIgnoreCase))
+        {
+            arguments.Add(TrayAppDotNETInstallContract.RunAsAdministratorArgument);
+            arguments.Add(runAsAdministrator ? TrueValue : FalseValue);
+        }
+
+        return arguments;
     }
 
     /// <summary>

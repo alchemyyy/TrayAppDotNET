@@ -37,6 +37,7 @@
     <Thickness x:Key="DialogChrome.InstallerPathBorderThickness">1</Thickness>
     <Thickness x:Key="DialogChrome.InstallerShortcutMargin">0,0,0,8</Thickness>
     <Thickness x:Key="DialogChrome.InstallerShortcutPadding">16,10</Thickness>
+    <Thickness x:Key="DialogChrome.InstallerOptionWarningMargin">28,6,0,0</Thickness>
     <sys:Double x:Key="DialogChrome.InstallerPathFontSize">12</sys:Double>
     <Thickness x:Key="DialogChrome.ActionButtonPadding">20,8</Thickness>
     <Thickness x:Key="DialogChrome.CancelButtonMargin">0,0,8,0</Thickness>

@@ -34,6 +34,22 @@ public sealed class TrayAppDotNETUninstallHook
     public Action<InstallScope>? AfterPrepare { get; init; }
 }
 
+/// <summary>
+/// An app's Always run as administrator setting, offered at install time. Only a system install applies it, in the
+/// elevated install process after the files are in place, for the installing account.
+/// </summary>
+public sealed class TrayAppDotNETRunAsAdministratorOption
+{
+    /// <summary>The installer check box's label.</summary>
+    public required Func<string> Title { get; init; }
+
+    /// <summary>The warning the installer shows under the check box.</summary>
+    public required Func<string> Warning { get; init; }
+
+    /// <summary>Turns the setting on or off for the current account; runs elevated. Returns whether it succeeded.</summary>
+    public required Func<bool, bool> SetEnabled { get; init; }
+}
+
 public sealed class TrayAppDotNETAppInstallServicesOptions
 {
     /// <summary>The app's name, which is also its executable name without extension.</summary>
@@ -51,6 +67,8 @@ public sealed class TrayAppDotNETAppInstallServicesOptions
     public IReadOnlyList<TrayAppDotNETInstallFile> ExtraRequiredFiles { get; init; } = [];
 
     public TrayAppDotNETUninstallHook? UninstallHook { get; init; }
+
+    public TrayAppDotNETRunAsAdministratorOption? RunAsAdministrator { get; init; }
 }
 
 /// <summary>
@@ -100,7 +118,8 @@ public sealed class TrayAppDotNETAppInstallServices
                 StartMenu.Sync,
                 options.PostToUIThread)
             {
-                CheckUninstall = options.UninstallHook?.CheckUninstall
+                CheckUninstall = options.UninstallHook?.CheckUninstall,
+                RunAsAdministrator = options.RunAsAdministrator
             }));
     }
 
@@ -129,6 +148,8 @@ public sealed class TrayAppDotNETAppInstallServices
     public TrayAppDotNETInstallationService Installation => _installation.Value;
 
     public TrayAppDotNETUninstallHook? UninstallHook => _options.UninstallHook;
+
+    public TrayAppDotNETRunAsAdministratorOption? RunAsAdministrator => _options.RunAsAdministrator;
 
     /// <summary>Gets the install folder of a scope.</summary>
     public string InstallDirectory(InstallScope scope) =>

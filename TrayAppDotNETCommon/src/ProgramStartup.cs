@@ -526,7 +526,7 @@ public static class TrayAppDotNETProgram
     }
 
     /// <summary>
-    /// Reads the shortcut choices. A flag that is absent stays null (leave as is); a flag without a valid true/false
+    /// Reads the install choices. A flag that is absent stays null (leave as is); a flag without a valid true/false
     /// value is a usage error.
     /// </summary>
     internal static bool TryParseInstallOptions(string[] args, out TrayAppDotNETInstallOptions options, out string? error)
@@ -534,15 +534,19 @@ public static class TrayAppDotNETProgram
         options = new TrayAppDotNETInstallOptions();
         bool? desktop = null;
         bool? startMenu = null;
+        bool? runAsAdministrator = null;
         if (HasArg(args, TrayAppDotNETInstallContract.DesktopShortcutArgument)
             && !TryParseBooleanArgument(args, TrayAppDotNETInstallContract.DesktopShortcutArgument, out desktop, out error))
             return false;
         if (HasArg(args, TrayAppDotNETInstallContract.StartMenuShortcutArgument)
             && !TryParseBooleanArgument(args, TrayAppDotNETInstallContract.StartMenuShortcutArgument, out startMenu, out error))
             return false;
+        if (HasArg(args, TrayAppDotNETInstallContract.RunAsAdministratorArgument)
+            && !TryParseBooleanArgument(args, TrayAppDotNETInstallContract.RunAsAdministratorArgument, out runAsAdministrator, out error))
+            return false;
 
         error = null;
-        options = new TrayAppDotNETInstallOptions(desktop, startMenu);
+        options = new TrayAppDotNETInstallOptions(desktop, startMenu, runAsAdministrator);
         return true;
     }
 

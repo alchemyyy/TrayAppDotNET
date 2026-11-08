@@ -19,6 +19,7 @@ These go to the app exe (e.g. `VolumeTrayAppDotNET.exe`), not to the `Installer_
 | `--installsystem` | Same as `--install-headless system`, then starts the installed copy. |
 | `--desktop-shortcut <true/false>` | Whether a headless install creates (`true`) or removes (`false`) the desktop shortcut. Left out, an existing shortcut stays as it is and none is added. |
 | `--start-menu-shortcut <true/false>` | Whether a headless install keeps a Start Menu entry. Left out, a fresh install gets one and a reinstall leaves the entries as they are, so an entry you removed doesn't come back. |
+| `--run-as-administrator <true/false>` | Task Manager only. Whether a headless system install turns [Always run as administrator](../apps/task-manager/index.md#always-run-as-administrator) on (`true`) or off (`false`) for your account. Left out, it stays as it is. A local install ignores it. |
 | `--uninstall-headless <scope>` | Uninstalls without opening a window and prints progress. `<scope>` is `local` (or `user`, `localappdata`) or `system` (or `programfiles`). `system` shows a UAC prompt. |
 | `--delete-settings <true/false>` | Whether `--uninstall-headless` also deletes the app's data folder. Default `false`. |
 | `--uninstall [<folder>] --scope <scope>` | Opens the uninstaller window. This is what the entry in Windows Settings > Apps runs. The folder is only shown, never trusted; the removed folder always comes from the install location of `<scope>`. `--uninstall-gui` does the same. |
@@ -40,7 +41,7 @@ The install and uninstall arguments print one line per stage, like `[NN%] Stoppi
 | --- | --- |
 | `0` | Done. |
 | `1` | Failed, or the UAC prompt was declined. |
-| `2` | Bad arguments, e.g. an unknown scope, an unusable `--settings-dir` path, or a `--desktop-shortcut`, `--start-menu-shortcut` or `--delete-settings` without `true`/`false`. |
+| `2` | Bad arguments, e.g. an unknown scope, an unusable `--settings-dir` path, or a `--desktop-shortcut`, `--start-menu-shortcut`, `--run-as-administrator` or `--delete-settings` without `true`/`false`. |
 
 The apps are Windows programs, not console programs, so an interactive command prompt doesn't wait for them to finish. In a batch script, use `start "" /wait` when you need the result:
 

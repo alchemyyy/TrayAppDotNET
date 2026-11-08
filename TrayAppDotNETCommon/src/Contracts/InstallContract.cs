@@ -38,6 +38,12 @@ public static class TrayAppDotNETInstallContract
     /// <summary>Followed by true or false; omitted, the Start Menu entries follow the installation.</summary>
     public const string StartMenuShortcutArgument = "--start-menu-shortcut";
 
+    /// <summary>
+    /// Followed by true or false: turns Always run as administrator on or off for the installing account. Only a
+    /// system install of an app that offers it (Task Manager) applies it; omitted, the setting stays as it is.
+    /// </summary>
+    public const string RunAsAdministratorArgument = "--run-as-administrator";
+
     public const string DeleteSettingsArgument = "--delete-settings";
     public const string ProgressPipeArgument = "--progress-pipe";
 

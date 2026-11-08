@@ -12,12 +12,13 @@ namespace TrayAppDotNETInstaller.Services;
 
 /// <summary>
 /// The plan an elevated worker process receives on its command line. Only System installs need one. A null
-/// shortcut choice leaves that shortcut as it is.
+/// shortcut or run as administrator choice leaves that setting as it is.
 /// </summary>
 public sealed record WorkerArguments(
     string PipeName,
     bool? CreateDesktopShortcut,
     bool? CreateStartMenuShortcut,
+    bool? RunAsAdministrator,
     IReadOnlyList<string> ApplicationNames);
 
 /// <summary>
@@ -78,6 +79,12 @@ public static class ElevatedInstallWorker
             result.Add(startMenu ? TrueValue : FalseValue);
         }
 
+        if (arguments.RunAsAdministrator is { } runAsAdministrator)
+        {
+            result.Add(TrayAppDotNETInstallContract.RunAsAdministratorArgument);
+            result.Add(runAsAdministrator ? TrueValue : FalseValue);
+        }
+
         result.Add(AppsArgument);
         result.Add(string.Join(AppsSeparatorText, arguments.ApplicationNames));
         return [.. result];
@@ -101,7 +108,8 @@ public static class ElevatedInstallWorker
         }
 
         if (!TryParseOptionalBoolean(args, TrayAppDotNETInstallContract.DesktopShortcutArgument, out bool? createDesktopShortcut, out error)
-            || !TryParseOptionalBoolean(args, TrayAppDotNETInstallContract.StartMenuShortcutArgument, out bool? createStartMenuShortcut, out error))
+            || !TryParseOptionalBoolean(args, TrayAppDotNETInstallContract.StartMenuShortcutArgument, out bool? createStartMenuShortcut, out error)
+            || !TryParseOptionalBoolean(args, TrayAppDotNETInstallContract.RunAsAdministratorArgument, out bool? runAsAdministrator, out error))
             return false;
 
         string? appsValue = TryGetArgumentValue(args, AppsArgument);
@@ -117,7 +125,7 @@ public static class ElevatedInstallWorker
             return false;
         }
 
-        arguments = new WorkerArguments(pipeName, createDesktopShortcut, createStartMenuShortcut, applicationNames);
+        arguments = new WorkerArguments(pipeName, createDesktopShortcut, createStartMenuShortcut, runAsAdministrator, applicationNames);
         return true;
     }
 
@@ -241,6 +249,7 @@ public static class ElevatedInstallWorker
             pipeName,
             plan.CreateDesktopShortcut,
             plan.CreateStartMenuShortcut,
+            plan.RunAsAdministrator,
             applicationNames));
 
         try
@@ -427,7 +436,8 @@ public static class ElevatedInstallWorker
             InstallDefaults.DefaultDirectory(InstallMode.System, catalog),
             payloads,
             arguments.CreateDesktopShortcut,
-            arguments.CreateStartMenuShortcut);
+            arguments.CreateStartMenuShortcut,
+            arguments.RunAsAdministrator);
         return InstallEngine.RunAsync(plan, progress, applicationProgress, cancellationToken);
     }
 

@@ -66,11 +66,12 @@ public sealed class InstallationServiceTests
     }
 
     [Fact]
-    public void ElevatedInstallArgumentsCarryExplicitShortcutOptions()
+    public void ElevatedInstallArgumentsCarryExplicitInstallChoices()
     {
         TrayAppDotNETInstallOptions installOptions = new(
             CreateDesktopShortcut: true,
-            CreateStartMenuShortcut: false);
+            CreateStartMenuShortcut: false,
+            RunAsAdministrator: false);
 
         string arguments = TrayAppDotNETInstallationService.BuildElevatedInstallArguments(
             sourceExecutable: @"C:\staging folder\TestTrayAppDotNET.exe",
@@ -79,7 +80,7 @@ public sealed class InstallationServiceTests
 
         Assert.Equal(
             "--install-system --source \"C:\\staging folder\\TestTrayAppDotNET.exe\" --build 42 "
-            + "--desktop-shortcut true --start-menu-shortcut false",
+            + "--desktop-shortcut true --start-menu-shortcut false --run-as-administrator false",
             arguments);
     }
 
@@ -155,6 +156,58 @@ public sealed class InstallationServiceTests
         Assert.True(fixture.LastStartMenuSync.HasValue);
         Assert.Equal(InstallScope.LocalAppData, fixture.LastStartMenuSync.Value.Scope);
         Assert.False(fixture.LastStartMenuSync.Value.AllUsers);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ASystemInstallAppliesAnExplicitRunAsAdministratorChoice(bool runAsAdministrator)
+    {
+        using InstallationFixture fixture = new();
+
+        TrayAppDotNETInstallResult result = fixture.Service.ApplyInstallOptions(
+            InstallScope.ProgramFiles,
+            allUsers: true,
+            new TrayAppDotNETInstallOptions(RunAsAdministrator: runAsAdministrator),
+            scopeWasInstalled: false);
+
+        Assert.True(result.Success, result.ErrorMessage);
+        Assert.Equal([runAsAdministrator], fixture.RunAsAdministratorChanges);
+    }
+
+    [Fact]
+    public void RunAsAdministratorIsLeftAloneWithoutAChoiceOrOutsideTheSystemScope()
+    {
+        using InstallationFixture fixture = new();
+
+        fixture.Service.ApplyInstallOptions(
+            InstallScope.ProgramFiles,
+            allUsers: true,
+            new TrayAppDotNETInstallOptions(),
+            scopeWasInstalled: true);
+        // A per-user copy is writable by any program the user runs, so it must never start elevated without a prompt
+        fixture.Service.ApplyInstallOptions(
+            InstallScope.LocalAppData,
+            allUsers: false,
+            new TrayAppDotNETInstallOptions(RunAsAdministrator: true),
+            scopeWasInstalled: false);
+
+        Assert.Empty(fixture.RunAsAdministratorChanges);
+    }
+
+    [Fact]
+    public void AFailedRunAsAdministratorChangeFailsTheInstallAfterTheFilesAreIn()
+    {
+        using InstallationFixture fixture = new(runAsAdministratorSucceeds: false);
+
+        TrayAppDotNETInstallResult result = fixture.Service.ApplyInstallOptions(
+            InstallScope.ProgramFiles,
+            allUsers: true,
+            new TrayAppDotNETInstallOptions(RunAsAdministrator: true),
+            scopeWasInstalled: false);
+
+        Assert.False(result.Success);
+        Assert.Contains("Always run as administrator", result.ErrorMessage);
     }
 
     [Theory]
@@ -376,7 +429,7 @@ public sealed class InstallationServiceTests
 
     private sealed class InstallationFixture : IDisposable
     {
-        public InstallationFixture(TrayAppDotNETInstallPayload? payload = null)
+        public InstallationFixture(TrayAppDotNETInstallPayload? payload = null, bool runAsAdministratorSucceeds = true)
         {
             RootDirectory = Path.Combine(
                 Path.GetTempPath(),
@@ -421,6 +474,16 @@ public sealed class InstallationServiceTests
                 (scope, allUsers) => LastStartMenuSync = (scope, allUsers),
                 DesktopShortcutOptions: desktopOptions)
             {
+                RunAsAdministrator = new TrayAppDotNETRunAsAdministratorOption
+                {
+                    Title = static () => "Title",
+                    Warning = static () => "Warning",
+                    SetEnabled = enable =>
+                    {
+                        RunAsAdministratorChanges.Add(enable);
+                        return runAsAdministratorSucceeds;
+                    }
+                },
                 // The real removal would run cmd.exe against the fixture folder after the test asserts
                 ScheduleRemovalAfterExit = (targets, _) =>
                 {
@@ -444,6 +507,8 @@ public sealed class InstallationServiceTests
         public List<IReadOnlyList<DetachedCleanupTarget>> ScheduledRemovals { get; } = [];
 
         public (InstallScope? Scope, bool AllUsers)? LastStartMenuSync { get; private set; }
+
+        public List<bool> RunAsAdministratorChanges { get; } = [];
 
         public void Dispose()
         {

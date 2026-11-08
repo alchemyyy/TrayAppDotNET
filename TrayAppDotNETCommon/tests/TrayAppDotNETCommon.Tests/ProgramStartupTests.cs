@@ -89,20 +89,23 @@ public sealed class ProgramStartupTests
     }
 
     [Theory]
-    [InlineData(new[] { "--installsystem" }, null, null)]
-    [InlineData(new[] { "--installsystem", "--desktop-shortcut", "true" }, true, null)]
-    [InlineData(new[] { "--install", "local", "--start-menu-shortcut", "0", "--desktop-shortcut", "FALSE" }, false, false)]
-    public void InstallOptionsLeaveUnmentionedShortcutsUnset(string[] args, bool? desktop, bool? startMenu)
+    [InlineData(new[] { "--installsystem" }, null, null, null)]
+    [InlineData(new[] { "--installsystem", "--desktop-shortcut", "true" }, true, null, null)]
+    [InlineData(new[] { "--install", "local", "--start-menu-shortcut", "0", "--desktop-shortcut", "FALSE" }, false, false, null)]
+    [InlineData(new[] { "--install-headless", "system", "--run-as-administrator", "false" }, null, null, false)]
+    public void InstallOptionsLeaveUnmentionedChoicesUnset(string[] args, bool? desktop, bool? startMenu, bool? runAsAdministrator)
     {
         Assert.True(TrayAppDotNETProgram.TryParseInstallOptions(args, out TrayAppDotNETInstallOptions options, out string? error), error);
         Assert.Equal(desktop, options.CreateDesktopShortcut);
         Assert.Equal(startMenu, options.CreateStartMenuShortcut);
+        Assert.Equal(runAsAdministrator, options.RunAsAdministrator);
     }
 
     [Theory]
     [InlineData("--installsystem --desktop-shortcut")]
     [InlineData("--installsystem --desktop-shortcut yes")]
     [InlineData("--installsystem --start-menu-shortcut --desktop-shortcut true")]
+    [InlineData("--install-headless system --run-as-administrator maybe")]
     public void MalformedShortcutFlagsAreUsageErrorsInsteadOfExceptions(string commandLine)
     {
         Assert.False(TrayAppDotNETProgram.TryParseInstallOptions(commandLine.Split(' '), out _, out string? error));

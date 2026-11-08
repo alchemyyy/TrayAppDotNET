@@ -344,6 +344,51 @@ public sealed class SecondaryWindowLifetimeTests
     });
 
     [Fact]
+    public void InstallerOffersRunAsAdministratorCheckedOnlyForTheSystemLocation() => AvaloniaTestHost.Run(() =>
+    {
+        string root = Path.Combine(Path.GetTempPath(), "TrayAppDotNET-installer-window", Guid.NewGuid().ToString("N"));
+        TrayAppDotNETInstallerWindow window = new(new TrayAppDotNETInstallerWindowOptions
+        {
+            Layout = new TrayAppDotNETInstallLayout(
+                ApplicationName: "Test",
+                SharedRootFolderName: "TrayAppDotNET",
+                Path.Combine(root, "Local"),
+                Path.Combine(root, "System"),
+                InstalledExecutableFileName: "Test.exe"),
+            Icon = null,
+            Palette = TestPalettes.Default(),
+            EnableRoundedCorners = true,
+            RunAsAdministrator = new TrayAppDotNETRunAsAdministratorOption
+            {
+                Title = static () => "Always run as administrator",
+                Warning = static () => "Warning text",
+                SetEnabled = static _ => throw new InvalidOperationException("The window must not apply the choice.")
+            }
+        });
+        window.Show();
+
+        CheckBox runAsAdministrator = Assert.Single(
+            window.GetVisualDescendants().OfType<CheckBox>(),
+            checkBox => checkBox.Content is TextBlock { Text: "Always run as administrator" });
+        Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), text => text.Text == "Warning text");
+        // On by default, but a per-user location can't use it, so nothing is sent for it
+        Assert.True(runAsAdministrator.IsChecked);
+        Assert.False(runAsAdministrator.IsEnabled);
+        Assert.Null(window.SelectedInstallOptions.RunAsAdministrator);
+
+        SettingsButton systemButton = Assert.Single(
+            window.GetVisualDescendants().OfType<SettingsButton>(),
+            button => button.Text == "System");
+        systemButton.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+        Assert.True(runAsAdministrator.IsEnabled);
+        Assert.True(window.SelectedInstallOptions.RunAsAdministrator);
+
+        runAsAdministrator.IsChecked = false;
+        Assert.False(window.SelectedInstallOptions.RunAsAdministrator);
+        window.Dispose();
+    });
+
+    [Fact]
     public void WarmSlotDetachesAndDisposesAfterCloseFailure() => AvaloniaTestHost.Run(() =>
     {
         List<Exception> errors = [];

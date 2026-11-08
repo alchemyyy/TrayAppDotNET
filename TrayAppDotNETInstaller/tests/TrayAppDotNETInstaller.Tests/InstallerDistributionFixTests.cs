@@ -36,7 +36,7 @@ public sealed class InstallerDistributionFixTests : IDisposable
     public void SystemInstallsStageInsideTheirProtectedTargetFolder()
     {
         string target = Path.Combine(_root, "Program Files", "TrayAppDotNET");
-        InstallPlan plan = new(InstallMode.System, target, [], CreateDesktopShortcut: null, CreateStartMenuShortcut: null);
+        InstallPlan plan = new(InstallMode.System, target, [], CreateDesktopShortcut: null, CreateStartMenuShortcut: null, RunAsAdministrator: null);
 
         string staging = InstallEngine.CreateTemporaryRoot(plan);
 

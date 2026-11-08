@@ -61,6 +61,7 @@ If Windhawk isn't installed, the installer shows a caution card with **Get Windh
 - **Create a desktop shortcut**: starts checked only when the selected apps already have one.
 - **Add a Start Menu entry**: starts checked, except for an installed app whose Start Menu entry you removed.
 - **Launch when finished**: on by default.
+- **Always run Task Manager as administrator**: only when the installer includes Task Manager, and checked by default. A warning card below it explains the risk. It only applies to a System install with Task Manager selected, and is greyed out otherwise. See [Always Run as Administrator](../apps/task-manager/index.md#always-run-as-administrator).
 
 The two shortcut boxes start out matching what's on the machine. If you leave one as it is, the install leaves those shortcuts alone; only a box you change is applied, so re-running the installer to update never deletes a shortcut you have.
 
@@ -91,7 +92,7 @@ Click **Install**, confirm the **Install app?** (or **Install app system-wide?**
 
 What gets installed is the exe you're running. Your settings already live in the shared data folder (see [Configuration](configuration.md)), so the installed copy picks them up as-is.
 
-You can also run `<App>.exe --installer` to get a small **Install &lt;App&gt;** window: pick **Local** or **System** under **Install location**, choose **Desktop shortcut** and **Start Menu entry** (both start out matching what is already there), and click **Install**. The installed copy starts once it's done. For scripted installs, see [Launch Arguments](launch-arguments.md).
+You can also run `<App>.exe --installer` to get a small **Install &lt;App&gt;** window: pick **Local** or **System** under **Install location**, choose **Desktop shortcut** and **Start Menu entry** (both start out matching what is already there), and click **Install**. Task Manager's window also has **Always run as administrator**, checked by default, with a warning below it; it only applies to **System**. The installed copy starts once it's done. For scripted installs, see [Launch Arguments](launch-arguments.md).
 
 ## Running Portable
 

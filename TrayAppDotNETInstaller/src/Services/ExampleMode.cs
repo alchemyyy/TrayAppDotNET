@@ -200,6 +200,9 @@ public static class ExampleMode
         try
         {
             applicationProgress.Report(new InstallApplicationStatus(payload.ApplicationName, InstallApplicationState.Installing));
+            // The command line a real run would hand the app's installer, so an option's wiring can be checked here
+            InstallerLog.Write(
+                $"ExampleMode: {payload.ApplicationName} would run with {AppLauncher.FormatArguments(InstallEngine.BuildHeadlessInstallArguments(plan, payload.ApplicationName))}");
             ProgressSlice slice = ProgressSlice.Full;
             await SimulateExtractionAsync(
                     payload, slice.Portion(fromInnerPercent: 0, ExtractPortionEndPercent), progress, cancellationToken)

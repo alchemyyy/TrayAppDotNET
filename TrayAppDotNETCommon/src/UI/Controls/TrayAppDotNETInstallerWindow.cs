@@ -20,6 +20,12 @@ public sealed record TrayAppDotNETInstallerWindowOptions
     public required bool EnableRoundedCorners { get; init; }
     public InstallScope InitialScope { get; init; } = InstallScope.LocalAppData;
     public TrayAppDotNETInstallOptions InitialInstallOptions { get; init; } = new();
+
+    /// <summary>
+    /// The app's Always run as administrator setting, or null when it has none. The window then shows a check box with
+    /// its warning, which applies to the system location only.
+    /// </summary>
+    public TrayAppDotNETRunAsAdministratorOption? RunAsAdministrator { get; init; }
 }
 
 /// <summary>Contains the install choices confirmed by the user.</summary>
@@ -38,6 +44,7 @@ public sealed class TrayAppDotNETInstallerWindow : Window, IDisposable
     private readonly TextBlock _installPath;
     private readonly CheckBox _desktopShortcut;
     private readonly CheckBox _startMenuShortcut;
+    private readonly CheckBox? _runAsAdministrator;
     private UIContentGeneration? _contentGeneration;
     private InstallScope _selectedScope;
     private int _disposeState;
@@ -69,12 +76,20 @@ public sealed class TrayAppDotNETInstallerWindow : Window, IDisposable
                 L(nameof(CommonStrings.Installer_StartMenuShortcut)),
                 StartMenuPreset(options.InitialScope))
             .MapTo(ControlMap.Installer.Shortcuts.StartMenuShortcut);
+        // Checked by default for every system install, including a reinstall over a copy that never had it on
+        if (options.RunAsAdministrator is { } runAsAdministrator)
+        {
+            _runAsAdministrator = BuildShortcutCheckBox(runAsAdministrator.Title(), isChecked: true)
+                .MapTo(ControlMap.Installer.Shortcuts.RunAsAdministrator);
+        }
 
         Title = FormatApplicationName(nameof(CommonStrings.Installer_Title_Format));
         Width = TrayAppDotNETDialogChromeLayout.InstallerWindowWidth;
-        Height = TrayAppDotNETDialogChromeLayout.InstallerWindowHeight;
         MinWidth = TrayAppDotNETDialogChromeLayout.InstallerWindowMinWidth;
         MinHeight = TrayAppDotNETDialogChromeLayout.InstallerWindowMinHeight;
+        // The warning's length depends on the language, so the window grows to fit it
+        if (_runAsAdministrator != null) SizeToContent = SizeToContent.Height;
+        else Height = TrayAppDotNETDialogChromeLayout.InstallerWindowHeight;
         WindowDecorations = WindowDecorations.None;
         CanResize = false;
         Background = Brushes.Transparent;
@@ -125,12 +140,16 @@ public sealed class TrayAppDotNETInstallerWindow : Window, IDisposable
     };
 
     /// <summary>
-    /// Gets the selected shortcut options. A choice left as preset is null, so the install leaves that shortcut as
-    /// it is instead of rewriting or deleting it.
+    /// Gets the selected install options. A shortcut choice left as preset is null, so the install leaves that
+    /// shortcut as it is instead of rewriting or deleting it. The Always run as administrator choice is always sent
+    /// for the system location, which is the only one it applies to, and null otherwise.
     /// </summary>
     public TrayAppDotNETInstallOptions SelectedInstallOptions => new(
         _desktopShortcut.IsChecked == DesktopPreset(_selectedScope) ? null : _desktopShortcut.IsChecked == true,
-        _startMenuShortcut.IsChecked == StartMenuPreset(_selectedScope) ? null : _startMenuShortcut.IsChecked == true);
+        _startMenuShortcut.IsChecked == StartMenuPreset(_selectedScope) ? null : _startMenuShortcut.IsChecked == true,
+        _runAsAdministrator != null && _selectedScope == InstallScope.ProgramFiles
+            ? _runAsAdministrator.IsChecked == true
+            : null);
 
     private Border BuildRoot(UIResourceScope resources)
     {
@@ -211,6 +230,8 @@ public sealed class TrayAppDotNETInstallerWindow : Window, IDisposable
         {
             Children = { BuildShortcutCard(_desktopShortcut), BuildShortcutCard(_startMenuShortcut) }
         };
+        if (_runAsAdministrator != null && _options.RunAsAdministrator != null)
+            shortcuts.Children.Add(BuildRunAsAdministratorCard(_runAsAdministrator, _options.RunAsAdministrator));
         Grid.SetRow(shortcuts, value: 3);
         body.Children.Add(shortcuts);
 
@@ -313,15 +334,25 @@ public sealed class TrayAppDotNETInstallerWindow : Window, IDisposable
             IsChecked = isChecked
         };
 
-    private Border BuildShortcutCard(CheckBox checkBox) =>
+    private Border BuildShortcutCard(Control content) =>
         new()
         {
             Background = TrayAppDotNETSettingsUI.Brush(_options.Palette.CardBackground),
             CornerRadius = Rounded(TrayAppDotNETDialogChromeLayout.CardCornerRadius),
             Padding = TrayAppDotNETDialogChromeLayout.InstallerShortcutPadding,
             Margin = TrayAppDotNETDialogChromeLayout.InstallerShortcutMargin,
-            Child = checkBox
+            Child = content
         };
+
+    private Border BuildRunAsAdministratorCard(CheckBox checkBox, TrayAppDotNETRunAsAdministratorOption option)
+    {
+        TextBlock warning = TrayAppDotNETSettingsUI.DescriptionText(
+            option.Warning(),
+            _options.Palette,
+            TrayAppDotNETDialogChromeLayout.InstallerOptionWarningMargin);
+        warning.TextWrapping = TextWrapping.Wrap;
+        return BuildShortcutCard(new StackPanel { Children = { checkBox, warning } });
+    }
 
     private void OnLocalLocationClick(object? sender, EventArgs e) => SelectLocation(InstallScope.LocalAppData);
 
@@ -371,6 +402,8 @@ public sealed class TrayAppDotNETInstallerWindow : Window, IDisposable
         UpdateLocationButton(_localLocationButton, isLocal);
         UpdateLocationButton(_systemLocationButton, !isLocal);
         _installPath.Text = SelectedInstallDirectory;
+        // Only the system install can run as administrator without a prompt
+        if (_runAsAdministrator != null) _runAsAdministrator.IsEnabled = !isLocal;
     }
 
     private void UpdateLocationButton(SettingsButton button, bool isSelected)

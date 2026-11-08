@@ -119,7 +119,7 @@ These settings are in **Settings** > **General** > **Administrator actions**:
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| **Always run as administrator** | Off | Starts the app as administrator every time, without a UAC prompt. See [below](#always-run-as-administrator). |
+| **Always run as administrator** | On after a system-wide install, unless you unchecked it in the installer | Starts the app as administrator every time, without a UAC prompt. See [below](#always-run-as-administrator). |
 | **Run admin actions directly when elevated** | Off | If the app itself runs as administrator, do admin actions in the app instead of through the elevated helper. Off keeps behavior the same whether or not the app is elevated. |
 
 ### Always Run as Administrator
@@ -127,6 +127,7 @@ These settings are in **Settings** > **General** > **Administrator actions**:
 **Always run as administrator** makes every start of the app run it as administrator, without a UAC prompt: the Start menu entry, **Run on startup**, ++ctrl+shift+esc++ with **Replace Windows Task Manager**, and the restarts from **Settings**. It does what you would otherwise set up by hand in Task Scheduler: a task for your account, `\TrayAppDotNET\TaskManagerTrayAppDotNET-<your account's SID>`, that runs the app with highest privileges. A normal start hands off to that task, which starts the app again as administrator.
 
 - Turning it on or off needs administrator approval (a UAC prompt). If you decline, the toggle flips back and nothing changes.
+- The installers turn it on for a system-wide install by default (that install's UAC prompt covers it). They show a warning with a check box: uncheck **Always run as administrator** to leave it off. A local or portable install never turns it on. A headless install changes it only when you pass `--run-as-administrator true` or `false`, see [Launch Arguments](../../getting-started/launch-arguments.md).
 - It needs an administrator account and the system-wide install in Program Files, and you turn it on from that copy. The task only ever starts that install: a copy in your user folder could be replaced by any program you run, which would then start as administrator without asking. Other copies keep starting as you.
 - Any program running as you can run the task, so any program you run can start this app as administrator. None of them can change what the task starts: only an administrator can change or delete it.
 - A start with `--settings-dir` doesn't use the task.

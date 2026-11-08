@@ -138,7 +138,11 @@ The app runs `asInvoker`. Five separate channels touch other integrity levels or
   user can run the task and choose `$(Arg0)`, so `Program.Main` checks for `--elevated-start-task` before every other
   mode and accepts only `--autostart` and `--hidden` after it; anything else exits with code 2. Registration only ever
   targets the system install, because a copy in the user's profile can be replaced by any program the user runs. A
-  system uninstall deletes every account's task (`TaskManagerUninstallGuard.BeforePrepare`).
+  system uninstall deletes every account's task (`TaskManagerUninstallGuard.BeforePrepare`). A system install also
+  registers or deletes it for the installing account when the install options carry `RunAsAdministrator`
+  (`--run-as-administrator true|false`): `AppServices` hands `ElevatedStartTask.SetEnabledForCurrentUser` to Common as
+  a `TrayAppDotNETRunAsAdministratorOption`, which the elevated install runs after the files are copied. The app's
+  installer window and the bundle installer show it checked by default with a warning.
 - **Interactive-user launches** (`src/Services/InteractiveUserLauncher.cs`): Run new task, the Services and Users page
   shortcuts and Restart explorer's fresh shell call wdc.dll's `WdcRunTaskAsInteractiveUser`, which Windows Task
   Manager's Create new task calls when its administrator box is off. It runs the stock

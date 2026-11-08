@@ -365,6 +365,8 @@
                Description="Check boxes with no handler; Install reads them">
             <Leaf ID="DesktopShortcut" Kind="Toggle" Source="TrayAppDotNETInstallerWindow.BuildShortcutCheckBox" />
             <Leaf ID="StartMenuShortcut" Kind="Toggle" Source="TrayAppDotNETInstallerWindow.BuildShortcutCheckBox" />
+            <Leaf ID="RunAsAdministrator" Kind="Toggle" Source="TrayAppDotNETInstallerWindow.BuildRunAsAdministratorCard"
+                  Description="Only for apps that offer Always run as administrator; enabled for the system location" />
         </Scope>
         <Scope ID="Actions" Source="TrayAppDotNETInstallerWindow.BuildButtons">
             <Leaf ID="Cancel" Kind="Button" Event="Click" Source="TrayAppDotNETInstallerWindow.BuildButtons" />

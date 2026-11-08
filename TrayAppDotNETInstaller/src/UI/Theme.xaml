@@ -74,7 +74,7 @@
     <system:Double x:Key="InstallerTheme.ProgressBarHeight">4</system:Double>
     <CornerRadius x:Key="InstallerTheme.ProgressBarCornerRadius">2</CornerRadius>
 
-    <!-- Windhawk notice -->
+    <!-- Notice cards: the Windhawk, installed and run as administrator notices -->
     <Thickness x:Key="InstallerTheme.NoticePadding">12</Thickness>
     <CornerRadius x:Key="InstallerTheme.NoticeCornerRadius">4</CornerRadius>
     <Thickness x:Key="InstallerTheme.NoticeBorderThickness">1</Thickness>

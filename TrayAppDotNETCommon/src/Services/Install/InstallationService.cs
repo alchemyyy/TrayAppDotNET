@@ -33,6 +33,13 @@ public sealed record TrayAppDotNETInstallationOptions(
     /// process. Comes from <see cref="TrayAppDotNETUninstallHook.CheckUninstall"/>.
     /// </summary>
     public Func<InstallScope, string?>? CheckUninstall { get; init; }
+
+    /// <summary>
+    /// The app's Always run as administrator setting, which a system install turns on or off when
+    /// <see cref="TrayAppDotNETInstallOptions.RunAsAdministrator"/> asks. Comes from
+    /// <see cref="TrayAppDotNETAppInstallServicesOptions.RunAsAdministrator"/>.
+    /// </summary>
+    public TrayAppDotNETRunAsAdministratorOption? RunAsAdministrator { get; init; }
 }
 
 /// <summary>
@@ -1215,9 +1222,10 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
     }
 
     /// <summary>
-    /// Applies the shortcut choices. An unset desktop choice leaves the desktop shortcut as it is. An unset Start
+    /// Applies the install choices. An unset desktop choice leaves the desktop shortcut as it is. An unset Start
     /// Menu choice keeps the entries in step with the installation, except that a scope that was already installed
-    /// and had its entries removed by the user does not get them back.
+    /// and had its entries removed by the user does not get them back. A set Always run as administrator choice is
+    /// applied by a system install of an app that offers it, for the installing account; anything else leaves it.
     /// </summary>
     internal TrayAppDotNETInstallResult ApplyInstallOptions(
         InstallScope scope,
@@ -1228,22 +1236,36 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         Identity.WriteLog(
             $"TrayAppDotNETInstallationService.ApplyInstallOptions: scope={scope}, "
             + $"desktopShortcut={FormatChoice(installOptions?.CreateDesktopShortcut)}, "
-            + $"startMenuShortcut={FormatChoice(installOptions?.CreateStartMenuShortcut)}");
+            + $"startMenuShortcut={FormatChoice(installOptions?.CreateStartMenuShortcut)}, "
+            + $"runAsAdministrator={FormatChoice(installOptions?.RunAsAdministrator)}");
 
         bool startMenuWanted = installOptions?.CreateStartMenuShortcut
                                ?? (!scopeWasInstalled || TrayAppDotNETStartMenuShortcut.HasAnyShortcut(Identity.ApplicationName));
         options.SyncStartMenu?.Invoke(startMenuWanted ? null : scope, allUsers);
 
-        if (installOptions?.CreateDesktopShortcut is not { } createDesktopShortcut)
-            return new TrayAppDotNETInstallResult(true);
+        List<string> failures = [];
+        if (installOptions?.CreateDesktopShortcut is { } createDesktopShortcut)
+        {
+            TrayAppDotNETInstallResult desktopResult = DesktopShortcut.SetEnabled(scope, createDesktopShortcut);
+            if (!desktopResult.Success)
+                failures.Add("the desktop shortcut could not be updated: " + desktopResult.ErrorMessage);
+        }
 
-        TrayAppDotNETInstallResult desktopResult = DesktopShortcut.SetEnabled(scope, createDesktopShortcut);
-        if (desktopResult.Success) return desktopResult;
+        if (scope == InstallScope.ProgramFiles
+            && installOptions?.RunAsAdministrator is { } runAsAdministrator
+            && options.RunAsAdministrator is { } runAsAdministratorOption
+            && !runAsAdministratorOption.SetEnabled(runAsAdministrator))
+        {
+            failures.Add(runAsAdministrator
+                ? "Always run as administrator could not be turned on"
+                : "Always run as administrator could not be turned off");
+        }
+
+        if (failures.Count == 0) return new TrayAppDotNETInstallResult(true);
 
         return new TrayAppDotNETInstallResult(
             Success: false,
-            "Application files were installed, but the desktop shortcut could not be updated: "
-            + desktopResult.ErrorMessage);
+            "Application files were installed, but " + string.Join("; ", failures) + ".");
     }
 
     private static string FormatChoice(bool? value) => value switch
@@ -1273,6 +1295,12 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         {
             arguments += $" {TrayAppDotNETInstallContract.StartMenuShortcutArgument} "
                          + FormatBooleanArgument(createStartMenuShortcut);
+        }
+
+        if (installOptions?.RunAsAdministrator is { } runAsAdministrator)
+        {
+            arguments += $" {TrayAppDotNETInstallContract.RunAsAdministratorArgument} "
+                         + FormatBooleanArgument(runAsAdministrator);
         }
 
         if (!string.IsNullOrWhiteSpace(progressPipeName))

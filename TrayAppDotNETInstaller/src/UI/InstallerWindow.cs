@@ -88,6 +88,8 @@ public sealed class InstallerWindow : Window
     private readonly CheckBox _desktopShortcutCheckBox;
     private readonly CheckBox _startMenuShortcutCheckBox;
     private readonly CheckBox _launchCheckBox;
+    // Exists only when the installer carries Task Manager, the one app that offers it
+    private readonly CheckBox? _runAsAdministratorCheckBox;
     private readonly StackPanel _progressPanel = new() { Visibility = Visibility.Collapsed };
     private readonly ProgressBar _progressBar = new()
     {
@@ -169,6 +171,14 @@ public sealed class InstallerWindow : Window
             Content = L(nameof(AppStrings.Installer_Options_Launch)),
             IsChecked = true
         };
+        // Checked by default; the plan carries it only for a System install that includes Task Manager
+        _runAsAdministratorCheckBox = catalog.Find(InstallEngine.RunAsAdministratorApplicationName) == null
+            ? null
+            : new CheckBox
+            {
+                Content = L(nameof(AppStrings.Installer_Options_RunAsAdministrator)),
+                IsChecked = true
+            };
         _installButton = new Button
         {
             Content = L(nameof(AppStrings.Installer_Button_Install)),
@@ -371,7 +381,7 @@ public sealed class InstallerWindow : Window
             _payloadSelections.Add(selection);
             ShowInstalledState(selection);
             _inputs.Add(checkBox);
-            checkBox.Click += (_, _) => RefreshShortcutPresets();
+            checkBox.Click += (_, _) => RefreshSelectionDependentOptions();
             if (!showBatteryHint)
             {
                 rows.Add(CreateApplicationRow(checkBox, stateTextBlock));
@@ -509,7 +519,32 @@ public sealed class InstallerWindow : Window
         _inputs.Add(_desktopShortcutCheckBox);
         _inputs.Add(_startMenuShortcutCheckBox);
         _inputs.Add(_launchCheckBox);
+        if (_runAsAdministratorCheckBox != null)
+        {
+            options.Add(_runAsAdministratorCheckBox);
+            options.Add(CreateRunAsAdministratorNotice());
+            _inputs.Add(_runAsAdministratorCheckBox);
+        }
+
         return CreateSection(L(nameof(AppStrings.Installer_Options_Header)), options);
+    }
+
+    /// <summary>
+    /// The caution card below the run as administrator option. It stays visible while the option is disabled, so
+    /// the reason the option exists only for a System install is on the page before the type is chosen.
+    /// </summary>
+    private Border CreateRunAsAdministratorNotice()
+    {
+        Border notice = new()
+        {
+            Child = new TextBlock { Text = L(nameof(AppStrings.Installer_Options_RunAsAdministrator_Warning)) },
+            Padding = ThicknessResource(NoticePaddingKey),
+            CornerRadius = CornerRadiusResource(NoticeCornerRadiusKey),
+            BorderThickness = ThicknessResource(NoticeBorderThicknessKey)
+        };
+        notice.SetResourceReference(Border.BackgroundProperty, CautionBackgroundBrushKey);
+        notice.SetResourceReference(Border.BorderBrushProperty, CautionBorderBrushKey);
+        return notice;
     }
 
     private StackPanel CreateProgressSection()
@@ -761,7 +796,7 @@ public sealed class InstallerWindow : Window
         _browseButton.IsEnabled = portable;
         _desktopShortcutCheckBox.IsEnabled = !portable;
         _startMenuShortcutCheckBox.IsEnabled = !portable;
-        RefreshShortcutPresets();
+        RefreshSelectionDependentOptions();
     }
 
     private void OnLinkClick(object sender, RoutedEventArgs eventArgs)
@@ -929,7 +964,12 @@ public sealed class InstallerWindow : Window
         bool? startMenu = portable || _startMenuShortcutCheckBox.IsChecked == ShortcutPresets.StartMenu(mode, applicationNames, _installations)
             ? null
             : _startMenuShortcutCheckBox.IsChecked == true;
-        return new InstallPlan(mode, targetDirectory, selected, desktop, startMenu);
+        // Outside a System install of Task Manager the option is disabled and sends nothing, so the account's
+        // setting stays as it is
+        bool? runAsAdministrator = _runAsAdministratorCheckBox != null && RunAsAdministratorApplies(mode, applicationNames)
+            ? _runAsAdministratorCheckBox.IsChecked == true
+            : null;
+        return new InstallPlan(mode, targetDirectory, selected, desktop, startMenu, runAsAdministrator);
     }
 
     /// <summary>The applications the run would include: the checked rows of a suite, or the single payload.</summary>
@@ -945,15 +985,32 @@ public sealed class InstallerWindow : Window
         ];
     }
 
-    /// <summary>Moves each shortcut choice the user has not touched to what is on the machine for the current selection.</summary>
-    private void RefreshShortcutPresets()
+    /// <summary>Updates the options that follow the installation type and the selected applications.</summary>
+    private void RefreshSelectionDependentOptions()
     {
         List<string> applicationNames = SelectedApplicationNames();
+        RefreshShortcutPresets(applicationNames);
+        // Disabled rather than unchecked, so the choice survives a detour through another type or selection
+        if (_runAsAdministratorCheckBox != null)
+            _runAsAdministratorCheckBox.IsEnabled = RunAsAdministratorApplies(SelectedMode, applicationNames);
+    }
+
+    /// <summary>Moves each shortcut choice the user has not touched to what is on the machine for the current selection.</summary>
+    private void RefreshShortcutPresets(IReadOnlyList<string> applicationNames)
+    {
         if (!_desktopChoiceChanged)
             _desktopShortcutCheckBox.IsChecked = ShortcutPresets.Desktop(SelectedMode, applicationNames);
         if (!_startMenuChoiceChanged)
             _startMenuShortcutCheckBox.IsChecked = ShortcutPresets.StartMenu(SelectedMode, applicationNames, _installations);
     }
+
+    /// <summary>
+    /// True when the run as administrator option takes effect: only the System install of Task Manager registers the
+    /// task that starts it elevated.
+    /// </summary>
+    private static bool RunAsAdministratorApplies(InstallMode mode, IReadOnlyList<string> applicationNames) =>
+        mode == InstallMode.System
+        && applicationNames.Contains(InstallEngine.RunAsAdministratorApplicationName, StringComparer.OrdinalIgnoreCase);
 
     private static bool TryGetRootedFullPath(string text, out string fullPath)
     {
