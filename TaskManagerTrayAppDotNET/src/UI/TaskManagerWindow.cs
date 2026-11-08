@@ -994,11 +994,14 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
             confirmation.ConfirmText,
             confirmation.CancelText);
 
-    /// <summary>Shows the in-app consent that precedes every Windows administrator approval prompt.</summary>
+    /// <summary>Shows the in-app consent that precedes the elevated broker's Windows administrator approval prompt.</summary>
     internal Task<bool> ConfirmAdministratorApprovalAsync() =>
         ConfirmActionAsync(ActionConfirmations.AdministratorApproval);
 
-    /// <summary>Enables elevated termination after End task or End process tree was refused for lack of rights.</summary>
+    /// <summary>
+    /// Enables elevated termination after End task or End process tree was refused for lack of rights. The action's
+    /// own confirmation already ran, so this goes straight to the Windows approval prompt.
+    /// </summary>
     private async Task<ElevatedTerminationRequestOutcome> RequestOnDemandElevatedTerminationAsync()
     {
         if (_allowClose || _manualElevationPromptPending || !IsVisible)
@@ -1007,9 +1010,6 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         _manualElevationPromptPending = true;
         try
         {
-            if (!await ConfirmAdministratorApprovalAsync()) return ElevatedTerminationRequestOutcome.Declined;
-            if (_allowClose || !IsVisible) return ElevatedTerminationRequestOutcome.Unavailable;
-
             ElevatedHelperStatus completedStatus = await _processTerminationService.EnableElevatedHelperAsync();
             switch (completedStatus.State)
             {

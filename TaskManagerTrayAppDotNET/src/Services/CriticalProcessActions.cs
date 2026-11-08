@@ -142,10 +142,10 @@ internal static class CriticalProcessActions
     }
 
     /// <summary>
-    /// Returns whether standard rights are refused a termination handle for a live process known to be
-    /// non-critical, i.e. the administrator helper could still end it. A process whose criticality can't be read
-    /// at standard rights is never offered: Windows' own critical SYSTEM processes refuse that query, and no helper
-    /// ends critical processes.
+    /// Returns whether standard rights are refused a termination handle for a live process not known to be
+    /// critical, i.e. the administrator helper may still end it. A process that refuses even the limited query, such
+    /// as a service running as SYSTEM, is offered too: its criticality can only be read elevated, and the elevated
+    /// helper refuses a critical process itself.
     /// </summary>
     internal static bool IsTerminationAccessDenied(ProcessTerminationTarget target)
     {
@@ -155,7 +155,7 @@ internal static class CriticalProcessActions
             Kernel32.PROCESS_QUERY_LIMITED_INFORMATION,
             bInheritHandle: false,
             (uint)target.ProcessID);
-        if (queryHandle == IntPtr.Zero) return false;
+        if (queryHandle == IntPtr.Zero) return Marshal.GetLastWin32Error() == ErrorAccessDenied;
 
         try
         {
