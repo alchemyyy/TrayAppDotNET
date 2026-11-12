@@ -75,7 +75,9 @@ public sealed class LHMService : IDisposable
         // Disabled while we investigate long-run DiskInfoToolkit/LHM storage allocation growth
         IsStorageEnabled = false,
         IsNetworkEnabled = false,
-        IsControllerEnabled = true
+        IsControllerEnabled = true,
+        // PSU-reported total is the best system power draw reading when one is attached over USB
+        IsPsuEnabled = true
     };
 
     private CancellationTokenSource? _pollingCancellationToken;
@@ -314,25 +316,42 @@ public sealed class LHMService : IDisposable
 
     /// <summary>
     /// Walks the hardware (worker thread, <see cref="_hardwareLock"/> held): refreshes the control-sensor map and
-    /// collects every sensor plus the synthetic CPU clock sources, in registration order. Touches no UI-thread state.
+    /// collects every sensor plus the synthetic CPU clock and system power draw sources, in registration order.
+    /// Touches no UI-thread state.
     /// </summary>
     private List<DiscoveredSource> DiscoverHardwareLocked()
     {
         _controlSensorsByKey.Clear();
         _missingControlSensorsLogged.Clear();
         List<DiscoveredSource> discovered = [];
+        bool hasPowerDrawSensors = false;
         foreach (IHardware hardware in _computer.Hardware)
         {
             hardware.Update();
-            DiscoverHardware(hardware, discovered);
+            DiscoverHardware(hardware, discovered, ref hasPowerDrawSensors);
+        }
+
+        if (hasPowerDrawSensors)
+        {
+            discovered.Add(new DiscoveredSource(
+                LHMSyntheticProbeSources.PowerDrawTotalKey,
+                LHMSyntheticProbeSources.PowerDrawTotalControllerName,
+                LHMSyntheticProbeSources.PowerDrawTotalHardwareType,
+                LHMSyntheticProbeSources.PowerDrawTotalDisplayName,
+                DataSourceTypeEnum.Power,
+                IsControl: false,
+                IsSynthetic: true));
         }
 
         return discovered;
     }
 
-    private void DiscoverHardware(IHardware hardware, List<DiscoveredSource> discovered)
+    private void DiscoverHardware(IHardware hardware, List<DiscoveredSource> discovered, ref bool hasPowerDrawSensors)
     {
         bool isCPU = hardware.HardwareType == HardwareType.Cpu;
+        bool isIntegratedGpu = LHMSyntheticProbeSources.IsIntegratedGpu(
+            hardware.HardwareType,
+            hardware.Identifier.ToString());
         bool hasCoreClockSensors = false;
         bool hasCoreEffectiveClockSensors = false;
         string hardwareType = hardware.HardwareType.ToString();
@@ -342,6 +361,11 @@ public sealed class LHMService : IDisposable
 
             string key = BuildSensorKey(hardware, sensor);
             DataSourceTypeEnum type = MapSensorType(sensor.SensorType);
+            hasPowerDrawSensors |= LHMSyntheticProbeSources.ClassifyPowerDrawSensor(
+                hardware.HardwareType,
+                isIntegratedGpu,
+                sensor.SensorType,
+                sensor.Name).Role != PowerDrawRole.None;
             hasCoreClockSensors |= isCPU && LHMSyntheticProbeSources.IsCoreClockSensor(type, sensor.Name);
             hasCoreEffectiveClockSensors |= isCPU && LHMSyntheticProbeSources.IsCoreEffectiveClockSensor(
                 type,
@@ -361,7 +385,7 @@ public sealed class LHMService : IDisposable
                 LHMSyntheticProbeSources.MaxClockDisplayName,
                 DataSourceTypeEnum.Clock,
                 IsControl: false,
-                IsSyntheticClock: true));
+                IsSynthetic: true));
         }
 
         if (hasCoreEffectiveClockSensors)
@@ -373,13 +397,13 @@ public sealed class LHMService : IDisposable
                 LHMSyntheticProbeSources.MaxEffectiveClockDisplayName,
                 DataSourceTypeEnum.Clock,
                 IsControl: false,
-                IsSyntheticClock: true));
+                IsSynthetic: true));
         }
 
         foreach (IHardware sub in hardware.SubHardware)
         {
             sub.Update();
-            DiscoverHardware(sub, discovered);
+            DiscoverHardware(sub, discovered, ref hasPowerDrawSensors);
         }
     }
 
@@ -406,9 +430,9 @@ public sealed class LHMService : IDisposable
 
         foreach (DiscoveredSource found in discovered)
         {
-            if (found.IsSyntheticClock)
+            if (found.IsSynthetic)
             {
-                EnsureSyntheticClockSource(found);
+                EnsureSyntheticSource(found);
                 continue;
             }
 
@@ -472,16 +496,35 @@ public sealed class LHMService : IDisposable
     private List<SensorReading> CaptureSensorReadings()
     {
         List<SensorReading> readings = [];
+        PowerDrawTotalAccumulator powerDraw = new();
         foreach (IHardware hardware in _computer.Hardware)
-            CaptureFromHardware(hardware, readings);
+            CaptureFromHardware(hardware, readings, powerDraw);
+
+        if (powerDraw.Total is { } totalPowerDraw)
+        {
+            readings.Add(new SensorReading(
+                LHMSyntheticProbeSources.PowerDrawTotalKey,
+                LHMSyntheticProbeSources.PowerDrawTotalControllerName,
+                LHMSyntheticProbeSources.PowerDrawTotalDisplayName,
+                SensorType.Power,
+                totalPowerDraw));
+        }
+
         return readings;
     }
 
-    private static void CaptureFromHardware(IHardware hardware, List<SensorReading> readings)
+    private static void CaptureFromHardware(
+        IHardware hardware,
+        List<SensorReading> readings,
+        PowerDrawTotalAccumulator powerDraw)
     {
         bool isCPU = hardware.HardwareType == HardwareType.Cpu;
+        bool isIntegratedGpu = LHMSyntheticProbeSources.IsIntegratedGpu(
+            hardware.HardwareType,
+            hardware.Identifier.ToString());
         float? maxClock = null;
         float? maxEffectiveClock = null;
+        powerDraw.BeginDevice();
         foreach (ISensor sensor in hardware.Sensors)
         {
             if (sensor.Value is not { } value) continue;
@@ -489,6 +532,13 @@ public sealed class LHMService : IDisposable
             DataSourceTypeEnum type = MapSensorType(sensor.SensorType);
             string key = BuildSensorKey(hardware, sensor);
             readings.Add(new SensorReading(key, hardware.Name, sensor.Name, sensor.SensorType, value));
+            powerDraw.Add(
+                LHMSyntheticProbeSources.ClassifyPowerDrawSensor(
+                    hardware.HardwareType,
+                    isIntegratedGpu,
+                    sensor.SensorType,
+                    sensor.Name),
+                value);
             if (!isCPU) continue;
 
             if (LHMSyntheticProbeSources.IsCoreClockSensor(type, sensor.Name))
@@ -505,6 +555,8 @@ public sealed class LHMService : IDisposable
                 ? Math.Max(maxEffectiveClock.Value, value)
                 : value;
         }
+
+        powerDraw.EndDevice();
 
         if (maxClock is { } maxCoreClock)
         {
@@ -526,13 +578,13 @@ public sealed class LHMService : IDisposable
                 maxEffectiveCoreClock));
         }
 
-        foreach (IHardware sub in hardware.SubHardware) CaptureFromHardware(sub, readings);
+        foreach (IHardware sub in hardware.SubHardware) CaptureFromHardware(sub, readings, powerDraw);
     }
 
     /// <summary>
-    /// Registers or refreshes one synthetic CPU clock source (max core clock or max effective clock).
+    /// Registers or refreshes one app-built source (CPU max clock, max effective clock, or system power draw).
     /// </summary>
-    private void EnsureSyntheticClockSource(DiscoveredSource found)
+    private void EnsureSyntheticSource(DiscoveredSource found)
     {
         if (DataSource.Find(found.Key) is not { } existingSource)
         {
@@ -542,7 +594,7 @@ public sealed class LHMService : IDisposable
                 UserDefinedName = found.Name,
                 ControllerName = found.HardwareName,
                 ControllerHardwareType = found.HardwareType,
-                DataSourceType = DataSourceTypeEnum.Clock,
+                DataSourceType = found.Type,
                 IsLiveHardwareSensor = true
             };
             source.EnsureDisplayMetadata();
@@ -560,9 +612,9 @@ public sealed class LHMService : IDisposable
             _discoveryChanged = true;
         }
 
-        if (existingSource.DataSourceType != DataSourceTypeEnum.Clock)
+        if (existingSource.DataSourceType != found.Type)
         {
-            existingSource.DataSourceType = DataSourceTypeEnum.Clock;
+            existingSource.DataSourceType = found.Type;
             _discoveryChanged = true;
         }
 
@@ -1049,7 +1101,7 @@ public sealed class LHMService : IDisposable
         SensorType SensorType,
         float Value);
 
-    /// <summary>One sensor, or synthetic CPU clock source, found by a hardware walk; no live LHM object.</summary>
+    /// <summary>One sensor, or app-built synthetic source, found by a hardware walk; no live LHM object.</summary>
     private sealed record DiscoveredSource(
         string Key,
         string HardwareName,
@@ -1057,5 +1109,5 @@ public sealed class LHMService : IDisposable
         string Name,
         DataSourceTypeEnum Type,
         bool IsControl,
-        bool IsSyntheticClock = false);
+        bool IsSynthetic = false);
 }

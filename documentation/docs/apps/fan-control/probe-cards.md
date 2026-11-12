@@ -27,6 +27,8 @@ Each type tab lists every sensor of that type with its live value. Flip **Enable
 
 The **Clocks** tab also gets two extra entries the app builds itself for each CPU: **Cores (Max)** and **Cores (Max Effective)**, i.e. the highest per-core clock (and effective clock) at that moment.
 
+The **Power** tab gets **Power Draw (Total)** under a **System** device: the best whole-system power draw the sensors can give. When a supported USB PSU (Corsair or MSI) reports its output, that total is used. Otherwise it adds up each CPU's package power (or Intel platform power, when reported), each discrete GPU's board power, and cooler pump and fan power. Integrated Intel graphics are left out because the CPU package already includes them. Anything with no sensor, such as drives, RAM, and the motherboard, isn't counted, so without a PSU reading the number comes out below what's drawn at the wall.
+
 ### Home Tab
 
 **Profiles to display probe card on:** has a checkbox per [fan profile](index.md#profiles). The card only shows up on the checked ones. At least one has to stay checked.
