@@ -161,6 +161,9 @@
 - Common process, IPC and native services:
   - `TrayAppDotNETCommon/src/Services/ProcessExitWatch.cs`: one wait per PID shared by every subscriber, with start
     time validation (watcher, Volume sessions, helper parent watches, Task Manager's broker)
+  - `TrayAppDotNETCommon/src/Services/ProcessExitHandle.cs`: waits for a helper and reads its exit code with only
+    `SYNCHRONIZE` and `PROCESS_QUERY_LIMITED_INFORMATION`, all an unelevated process gets on an elevated one (update
+    restarter, uninstall monitor); a `Process` found by ID needs `PROCESS_ALL_ACCESS` for that and fails under UAC
   - `TrayAppDotNETCommon/src/Services/Ipc`: `TrayAppDotNETPipeSecurity` (user-only pipe DACL and owner, verified
     client and server) and `TrayAppDotNETHelperProcess` (launching and hosting helper processes with
     `--parent-pid`/`--parent-start`/`--pipe-name`)

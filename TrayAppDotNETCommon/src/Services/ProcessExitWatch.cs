@@ -196,7 +196,8 @@ public static class ProcessExitWatch
         return ProcessExitWatchResult.Watching;
     }
 
-    private static bool TryReadStartFileTime(IntPtr processHandle, out long startFileTime)
+    /// <summary>Reads the creation time (FILETIME, UTC) of a process opened with PROCESS_QUERY_LIMITED_INFORMATION.</summary>
+    internal static bool TryReadStartFileTime(IntPtr processHandle, out long startFileTime)
     {
         startFileTime = 0;
         if (!Kernel32.GetProcessTimes(processHandle, out Kernel32.FILETIME creation, out _, out _, out _)) return false;

@@ -1,14 +1,19 @@
+using System.Diagnostics;
 using System.IO.Compression;
 using System.IO.Pipes;
 using System.Security.Cryptography;
 using System.Security.Principal;
+using TrayAppDotNETCommon.Services;
 using TrayAppDotNETCommon.Services.Install;
 using TrayAppDotNETCommon.Services.Ipc;
 using Xunit;
 
 namespace TrayAppDotNETCommon.Tests;
 
-/// <summary>The current and the transitional (older parent) <c>--update-apply</c> invocations.</summary>
+/// <summary>
+/// The current and the transitional (older parent) <c>--update-apply</c> invocations, and how the
+/// <c>--update-restart</c> restarter opens the worker.
+/// </summary>
 public sealed class UpdateInstallerTests : IDisposable
 {
     private readonly TempDirectory _temp = new();
@@ -127,6 +132,27 @@ public sealed class UpdateInstallerTests : IDisposable
         Assert.True(UpdateInstaller.IsAcceptedServerOwner(legacyOwner, user, identity.Owner, legacyInvocation: true));
         Assert.True(TrayAppDotNETPipeSecurity.IsServer(currentClient, Environment.ProcessId));
         Assert.True(TrayAppDotNETPipeSecurity.IsServer(legacyClient, Environment.ProcessId));
+    }
+
+    [Fact]
+    public void TheRestarterOpensTheWorkerOnlyAtTheStartTimeTheParentPassed()
+    {
+        using Process worker = TestProcesses.StartWaitingCommandProcessor();
+        try
+        {
+            // All an unelevated restarter gets on an elevated worker, and the start time must still be checked
+            TestProcesses.GrantOnlyWaitAndQuery(worker);
+            // The parent passes the Process.StartTime of the worker it started, as UTC ticks
+            long startTimeTicks = worker.StartTime.ToUniversalTime().Ticks;
+
+            Assert.Throws<InvalidOperationException>(() => UpdateInstaller.OpenWorker(worker.Id, startTimeTicks + 1));
+            using ProcessExitHandle opened = UpdateInstaller.OpenWorker(worker.Id, startTimeTicks);
+            Assert.Equal(worker.Id, opened.ProcessID);
+        }
+        finally
+        {
+            TestProcesses.TerminateIfRunning(worker);
+        }
     }
 
     public void Dispose() => _temp.Dispose();

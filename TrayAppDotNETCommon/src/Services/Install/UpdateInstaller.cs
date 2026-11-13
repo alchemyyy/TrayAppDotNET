@@ -452,12 +452,9 @@ internal static class UpdateInstaller
         {
             int workerPID = RequiredIntArgument(args, name: "--worker-pid");
             long workerStartTimeTicks = RequiredLongArgument(args, name: "--worker-start");
-            using Process worker = RequireProcess(workerPID, workerStartTimeTicks, description: "update worker");
-            // Retain the handle so ExitCode remains available after an externally opened process exits
-            _ = worker.SafeHandle;
+            using ProcessExitHandle worker = OpenWorker(workerPID, workerStartTimeTicks);
             log($"Waiting for worker PID {workerPID}.");
-            worker.WaitForExit();
-            int workerExitCode = worker.ExitCode;
+            int workerExitCode = worker.WaitForExit();
             log($"Worker exited with code {workerExitCode}.");
 
             List<string> restartExecutables = ReadRestartExecutables(
@@ -847,6 +844,29 @@ internal static class UpdateInstaller
         catch
         {
             process.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Opens the update worker and refuses a PID that now names a process started at another time. The worker is
+    /// elevated whenever the install folder needs it, so this unelevated restarter waits on it through a
+    /// <see cref="ProcessExitHandle"/>.
+    /// </summary>
+    internal static ProcessExitHandle OpenWorker(int processID, long startTimeTicks)
+    {
+        ProcessExitHandle worker = ProcessExitHandle.Open(processID);
+        try
+        {
+            if (!worker.TryReadStartFileTime(out long startFileTime))
+                throw new InvalidOperationException("The start time of the update worker cannot be read.");
+            if (DateTime.FromFileTimeUtc(startFileTime).Ticks != startTimeTicks)
+                throw new InvalidOperationException("The update worker PID was reused.");
+            return worker;
+        }
+        catch
+        {
+            worker.Dispose();
             throw;
         }
     }

@@ -95,7 +95,9 @@ release again at once.
    copies the downloaded zip into `.tadn-update-<App>-<guid>\` inside the install folder while hashing that copy,
    extracts it there and plans only the app's payload files (`TrayAppDotNETInstallPayload`).
 3. Restarter: the extracted exe runs `--update-restart` unelevated; the parent writes the list of apps to restart
-   (the target, plus every app in the folder when a shared native DLL changes).
+   (the target, plus every app in the folder when a shared native DLL changes). It waits on the worker through a
+   handle with only `SYNCHRONIZE` and `PROCESS_QUERY_LIMITED_INFORMATION`, all an unelevated process gets on an
+   elevated worker, and checks the worker's start time on that handle.
 4. Commit: the worker stops the apps through the graceful exit request, takes the install-directory mutex, writes
    the journal `.tadn-update-<App>.journal`, then for each file renames the old one to a `.bak` and moves the new
    one into place (shared native DLLs first, the exe last). Success appends a `committed` line to the journal and

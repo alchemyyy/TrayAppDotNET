@@ -680,7 +680,7 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
                 Identity.WriteLog);
 
         Process? helper;
-        Process? observer;
+        ProcessExitHandle? observer;
         try
         {
             ProcessStartInfo startInfo = new()
@@ -707,9 +707,9 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
                 return TrayAppDotNETUninstallRun.WithoutProcess;
             }
 
-            // A handle of its own, so the caller may dispose the returned process at once
-            observer = Process.GetProcessById(helper.Id);
-            _ = observer.SafeHandle;
+            // A handle of its own, so the caller may dispose the returned process at once. Its limited rights are all
+            // this process gets on an elevated helper; the helper's handle keeps the ID from being reused meanwhile
+            observer = ProcessExitHandle.Open(helper.Id);
         }
         catch (Win32Exception exception) when (TrayAppDotNETElevatedLaunch.IsUserCancelled(exception))
         {
@@ -816,14 +816,14 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
     }
 
     private async Task<bool> MonitorUninstallAsync(
-        Process observer,
+        ProcessExitHandle observer,
         TrayAppDotNETProgressPipeServer? pipeServer,
         TrayAppDotNETProgressTracker? tracker,
         IReadOnlyList<DetachedCleanupTarget> removalTargets)
     {
         try
         {
-            Task exitTask = observer.WaitForExitAsync();
+            Task<int> exitTask = observer.WaitForExitAsync();
             if (pipeServer != null)
             {
                 await Task.WhenAny(pipeServer.Completion, exitTask).ConfigureAwait(false);
@@ -836,8 +836,7 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
                 }
             }
 
-            await exitTask.ConfigureAwait(false);
-            int exitCode = observer.ExitCode;
+            int exitCode = await exitTask.ConfigureAwait(false);
             if (exitCode != 0)
             {
                 if (tracker is { IsTerminal: false })
