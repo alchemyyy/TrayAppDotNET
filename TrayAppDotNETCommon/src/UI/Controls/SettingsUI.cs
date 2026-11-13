@@ -3070,8 +3070,7 @@ public sealed class SettingsNumberBox : Grid, IDisposable
                     e.Handled = true;
                     break;
                 case Key.Enter:
-                    CommitFocusedTextEdit();
-                    TrayAppDotNETSettingsUI.BlurTextEditor(_textBox);
+                    CommitTextEdit();
                     e.Handled = true;
                     break;
                 case Key.Escape:
@@ -3174,10 +3173,10 @@ public sealed class SettingsNumberBox : Grid, IDisposable
     }
 
     /// <summary>
-    /// True while the text box has focus. Typed text reaches <see cref="ValueChanged"/> only when Enter or focus
-    /// loss commits it, so a partly typed number such as the 1 of 15 never reaches the owner; spinner buttons, Up and
-    /// Down, and the wheel commit at once, because each is a whole step. Owners that rebuild their content hold the
-    /// rebuild while this is true, so typing is never interrupted.
+    /// True while the text box has focus. Typed text reaches <see cref="ValueChanged"/> only when Enter, focus loss or
+    /// <see cref="CommitTextEdit"/> commits it, so a partly typed number such as the 1 of 15 never reaches the owner;
+    /// spinner buttons, Up and Down, and the wheel commit at once, because each is a whole step. Owners that rebuild
+    /// their content hold the rebuild while this is true, so typing is never interrupted.
     /// </summary>
     public bool IsEditingText => _isTextFocused;
 
@@ -3210,6 +3209,18 @@ public sealed class SettingsNumberBox : Grid, IDisposable
         Value = Math.Clamp(next, Minimum, Maximum);
         if (_isTextFocused)
             _valueAtTextFocus = Value;
+    }
+
+    /// <summary>
+    /// Ends a text edit as Enter does: the typed text commits and the text box gives up focus. Does nothing while the
+    /// text box has no focus.
+    /// </summary>
+    public void CommitTextEdit()
+    {
+        if (!_isTextFocused) return;
+
+        CommitFocusedTextEdit();
+        TrayAppDotNETSettingsUI.BlurTextEditor(_textBox);
     }
 
     /// <summary>

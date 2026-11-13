@@ -44,6 +44,19 @@ public sealed class SettingsNumberBoxTextCommitTests
     });
 
     [Fact]
+    public void TypedTextIsPublishedOnCommitTextEdit() => RunWithNumberBox(view =>
+    {
+        Type(view, "4");
+        Type(view, "5");
+
+        view.NumberBox.CommitTextEdit();
+
+        SettingsNumberValueChangedEventArgs change = Assert.Single(view.Changes);
+        Assert.Equal(expected: 45, change.NewValue);
+        Assert.False(view.NumberBox.IsEditingText);
+    });
+
+    [Fact]
     public void EscapeRestoresTheValueAndKeepsTheCaretInTheBox() => RunWithNumberBox(view =>
     {
         Type(view, "9");

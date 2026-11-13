@@ -80,7 +80,7 @@ When you turn the brightness curve off entirely, your displays go back to their 
 
 A row in manual override shows a stopwatch button next to it. Click it to start a countdown: when it runs out, the curve takes that row back.
 
-- The minutes box appears once the stopwatch is running. Default is 60 minutes, range 1 to 1440 (24 hours). The arrows and the scroll wheel step by 5; typed values apply on ++enter++ or when the box loses focus.
+- The minutes box appears once the stopwatch is running. Default is 60 minutes, range 1 to 1440 (24 hours). The arrows and the scroll wheel step by 5; typed values apply on ++enter++, when the box loses focus, or when the flyout closes.
 - Changing the minutes while it runs counts from when you started it, not from now.
 - Hover the stopwatch to see the time left. Click it again to cancel the countdown (the row stays in manual override).
 - The countdown survives restarts. If it ran out while the app was closed, the row goes back to the curve on the next start.

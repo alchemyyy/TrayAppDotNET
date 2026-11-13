@@ -347,6 +347,13 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
 
     protected override void OnHiding()
     {
+        // Typed stopwatch minutes apply as on Enter, so hiding the flyout never drops them
+        if (_visualState is { } visualState)
+        {
+            foreach (SettingsNumberBox box in visualState.CurveStopwatchBoxes)
+                box.CommitTextEdit();
+        }
+
         ClearProfilePreview();
         CancelPreviewSweep();
         _confirmOverlay?.Cancel();
@@ -1125,7 +1132,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
                 : monitor.CurveStopwatchMinutes;
             SetCurveStopwatchMinutes(monitor, value);
         };
-        // Rebuilds held back while the box has focus run once Enter, Tab or a click elsewhere ends the edit
+        // Rebuilds held back while the box has focus run once Enter, Tab, a click elsewhere or a hide ends the edit
         number.EditingTextChanged += (_, _) =>
         {
             if (!number.IsEditingText) FlushPendingRebuild();

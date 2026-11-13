@@ -89,8 +89,9 @@
                                    degraded DDC display after a one-time warning" />
                 <Leaf ID="StopwatchMinutes" Kind="Number" Pointer="Wheel" Event="ValueChanged"
                       Source="BrightnessFlyoutWindow.BuildCurveStopwatchNumberBox"
-                      Description="Minutes until the curve re-engages; only while the stopwatch runs; typed minutes
-                                   apply on Enter or focus loss, spinners, Up, Down, and the wheel at once" />
+                      Description="Minutes until the curve re-engages; only while the stopwatch runs; typed
+                                   minutes apply on Enter, focus loss or flyout hide, spinners, Up, Down, and the
+                                   wheel at once" />
                 <Leaf ID="Stopwatch" Kind="Toggle" Event="Callback"
                       Source="BrightnessFlyoutWindow.BuildCurveStopwatchButton"
                       Description="Re-engage timer for a manual curve override; shown only during an override" />
