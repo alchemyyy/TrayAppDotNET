@@ -217,9 +217,13 @@
     <value>Time remaining: {0}</value>
     <comment>{0} is a duration such as 1h 20m.</comment>
   </data>
-  <data name="Tray_Tooltip_BatteryPower_Format" xml:space="preserve">
-    <value>Battery power: {0:F1} W</value>
-    <comment>{0} is the battery power in watts.</comment>
+  <data name="Tray_Tooltip_DischargeRate_Format" xml:space="preserve">
+    <value>Discharge rate: {0:F1} W</value>
+    <comment>{0} is the rate the battery is discharging at, in watts.</comment>
+  </data>
+  <data name="Tray_Tooltip_ChargeRate_Format" xml:space="preserve">
+    <value>Charge rate: {0:F1} W</value>
+    <comment>{0} is the rate the battery is charging at, in watts.</comment>
   </data>
   <data name="Tray_Tooltip_Health_Format" xml:space="preserve">
     <value>Health: {0:F0}%</value>

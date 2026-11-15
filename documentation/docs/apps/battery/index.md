@@ -67,7 +67,7 @@ By default the title bar sits at the bottom of the flyout, with the undock butto
 
 The tray icon is a battery glyph filled in 10% steps, with a charging variant whenever you're plugged in. It follows the theme's text color, or your **Tray icon color** override (see [Themes](../../shared/themes.md)). With no battery, the icon is drawn in the disabled color.
 
-Hover it for a tooltip with the charge percentage, the status (**On battery**, **Plugged in**, **Charging**, **Plugged in, full**), and, when Windows reports them, **Time remaining**, **Battery power** in watts, and **Health**. **Time remaining** here comes straight from Windows' estimate, falling back to remaining capacity divided by the discharge rate, so it won't always match the flyout's numbers.
+Hover it for a tooltip with the charge percentage, the status (**On battery**, **Plugged in**, **Charging**, **Plugged in, full**), and, when Windows reports them, **Time remaining**, **Discharge rate** (**Charge rate** while charging) in watts, and **Health**. **Time remaining** here comes straight from Windows' estimate, falling back to remaining capacity divided by the discharge rate, so it won't always match the flyout's numbers.
 
 Mouse and keyboard on the tray icon:
 

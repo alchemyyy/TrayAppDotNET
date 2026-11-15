@@ -436,7 +436,9 @@ internal sealed class BatteryAvaloniaApp : Application
         if (snapshot.CurrentBatteryPowerWatts.HasValue)
         {
             lines.Add(Format(
-                nameof(AppStrings.Tray_Tooltip_BatteryPower_Format),
+                snapshot.IsCharging
+                    ? nameof(AppStrings.Tray_Tooltip_ChargeRate_Format)
+                    : nameof(AppStrings.Tray_Tooltip_DischargeRate_Format),
                 snapshot.CurrentBatteryPowerWatts.Value));
         }
 
