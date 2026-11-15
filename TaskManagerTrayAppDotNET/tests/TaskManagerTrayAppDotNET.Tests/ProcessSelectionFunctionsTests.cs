@@ -195,13 +195,13 @@ public sealed class ProcessSelectionFunctionsTests
     [InlineData(false, true, false)]
     [InlineData(true, false, true)]
     [InlineData(true, true, true)]
-    public void NameClickTogglesTreesUnlessShiftExtendsAProcessSelection(
+    public void RowClickTogglesTreesUnlessShiftExtendsAProcessSelection(
         bool isSectionRow,
         bool isShiftPressed,
         bool expectedToggle) =>
         Assert.Equal(
             expectedToggle,
-            ProcessSelectionFunctions.ShouldToggleTreeOnNameClick(isSectionRow, isShiftPressed));
+            ProcessSelectionFunctions.ShouldToggleTreeOnRowClick(isSectionRow, isShiftPressed));
 
     [Fact]
     public void CollapseDeselectsOnlyTheProcessesItHid()

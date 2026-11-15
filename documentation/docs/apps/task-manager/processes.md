@@ -75,7 +75,7 @@ What a group row acts on matters when you end things: selecting a group row and 
 
 ### Expanding and Collapsing
 
-Click anywhere in the **Name** cell of an expandable row, not only the chevron.
+Click anywhere on an expandable row, in any column, not only the chevron.
 
 - Clicking a collapsed row expands one level.
 - Clicking an expanded row collapses it and everything under it.
@@ -101,8 +101,8 @@ Click a column header to sort by it, click it again to reverse. Number columns s
 
 | Input | Result |
 | --- | --- |
-| Click | Selects only that row |
-| ++ctrl++ + click | Adds or removes that row. On the **Name** cell of an expandable row it toggles the tree instead, see [Expanding and Collapsing](#expanding-and-collapsing) |
+| Click | Selects only that row. On an expandable row it also expands or collapses the tree, see [Expanding and Collapsing](#expanding-and-collapsing) |
+| ++ctrl++ + click | Adds or removes that row. On an expandable row it toggles the whole tree instead, see [Expanding and Collapsing](#expanding-and-collapsing) |
 | ++shift++ + click | Selects the range from the last clicked row to this one |
 | ++ctrl+shift++ + click | Adds that range to the selection |
 | Click empty space in the table | Clears the selection |
@@ -491,7 +491,7 @@ These are listed (read-only) in **Settings** > **Hotkeys** > **Tables**. They ca
 | Any table | ++shift+alt++ + middle-click | Set baseline stretch |
 | Process table | ++delete++ | End task (with confirmation) |
 | Process table | ++esc++ | Cancel a column resize or move |
-| Process table | ++ctrl++ + click on an expandable row's **Name** cell | Expand or collapse the whole tree |
+| Process table | ++ctrl++ + click on an expandable row | Expand or collapse the whole tree |
 | Process table | ++ctrl++ / ++shift++ / ++ctrl+shift++ + click | Multi-select, see [Selecting Processes](#selecting-processes) |
 | Process table | Right-click a header | Column properties |
 | Search box | ++up++ / ++down++, ++enter++ or ++tab++, ++esc++ | Navigate, accept, close autocomplete |

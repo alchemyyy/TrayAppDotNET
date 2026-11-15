@@ -1615,7 +1615,7 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
             _metrics.HeaderHeight,
             _metrics.RowHeight);
         if (pointerPoint.Properties.IsLeftButtonPressed
-            && TryHandleTreeNameClick(position, visibleIndex, eventArgs.KeyModifiers))
+            && TryHandleTreeRowClick(visibleIndex, eventArgs.KeyModifiers))
         {
             eventArgs.Handled = true;
             return;
@@ -4498,10 +4498,8 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         NotifySelectionChanged();
     }
 
-    private bool TryHandleTreeNameClick(
-        Point position,
-        int visibleIndex,
-        KeyModifiers modifiers)
+    /// <summary>Toggles an expandable row's tree from a click on any of its columns.</summary>
+    private bool TryHandleTreeRowClick(int visibleIndex, KeyModifiers modifiers)
     {
         if (_processGroupingStyle == ProcessGroupingStyle.None
             || visibleIndex < 0
@@ -4522,17 +4520,9 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         }
 
         if (!_rowHasChildren[rowIndex]) return false;
-        if (!ProcessSelectionFunctions.ShouldToggleTreeOnNameClick(
+        if (!ProcessSelectionFunctions.ShouldToggleTreeOnRowClick(
                 IsSemanticSectionRow(rowIndex),
                 isShiftPressed: (modifiers & KeyModifiers.Shift) != 0))
-            return false;
-
-        ProcessTableColumn[] columns = DisplayColumns;
-        int nameColumnIndex = FindColumn(columns, ProcessTableColumnKind.Name);
-        if (nameColumnIndex < 0) return false;
-
-        ProcessTableColumn nameColumn = columns[nameColumnIndex];
-        if (position.X < nameColumn.Left || position.X >= nameColumn.Right)
             return false;
 
         ProcessStaticData? row = _snapshot.StaticRows[rowIndex];

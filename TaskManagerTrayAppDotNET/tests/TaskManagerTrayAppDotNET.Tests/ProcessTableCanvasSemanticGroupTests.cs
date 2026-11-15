@@ -43,8 +43,6 @@ public sealed class ProcessTableCanvasSemanticGroupTests
         BrowserRootPrivateBytes + BrowserWindowPrivateBytes + AlphaPrivateBytes + ZetaPrivateBytes;
     private const long RootBasePriority = 8;
     private const long WindowBasePriority = 13;
-    // Name is the leftmost column, so any x inside its default width lands on it
-    private const double NameColumnClickX = 10;
 
     [Fact]
     public void SubgroupHeadsShowSubtreeTotalsAboveTheirOwnRootLine() => AvaloniaTestHost.RunWithFluentTheme(static () =>
@@ -240,10 +238,10 @@ public sealed class ProcessTableCanvasSemanticGroupTests
         canvas.SetFilter("alpha");
         Assert.Equal(searchRows, GetVisibleRows(canvas));
 
-        ClickTreeName(canvas, visibleIndex: 2);
+        ClickTreeRow(canvas, visibleIndex: 2);
         Assert.Equal(searchRows[..3], GetVisibleRows(canvas));
 
-        ClickTreeName(canvas, visibleIndex: 1);
+        ClickTreeRow(canvas, visibleIndex: 1);
         Assert.Equal(searchRows[..2], GetVisibleRows(canvas));
 
         // Collapsing inside a search leaves the unfiltered tree as it was
@@ -271,16 +269,16 @@ public sealed class ProcessTableCanvasSemanticGroupTests
         List<(string Name, int ProcessID)> oneLevelRows =
             [.. expandedRows[..5], .. expandedRows[7..]];
 
-        ClickTreeName(canvas, visibleIndex: 2, KeyModifiers.Control);
+        ClickTreeRow(canvas, visibleIndex: 2, KeyModifiers.Control);
         Assert.Equal(collapsedRows, GetVisibleRows(canvas));
 
-        ClickTreeName(canvas, visibleIndex: 2);
+        ClickTreeRow(canvas, visibleIndex: 2);
         Assert.Equal(oneLevelRows, GetVisibleRows(canvas));
 
-        ClickTreeName(canvas, visibleIndex: 2);
+        ClickTreeRow(canvas, visibleIndex: 2);
         Assert.Equal(collapsedRows, GetVisibleRows(canvas));
 
-        ClickTreeName(canvas, visibleIndex: 2, KeyModifiers.Control);
+        ClickTreeRow(canvas, visibleIndex: 2, KeyModifiers.Control);
         Assert.Equal(expandedRows, GetVisibleRows(canvas));
     });
 
@@ -607,15 +605,14 @@ public sealed class ProcessTableCanvasSemanticGroupTests
             column));
     }
 
-    /// <summary>Clicks a row's name, which toggles its tree the way a user click on the Name column does.</summary>
-    private static void ClickTreeName(
+    /// <summary>Clicks a row, which toggles its tree the way a user click on any of its columns does.</summary>
+    private static void ClickTreeRow(
         ProcessTableCanvas canvas,
         int visibleIndex,
         KeyModifiers modifiers = KeyModifiers.None) =>
         Assert.True(Assert.IsType<bool>(InvokePrivate(
             canvas,
-            methodName: "TryHandleTreeNameClick",
-            new Point(NameColumnClickX, y: 0),
+            methodName: "TryHandleTreeRowClick",
             visibleIndex,
             modifiers)));
 
