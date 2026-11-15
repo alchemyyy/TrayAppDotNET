@@ -16,7 +16,6 @@ public sealed partial class FanSettingsWindow
             CreateGeneralSettingsSection(AppServices.Install, AppLocalizationCultures.Names);
         stack.Children.Add(commonSection.BuildLanguageCard());
         stack.Children.Add(commonSection.BuildStartupCard());
-        AddStandardInstallationSection(stack, commonSection, AppServices.Install, _showUninstaller, includeStoreCard: true);
         // Offered here because startup stops asking once the administrator prompt was declined
         if (PawnIoDriverInstaller.IsInstallNeeded())
             stack.Children.Add(BuildPawnIoCard(p));

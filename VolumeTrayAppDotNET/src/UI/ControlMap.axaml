@@ -348,7 +348,7 @@
              Description="Opened by the Theme page color swatches; SingleColorCard opens it too" />
 
     <Surface ID="Uninstaller" Template="Uninstaller" Source="VolumeAvaloniaApp.ShowUninstallerWindow"
-             Description="Opened by the General page install cards and in --uninstall mode" />
+             Description="Opened by the About page install cards and in --uninstall mode" />
 
     <Surface ID="Installer" Template="Installer" Source="VolumeAvaloniaApp.OnFrameworkInitializationCompleted"
              Description="Installer mode window" />

@@ -19,6 +19,20 @@ public sealed class TrayAppDotNETAboutPageAppInfo
     public required int BuildNumber { get; init; }
     public required string CommitHash { get; init; }
     public required string SettingsFolderPath { get; init; }
+
+    /// <summary>The app's install services, which the Installation section and the install type row read.</summary>
+    public required TrayAppDotNETAppInstallServices Install { get; init; }
+
+    /// <summary>
+    /// Opens the app's uninstaller for a scope, reporting stages to the progress sink, and completes with whether the
+    /// uninstall started.
+    /// </summary>
+    public required Func<InstallScope, IProgress<TrayAppDotNETInstallProgress>?, Task<bool>> ShowUninstaller
+    {
+        get;
+        init;
+    }
+
     public ITrayAppDotNETUpdateSettings? UpdateSettings { get; init; }
     public Func<UpdateCheckService?> UpdateService { get; init; } = static () => null;
     public bool SupportsFlyoutUpdateButton { get; init; } = true;
@@ -30,9 +44,9 @@ public sealed class TrayAppDotNETAboutPageAppInfo
 }
 
 /// <summary>
-/// Builders for the pages and sections every app shares: General (language, startup, installation, rendering),
-/// Appearance, Hotkeys and About. They read <see cref="SettingsWindowCommon{TPageKey}.CommonSettings"/> and
-/// <see cref="SettingsWindowCommon{TPageKey}.Theme"/>, so a window only supplies what is specific to its app.
+/// Builders for the pages and sections every app shares: General (language, startup, rendering), Appearance, Hotkeys
+/// and About (with the Installation section). They read <see cref="SettingsWindowCommon{TPageKey}.CommonSettings"/>
+/// and <see cref="SettingsWindowCommon{TPageKey}.Theme"/>, so a window only supplies what is specific to its app.
 /// </summary>
 public abstract partial class SettingsWindowCommon<TPageKey>
 {
@@ -40,7 +54,10 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         CommonSettings ?? throw new InvalidOperationException(
             $"{GetType().Name} must supply CommonSettings to build the shared settings sections.");
 
-    /// <summary>The About page, owned by the page being built so its update refresh stops with it.</summary>
+    /// <summary>
+    /// The About page, owned by the page being built so its update refresh stops with it. Its Installation section has
+    /// the per-user and system-wide cards, each with Install/Update and Uninstall, then the Microsoft Store card.
+    /// </summary>
     protected StackPanel BuildCommonAboutPage(TrayAppDotNETAboutPageAppInfo app)
     {
         ArgumentNullException.ThrowIfNull(app);
@@ -57,6 +74,8 @@ public abstract partial class SettingsWindowCommon<TPageKey>
             BuildNumber = app.BuildNumber,
             CommitHash = app.CommitHash,
             SettingsFolderPath = app.SettingsFolderPath,
+            RunningInstallScope = app.Install.Installation.RunningScope(),
+            Installation = CreateInstallationSection(app.Install, app.ShowUninstaller),
             UpdateSettings = app.UpdateSettings,
             UpdateService = app.UpdateService,
             ConfirmAsync = ConfirmAsync,
@@ -70,8 +89,8 @@ public abstract partial class SettingsWindowCommon<TPageKey>
     }
 
     /// <summary>
-    /// The General section (language, startup, installation) bound to <see cref="CommonSettings"/> and the app's
-    /// install services.
+    /// The General section (language and startup cards) bound to <see cref="CommonSettings"/> and the app's install
+    /// services.
     /// </summary>
     protected TrayAppDotNETGeneralSettingsSection CreateGeneralSettingsSection(
         TrayAppDotNETAppInstallServices install,
@@ -84,7 +103,6 @@ public abstract partial class SettingsWindowCommon<TPageKey>
         return new TrayAppDotNETGeneralSettingsSection(new TrayAppDotNETGeneralSettingsSectionOptions
         {
             Palette = Palette,
-            ButtonRadius = RadiusMedium,
             CardRadius = RadiusLarge,
             L = L,
             Save = Save,
@@ -101,30 +119,22 @@ public abstract partial class SettingsWindowCommon<TPageKey>
             AvailableLanguages = availableLanguages,
             GetStartMinimized = getStartMinimized,
             SetStartMinimized = setStartMinimized,
-            GetCurrentStartupShortcutTarget = () => install.Startup.GetCurrentShortcutTarget(),
-            RetargetStartupShortcut = () => install.Startup.RetargetShortcutIfPresent(),
-            DetectInstallations = () => install.Installation.DetectAll(),
-            CurrentBuildNumber = install.BuildNumber
+            GetCurrentStartupShortcutTarget = () => install.Startup.GetCurrentShortcutTarget()
         });
     }
 
-    /// <summary>
-    /// The installation cards every app shows: per-user and system-wide copies, each with Install/Update and
-    /// Uninstall, and optionally the Windows Store card. <paramref name="showUninstaller"/> opens the app's uninstaller
-    /// for a scope and completes with whether the uninstall started.
-    /// </summary>
-    protected void AddStandardInstallationSection(
-        StackPanel stack,
-        TrayAppDotNETGeneralSettingsSection section,
+    private TrayAppDotNETInstallationSection CreateInstallationSection(
         TrayAppDotNETAppInstallServices install,
-        Func<InstallScope, IProgress<TrayAppDotNETInstallProgress>?, Task<bool>> showUninstaller,
-        bool includeStoreCard)
-    {
-        ArgumentNullException.ThrowIfNull(section);
-        ArgumentNullException.ThrowIfNull(install);
-        ArgumentNullException.ThrowIfNull(showUninstaller);
-        section.AddInstallationSection(
-            stack,
+        Func<InstallScope, IProgress<TrayAppDotNETInstallProgress>?, Task<bool>> showUninstaller) =>
+        new(new TrayAppDotNETInstallationSectionOptions
+        {
+            Palette = Palette,
+            ButtonRadius = RadiusMedium,
+            CardRadius = RadiusLarge,
+            L = L,
+            ConfirmAsync = ConfirmAsync,
+            ShowMessage = ShowMessage,
+            InstallCards =
             [
                 new TrayAppDotNETInstallCardOptions
                 {
@@ -145,12 +155,13 @@ public abstract partial class SettingsWindowCommon<TPageKey>
                     ShowUninstallerAsync = progress => showUninstaller(InstallScope.ProgramFiles, progress)
                 }
             ],
-            includeStoreCard
-                ? new TrayAppDotNETStoreInstallOptions(
-                    L(nameof(CommonStrings.Settings_General_WindowsStore_Title)),
-                    () => StoreInstallDescription(install))
-                : null);
-    }
+            StoreInstall = new TrayAppDotNETStoreInstallOptions(
+                L(nameof(CommonStrings.Settings_General_WindowsStore_Title)),
+                () => StoreInstallDescription(install)),
+            DetectInstallations = () => install.Installation.DetectAll(),
+            CurrentBuildNumber = install.BuildNumber,
+            RetargetStartupShortcut = () => install.Startup.RetargetShortcutIfPresent()
+        });
 
     private static string StoreInstallDescription(TrayAppDotNETAppInstallServices install)
     {

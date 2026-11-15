@@ -9,6 +9,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using TrayAppDotNETCommon.Models;
 using TrayAppDotNETCommon.Services;
+using TrayAppDotNETCommon.Services.Install;
 using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.UI.Controls;
 using TrayAppDotNETCommon.Visuals;
@@ -35,6 +36,15 @@ public sealed class TrayAppDotNETAboutPageOptions
     public string Publisher { get; init; } = TrayAppDotNETConstants.Publisher;
     public string HelpLink { get; init; } = TrayAppDotNETConstants.HelpLink;
     public required string SettingsFolderPath { get; init; }
+
+    /// <summary>
+    /// The install this copy runs from, shown as its install type: System, User or Microsoft Store; null when portable.
+    /// </summary>
+    public InstallScope? RunningInstallScope { get; init; }
+
+    /// <summary>The Installation section, shown between Files and Updates; null leaves it out.</summary>
+    public TrayAppDotNETInstallationSection? Installation { get; init; }
+
     public ITrayAppDotNETUpdateSettings? UpdateSettings { get; init; }
     public Func<UpdateCheckService?> UpdateService { get; init; } = static () => null;
     public IReadOnlyList<TrayAppDotNETKnownIssue> KnownIssues { get; init; } = [];
@@ -139,6 +149,14 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
                 p));
         }
 
+        stack.Children.Add(AboutRow(
+            L(nameof(CommonStrings.Settings_About_InstallTypeLabel)),
+            InstallTypeText(),
+            p));
+        stack.Children.Add(AboutRow(
+            L(nameof(CommonStrings.Settings_About_RunningAsLabel)),
+            RunningAsText(),
+            p));
         stack.Children.Add(AboutRow(L(nameof(CommonStrings.Settings_About_RuntimeLabel)),
             RuntimeInformation.FrameworkDescription, p));
         stack.Children.Add(AboutRow(L(nameof(CommonStrings.Settings_About_AuthorLabel)), _options.Publisher, p));
@@ -148,6 +166,7 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
             L(nameof(CommonStrings.Settings_About_Files_Header)), p));
         stack.Children.Add(BuildSettingsFolderCard(p));
+        _options.Installation?.AddTo(stack);
 
         if (_options.UpdateSettings != null)
             AddUpdatesSection(stack, p);
@@ -856,6 +875,23 @@ public sealed class TrayAppDotNETAboutPage : IDisposable
             _options.CardRadius,
             [L(nameof(CommonStrings.Settings_About_OpenSettingsFolder_SearchKeywords))]);
     }
+
+    private string InstallTypeText() => L(_options.RunningInstallScope switch
+    {
+        InstallScope.ProgramFiles => nameof(CommonStrings.Settings_About_InstallType_System),
+        InstallScope.LocalAppData => nameof(CommonStrings.Settings_About_InstallType_User),
+        InstallScope.WindowsStore => nameof(CommonStrings.Settings_About_InstallType_MicrosoftStore),
+        _ => nameof(CommonStrings.Settings_About_InstallType_Portable)
+    });
+
+    /// <summary>Admin while this process holds administrator rights, otherwise the account it runs under.</summary>
+    private string RunningAsText() =>
+        TrayAppDotNETInstallationService.IsElevated(_options.Log)
+            ? L(nameof(CommonStrings.Settings_About_RunningAs_Elevated))
+            : string.Format(
+                CultureInfo.CurrentCulture,
+                L(nameof(CommonStrings.Settings_About_RunningAs_NonElevatedFormat)),
+                Environment.UserName);
 
     private static StackPanel AboutRow(string label, string value, SettingsPalette p, string? openUrl = null)
     {

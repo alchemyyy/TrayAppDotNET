@@ -54,7 +54,6 @@ public sealed partial class TaskManagerSettingsWindow
             searchKeywords: [L(nameof(AppStrings.Settings_General_BypassElevationBroker_SearchKeywords))],
             node: ControlMap.Settings.GeneralPage.BypassElevationBroker));
 
-        AddStandardInstallationSection(stack, commonSection, AppServices.Install, _showUninstaller, includeStoreCard: true);
         // Task Manager's process row menu is the only tray-app menu with submenus
         AddRenderingSection(
             stack,

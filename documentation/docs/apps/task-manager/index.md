@@ -137,7 +137,7 @@ These settings are in **Settings** > **General** > **Administrator actions**:
 
 ## Settings
 
-Open them with **Settings** at the bottom of the sidebar. The settings window has the same search and the same shared **General** cards (language, run on startup, installation, rendering) as every TADN app, see [Settings Window](../../shared/settings-window.md). The Task Manager specific settings:
+Open them with **Settings** at the bottom of the sidebar. The settings window has the same search, the same shared **General** cards (language, run on startup, rendering) and the same **About** page with the installation cards as every TADN app, see [Settings Window](../../shared/settings-window.md). The Task Manager specific settings:
 
 | Page | Setting | Default |
 | --- | --- | --- |

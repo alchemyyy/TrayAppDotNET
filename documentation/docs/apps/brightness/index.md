@@ -171,7 +171,7 @@ App-specific cards on **General**:
 | **Night Light** group | | See [Night Light](night-light.md). |
 | **Profiles** | | Rename and reorder profile slots, see [Naming and Reordering](#naming-and-reordering). |
 
-Language, run on startup, installation and rendering are shared, see [Settings Window](../../shared/settings-window.md) and [Installation](../../getting-started/installation.md).
+Language, run on startup and rendering are shared, see [Settings Window](../../shared/settings-window.md). The installation cards are on the shared **About** page, see [Installation](../../getting-started/installation.md).
 
 ### Flyout
 

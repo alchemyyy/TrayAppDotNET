@@ -74,10 +74,6 @@ These cards sit at the top of every app's **General** page. App-specific cards f
 
 Because **Run on startup** defaults to on, a fresh copy adds its startup shortcut the first time it runs. Turn it off here if you don't want that. What the startup shortcut passes to the app is covered in [Launch Arguments](../getting-started/launch-arguments.md).
 
-### Installation
-
-The **Installation** section has one card per install location (current user and system-wide; the exact labels vary a bit per app) with **Install** and **Uninstall** buttons, plus a **Microsoft Store** card saying whether this copy runs from the Store. Each card shows whether that location has a copy and which build it is. System-wide installs need administrator approval. The whole install story, including portable use, is in [Installation](../getting-started/installation.md).
-
 ### Rendering
 
 The bottom of the **General** page is the shared rendering section.
@@ -94,11 +90,12 @@ Changing **Rendering backend** saves the choice right away, then asks **Restart 
 
 ## About Page
 
-The **About** page shows the app name and tagline, the **Build** number, the .NET **Runtime**, the **Author**, and a **GitHub** link to the repo.
+The **About** page shows the app name and tagline, the **Build** number, the **Install type**, who the app is **Running as**, the .NET **Runtime**, the **Author**, and a **GitHub** link to the repo.
 
-![The About page](../images/shared/settings-about.png)
-
+- **Install type** is **System** when the running copy is the system-wide install in `C:\Program Files\TrayAppDotNET`, **User** when it's the per-user install in `%LocalAppData%\TrayAppDotNET\apps`, and **Portable** for a copy anywhere else (**Microsoft Store** for a Store package).
+- **Running as** is **Admin (elevated)** while the app has administrator rights, otherwise your account name followed by **(non-elevated)**, e.g. **Alex (non-elevated)**.
 - **Files** has the **Open settings folder** card. **Open** opens the folder with this app's settings and logs. What's in there is covered in [Configuration](../getting-started/configuration.md).
+- **Installation** has one card per install location, **Local user** and **System-wide**, with **Install** and **Uninstall** buttons, plus a **Microsoft Store** card saying whether this copy runs from the Store. Each card shows whether that location has a copy and which build it is. System-wide installs need administrator approval. The whole install story, including portable use, is in [Installation](../getting-started/installation.md).
 - **Updates** has the update status line and buttons (**Check for updates**, **Skip this release** / **Undo skip**, and the install button), plus these settings:
 
 | Setting | Default | What it does |

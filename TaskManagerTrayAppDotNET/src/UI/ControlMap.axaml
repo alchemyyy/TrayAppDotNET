@@ -479,8 +479,6 @@
             <Leaf ID="BypassElevationBroker" Kind="Toggle" Event="Callback"
                   Source="TaskManagerSettingsWindow.BuildGeneralPage"
                   Description="Run admin actions directly when elevated" />
-            <Scope ID="Installation" Template="InstallationSection"
-                   Source="TaskManagerSettingsWindow.BuildGeneralPage" />
             <Scope ID="Rendering" Template="RenderingSection"
                    Source="SettingsWindowCommon.AddRenderingSection" />
         </Scope>

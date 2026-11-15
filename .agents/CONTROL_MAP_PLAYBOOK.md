@@ -156,11 +156,11 @@ Common map (`TrayAppDotNETCommon/src/UI/ControlMap.axaml`) templates, by owner:
   order while the page holds focus. Space or Right on a page row opens the page and focuses its first control in
   map order; `Content.ReturnToPageList` (Left or Escape that nothing in the page uses) returns to the row. Caption
   buttons are pointer-only
-- `GeneralSection` = `LanguageCard`, `StartupCard`, then `InstallationSection` (`TrayAppDotNETGeneralSettingsSection`).
-  Settings windows get the section from `CreateGeneralSettingsSection` and the installation cards from
-  `AddStandardInstallationSection`; apps that put their own cards between the startup card and the installation
-  cards instantiate the parts separately
-- `RenderingSection` (`AddRenderingSection`), `AboutPage` (`BuildCommonAboutPage`)
+- `GeneralSection` = `LanguageCard`, then `StartupCard` (`TrayAppDotNETGeneralSettingsSection`, from
+  `CreateGeneralSettingsSection`); Brightness, Network and Task Manager instantiate the two cards directly instead
+- `RenderingSection` (`AddRenderingSection`), `AboutPage` (`BuildCommonAboutPage`). `AboutPage` instantiates
+  `InstallationSection` (`TrayAppDotNETInstallationSection`: one card per install scope with Install and Uninstall)
+  between the settings folder card and the updates
 - `AppearanceSection` and `ContextMenuAppearanceSection` (`AddAppearanceSection`, `AddContextMenuAppearanceSection`):
   theme style, rounded corners, animations, tooltip delay, and the context menu's colors and font size
 - `HotkeysSection` (`TrayAppDotNETHotkeysSection`, built by `BuildHotkeysPage`): one row per binding plus the add

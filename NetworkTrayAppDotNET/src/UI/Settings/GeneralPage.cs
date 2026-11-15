@@ -60,7 +60,6 @@ public sealed partial class NetworkSettingsWindow
                 L(nameof(AppStrings.Settings_Network_AdapterSettingsStyle_SearchKeywords))
             ],
             node: ControlMap.Settings.GeneralPage.AdapterSettingsStyle));
-        AddStandardInstallationSection(stack, commonSection, AppServices.Install, _showUninstaller, includeStoreCard: true);
         AddRenderingSection(stack, supportsFlyoutWarmWindow: false, supportsTrayContextMenuWarmWindow: true);
 
         return stack;

@@ -106,11 +106,9 @@
     <!-- Settings pages and sections -->
 
     <Template ID="GeneralSection"
-              Description="BuildLanguageCard, BuildStartupCard, then AddInstallationSection of TrayAppDotNETGeneralSettingsSection">
+              Description="BuildLanguageCard, then BuildStartupCard of TrayAppDotNETGeneralSettingsSection">
         <Scope ID="Language" Template="LanguageCard" Source="TrayAppDotNETGeneralSettingsSection.BuildLanguageCard" />
         <Scope ID="Startup" Template="StartupCard" Source="TrayAppDotNETGeneralSettingsSection.BuildStartupCard" />
-        <Scope ID="Installation" Template="InstallationSection"
-               Source="TrayAppDotNETGeneralSettingsSection.AddInstallationSection" />
     </Template>
 
     <Template ID="LanguageCard" Source="TrayAppDotNETGeneralSettingsSection.BuildLanguageCard">
@@ -127,14 +125,14 @@
               Description="Check box under the description; only with start-minimized delegates" />
     </Template>
 
-    <Template ID="InstallationSection" Source="TrayAppDotNETGeneralSettingsSection.AddInstallationSection"
+    <Template ID="InstallationSection" Source="TrayAppDotNETInstallationSection.AddTo"
               Description="One card per install scope, then an optional store card with no controls">
-        <Scope ID="InstallCard" IsRepeated="True" Source="TrayAppDotNETGeneralSettingsSection.BuildInstallCard">
+        <Scope ID="InstallCard" IsRepeated="True" Source="TrayAppDotNETInstallationSection.BuildInstallCard">
             <Leaf ID="Install" Kind="Button" Event="Click"
-                  Source="TrayAppDotNETGeneralSettingsSection.BuildInstallCard"
+                  Source="TrayAppDotNETInstallationSection.BuildInstallCard"
                   Description="Install or Update; confirms in the shell overlay, then offers a restart" />
             <Leaf ID="Uninstall" Kind="Button" Event="Click"
-                  Source="TrayAppDotNETGeneralSettingsSection.BuildInstallCard"
+                  Source="TrayAppDotNETInstallationSection.BuildInstallCard"
                   Description="Hidden while not installed" />
         </Scope>
     </Template>
@@ -190,6 +188,8 @@
               Description="Underlined GitHub row value; opens HelpLink; a TextBlock with no keyboard path" />
         <Leaf ID="OpenSettingsFolder" Kind="Button" Event="Click"
               Source="TrayAppDotNETAboutPage.BuildSettingsFolderCard" />
+        <Scope ID="Installation" Template="InstallationSection" Source="TrayAppDotNETAboutPage.Build"
+               Description="Every app; Uninstall opens the app's Uninstaller surface" />
         <Scope ID="Updates" Source="TrayAppDotNETAboutPage.AddUpdatesSection"
                Description="Only when the app supplies UpdateSettings">
             <Scope ID="UpdateCard" Source="TrayAppDotNETAboutPage.BuildUpdateActionCard">

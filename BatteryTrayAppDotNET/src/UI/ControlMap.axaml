@@ -74,7 +74,7 @@
     <Surface ID="Settings" Template="SettingsShell" Source="BatterySettingsWindow.CreatePageDescriptors">
         <Scope ID="GeneralPage" Source="BatterySettingsWindow.BuildGeneralPage">
             <Scope ID="General" Template="GeneralSection" Source="SettingsWindowCommon.CreateGeneralSettingsSection"
-                   Description="Startup and install cards; Uninstall opens the Uninstaller surface" />
+                   Description="Language and startup cards" />
             <Scope ID="Rendering" Template="RenderingSection"
                    Source="SettingsWindowCommon.AddRenderingSection" />
         </Scope>
@@ -136,7 +136,7 @@
              Description="Install and backdate prompts from the About page" />
 
     <Surface ID="Uninstaller" Template="Uninstaller" Source="BatteryAvaloniaApp.ShowUninstallerWindow"
-             Description="Opened by the General page install cards and in uninstaller mode" />
+             Description="Opened by the About page install cards and in uninstaller mode" />
 
     <Surface ID="Installer" Template="Installer" Source="BatteryAvaloniaApp.OnFrameworkInitializationCompleted"
              Description="Installer mode only" />

@@ -301,7 +301,7 @@
     <Surface ID="Settings" Template="SettingsShell" Source="FanSettingsWindow.CreatePageDescriptors">
         <Scope ID="GeneralPage" Source="FanSettingsWindow.BuildGeneralPage">
             <Scope ID="General" Template="GeneralSection" Source="FanSettingsWindow.BuildGeneralPage"
-                   Description="Startup card and installation cards" />
+                   Description="Language and startup cards" />
             <Leaf ID="PawnIoInstall" Kind="Button" Event="Click" Source="FanSettingsWindow.BuildPawnIoCard"
                   Description="Shown while the PawnIO driver is missing or outdated" />
             <Scope ID="Rendering" Template="RenderingSection" Source="FanSettingsWindow.BuildGeneralPage" />

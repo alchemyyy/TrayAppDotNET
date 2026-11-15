@@ -24,7 +24,7 @@ Crashes older than 30 seconds don't count toward the limit, so an app that crash
 
 Just start the app again, from the Start menu or its exe. A new start replaces the running copy, so you never end up with two copies of the same app running. The new start first asks the running copy to exit, and it exits the same way **Exit** does: Fan Control hands the fans back to the firmware, Brightness removes its Night Light tint, and settings get saved. Only if the running copy hasn't exited after five seconds (because it's stuck) does the new start end it by force. Installing, updating and uninstalling stop a running copy the same way.
 
-Every way the app exits runs that cleanup once: **Exit**, a sign-out, the watcher going away, installing an update, and the restarts after changing the rendering backend or after installing from **Settings** > **General**.
+Every way the app exits runs that cleanup once: **Exit**, a sign-out, the watcher going away, installing an update, and the restarts after changing the rendering backend or after installing from **Settings** > **About**.
 
 ## Rendering Problems
 

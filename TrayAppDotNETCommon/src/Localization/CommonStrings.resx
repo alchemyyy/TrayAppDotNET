@@ -260,6 +260,21 @@
   <data name="Settings_About_InstallUpdate_UpToDate" xml:space="preserve">
     <value>Up to date</value>
   </data>
+  <data name="Settings_About_InstallTypeLabel" xml:space="preserve">
+    <value>Install type</value>
+  </data>
+  <data name="Settings_About_InstallType_MicrosoftStore" xml:space="preserve">
+    <value>Microsoft Store</value>
+  </data>
+  <data name="Settings_About_InstallType_Portable" xml:space="preserve">
+    <value>Portable</value>
+  </data>
+  <data name="Settings_About_InstallType_System" xml:space="preserve">
+    <value>System</value>
+  </data>
+  <data name="Settings_About_InstallType_User" xml:space="preserve">
+    <value>User</value>
+  </data>
   <data name="Settings_About_KnownIssues_Header" xml:space="preserve">
     <value>Known issues</value>
   </data>
@@ -277,6 +292,16 @@
   <data name="Settings_About_RelativeTime_MinutesFormat" xml:space="preserve">
     <value>{0}m ago</value>
     <comment>{0} is a number of minutes.</comment>
+  </data>
+  <data name="Settings_About_RunningAsLabel" xml:space="preserve">
+    <value>Running as</value>
+  </data>
+  <data name="Settings_About_RunningAs_Elevated" xml:space="preserve">
+    <value>Admin (elevated)</value>
+  </data>
+  <data name="Settings_About_RunningAs_NonElevatedFormat" xml:space="preserve">
+    <value>{0} (non-elevated)</value>
+    <comment>{0} is the name of the Windows account the app runs under.</comment>
   </data>
   <data name="Settings_About_RuntimeLabel" xml:space="preserve">
     <value>Runtime</value>

@@ -155,6 +155,17 @@ public sealed class TrayAppDotNETInstallationService(TrayAppDotNETInstallationOp
         return null;
     }
 
+    /// <summary>
+    /// The install this process runs from: Local, System or the Microsoft Store package; null for a portable copy.
+    /// </summary>
+    public InstallScope? RunningScope()
+    {
+        if (IsRunningFromWindowsStore()) return InstallScope.WindowsStore;
+
+        string? current = Environment.ProcessPath;
+        return string.IsNullOrEmpty(current) ? null : ScopeOfExecutable(current);
+    }
+
     public List<TrayAppDotNETInstallationInfo> DetectAll()
     {
         string currentPath = PathNormalization.Normalize(Environment.ProcessPath);

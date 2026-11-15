@@ -184,8 +184,6 @@
                 <Leaf ID="Enabled" Kind="Toggle" Event="Callback"
                       Source="BrightnessSettingsWindow.BuildAutoEngageEnvironmentalCurveCard" />
             </Scope>
-            <Scope ID="Installation" Template="InstallationSection"
-                   Source="BrightnessSettingsWindow.BuildGeneralPage" />
             <Scope ID="Rendering" Template="RenderingSection" Source="BrightnessSettingsWindow.BuildGeneralPage" />
             <Leaf ID="ShowNightLightSlider" Kind="Toggle" Event="Callback"
                   Source="BrightnessSettingsWindow.BuildGeneralPage" />

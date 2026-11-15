@@ -83,7 +83,7 @@ If the installer says **This installer is damaged (...). Download it again.**, t
 
 ## Installing from a Portable Copy
 
-A portable copy can install itself, no installer download needed. Open its settings window (see [Settings Window](../shared/settings-window.md)) and go to **Settings** > **General** > **Installation**. There's one card for a per-user install and one for a system-wide install (titled e.g. **Local user** and **System-wide**; the exact wording varies a little between apps). Each card tells you where things stand:
+A portable copy can install itself, no installer download needed. Open its settings window (see [Settings Window](../shared/settings-window.md)) and go to **Settings** > **About** > **Installation**. There's one card for a per-user install, **Local user**, and one for a system-wide install, **System-wide**. Each card tells you where things stand:
 
 - **Not installed at ...**, with **Requires administrator approval.** added on the system-wide card.
 - **Build N installed at ...**, with an **Uninstall** button.
@@ -115,7 +115,7 @@ These apps replace, and add to, the Windows 11 tray system apps. For the best ef
 There are three ways in:
 
 - Windows Settings > Apps > Installed apps. Each installed app has its own entry under its own name (e.g. **VolumeTrayAppDotNET**), and **Uninstall** opens that app's uninstaller.
-- **Settings** > **General** > **Installation** > **Uninstall** in the app itself.
+- **Settings** > **About** > **Installation** > **Uninstall** in the app itself.
 - `--uninstall-headless` from a command line, see [Launch Arguments](launch-arguments.md).
 
 ### The Uninstaller
@@ -129,7 +129,7 @@ Click **Uninstall** to go, or **Cancel** (or ++esc++) to back out. A System inst
 
 The uninstall is run by the installed copy itself (elevated for a System install), never by a script or a copy from your user folders. It removes the startup shortcut, the Start Menu entries, the desktop shortcut and the Windows uninstall entry, stops the app, removes the app's files, and deletes the settings if you asked for that. Its own exe goes a moment after it exits; if something can't be removed, the uninstaller says what is left. If you have both a Local and a System copy, a startup shortcut that pointed at the removed copy moves over to the other one (keeping its arguments, e.g. a `--settings-dir`) instead of being deleted; a startup shortcut that points at a portable copy isn't touched. Files the apps share stay in the install folder until the last app in it is uninstalled.
 
-**Note**: **Delete my settings** deletes the data folder of the copy you started the uninstall from, so uninstalling from the app's own **Settings** > **General** > **Installation** respects its [`--settings-dir`](configuration.md#using-a-different-data-folder). Windows Settings > Apps starts the uninstaller without one and always targets the default `%LocalAppData%\TrayAppDotNET\<App>` folder; delete a custom folder yourself.
+**Note**: **Delete my settings** deletes the data folder of the copy you started the uninstall from, so uninstalling from the app's own **Settings** > **About** > **Installation** respects its [`--settings-dir`](configuration.md#using-a-different-data-folder). Windows Settings > Apps starts the uninstaller without one and always targets the default `%LocalAppData%\TrayAppDotNET\<App>` folder; delete a custom folder yourself.
 
 A System uninstall needs administrator rights for your own account. If Windows would ask for a different administrator's password, the uninstall is refused with an explanation instead, because that account's profile would get the per-user cleanup.
 

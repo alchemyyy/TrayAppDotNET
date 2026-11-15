@@ -14,7 +14,6 @@ public sealed partial class VolumeSettingsWindow
             CreateGeneralSettingsSection(AppServices.Install, AppLocalizationCultures.Names);
         stack.Children.Add(commonSection.BuildLanguageCard());
         stack.Children.Add(commonSection.BuildStartupCard());
-        AddStandardInstallationSection(stack, commonSection, AppServices.Install, _showUninstaller, includeStoreCard: true);
         AddRenderingSection(stack, supportsFlyoutWarmWindow: true, supportsTrayContextMenuWarmWindow: true);
 
         stack.Children.Add(

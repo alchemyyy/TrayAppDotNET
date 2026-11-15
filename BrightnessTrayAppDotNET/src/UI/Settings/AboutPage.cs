@@ -13,6 +13,8 @@ public sealed partial class BrightnessSettingsWindow
         BuildNumber = BuildInfo.BuildNumber,
         CommitHash = BuildInfo.CommitHash,
         SettingsFolderPath = AppSettings.GetDefaultDirectory(),
+        Install = AppServices.Install,
+        ShowUninstaller = _showUninstaller,
         UpdateSettings = _settings,
         UpdateService = static () => AppServices.UpdateCheckService,
         KnownIssues =

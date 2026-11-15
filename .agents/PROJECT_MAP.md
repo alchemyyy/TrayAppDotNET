@@ -192,13 +192,14 @@
   - App-specific `src/App.cs` (app services and UI only), `src/Program.cs`, `src/AppServices.cs`
 - Common settings and controls:
   - `TrayAppDotNETCommon/src/UI/SettingsWindowCommon.cs` (shell, search, confirm overlay, palette from
-    `CommonSettings`/`SettingsTheme`) and `SettingsWindowCommon.Sections.cs` (About, General, installation,
-    Rendering, Appearance, context menu appearance and Hotkeys pages every app shares)
+    `CommonSettings`/`SettingsTheme`) and `SettingsWindowCommon.Sections.cs` (About with its installation section,
+    General, Rendering, Appearance, context menu appearance and Hotkeys pages every app shares)
   - `TrayAppDotNETCommon/src/UI/TrayAppDotNETMemoryRelease.cs`: after a settings window closes, compacts the GC heap
     (`src/Utils/ManagedHeap.cs`, shared with the watcher) and trims the ANGLE Direct3D device's driver caches
     (`IDXGIDevice3::Trim`), which an idle app otherwise keeps
   - `TrayAppDotNETCommon/src/UI/CommonBindings.cs`
-  - `TrayAppDotNETCommon/src/UI/Settings` (`TrayAppDotNETHotkeysSection.cs` is the hotkey editor)
+  - `TrayAppDotNETCommon/src/UI/Settings` (`TrayAppDotNETHotkeysSection.cs` is the hotkey editor,
+    `TrayAppDotNETInstallationSection.cs` the About page's install cards)
   - Hotkeys: `TrayAppDotNETCommon/src/Models/Hotkey.cs` (`HotkeyBindingBase<TAction>`),
     `TrayAppDotNETCommon/src/Services/GlobalHotkeyService.cs`, key names and capture in
     `TrayAppDotNETCommon/src/UI/Hotkeys/HotkeyKeys.cs`

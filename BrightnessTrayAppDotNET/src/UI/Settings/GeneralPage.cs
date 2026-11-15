@@ -51,7 +51,6 @@ public sealed partial class BrightnessSettingsWindow
             node: ControlMap.Settings.GeneralPage.Autosave));
         stack.Children.Add(BuildAutoEngageEnvironmentalCurveCard(p));
 
-        AddStandardInstallationSection(stack, commonSection, AppServices.Install, _showUninstaller, includeStoreCard: true);
         // The flyout hosts the curve session and is always kept warm
         AddRenderingSection(stack, supportsFlyoutWarmWindow: false, supportsTrayContextMenuWarmWindow: true);
 

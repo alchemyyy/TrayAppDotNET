@@ -11,7 +11,7 @@ Every TADN app is built on the same common library, so a lot of what surrounds t
 - **Crash recovery.** A small watcher process restarts the app if it crashes. See [Crash Recovery](crash-recovery.md).
 - **Tray icon and tray menu.** The same tray icon plumbing, menu, and menu settings in every app. See [Tray Icon and Flyouts](tray-and-flyouts.md).
 - **Flyout undocking (where applicable).** Apps with a flyout let you pull it off the taskbar into a floating window. See [Tray Icon and Flyouts](tray-and-flyouts.md).
-- **Run on startup, install and uninstall** from the **General** page of each app's settings. See [Settings Window](settings-window.md) and [Installation](../getting-started/installation.md).
+- **Run on startup** from the **General** page, **install and uninstall** from the **About** page of each app's settings. See [Settings Window](settings-window.md) and [Installation](../getting-started/installation.md).
 
 ## Which App Has What
 

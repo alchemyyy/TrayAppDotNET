@@ -195,13 +195,12 @@ public sealed class InstallCardProgressTests
             TrayAppDotNETInstallStatus status = TrayAppDotNETInstallStatus.NotInstalled)
         {
             InstallCardHarness harness = new(status, TestPalettes.Default());
-            TrayAppDotNETGeneralSettingsSection section = new(new TrayAppDotNETGeneralSettingsSectionOptions
+            TrayAppDotNETInstallationSection section = new(new TrayAppDotNETInstallationSectionOptions
             {
                 Palette = harness.Palette,
                 ButtonRadius = new CornerRadius(4),
                 CardRadius = new CornerRadius(8),
                 L = static key => key,
-                Save = static () => { },
                 // Only the install confirmation is accepted; the restart prompt after success is declined
                 ConfirmAsync = static (title, _, _, _) => Task.FromResult(
                     title is nameof(CommonStrings.Settings_General_InstallConfirm_Title)
@@ -211,26 +210,7 @@ public sealed class InstallCardProgressTests
                     harness._shownMessages.Add((title, message));
                     return Task.CompletedTask;
                 },
-                GetRunOnStartup = static () => false,
-                GetLanguage = static () => LocalizationManager.AutoLanguage,
-                SetLanguage = static _ => { },
-                SetRunOnStartup = static _ => { },
-                GetCurrentStartupShortcutTarget = static () => null,
-                RetargetStartupShortcut = () => harness._refreshCount++,
-                DetectInstallations = () =>
-                [
-                    new TrayAppDotNETInstallationInfo(
-                        InstallScope.LocalAppData,
-                        ExecutablePath,
-                        harness._status,
-                        CurrentBuildNumber)
-                ],
-                CurrentBuildNumber = CurrentBuildNumber
-            });
-
-            StackPanel stack = new();
-            section.AddInstallationSection(
-                stack,
+                InstallCards =
                 [
                     new TrayAppDotNETInstallCardOptions
                     {
@@ -241,7 +221,21 @@ public sealed class InstallCardProgressTests
                         Install = install,
                         ShowUninstallerAsync = showUninstaller ?? (static _ => Task.FromResult(false))
                     }
-                ]);
+                ],
+                DetectInstallations = () =>
+                [
+                    new TrayAppDotNETInstallationInfo(
+                        InstallScope.LocalAppData,
+                        ExecutablePath,
+                        harness._status,
+                        CurrentBuildNumber)
+                ],
+                CurrentBuildNumber = CurrentBuildNumber,
+                RetargetStartupShortcut = () => harness._refreshCount++
+            });
+
+            StackPanel stack = new();
+            section.AddTo(stack);
 
             Border card = Assert.Single(stack.Children.OfType<Border>());
             SettingsButton[] buttons = card.GetVisualDescendants().OfType<SettingsButton>().ToArray();

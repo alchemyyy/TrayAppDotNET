@@ -60,8 +60,6 @@
                   Source="NetworkSettingsWindow.BuildGeneralPage" Description="Left-click flyout card" />
             <Leaf ID="AdapterSettingsStyle" Kind="Select" Event="Callback"
                   Source="NetworkSettingsWindow.BuildGeneralPage" Description="Adapter settings window card" />
-            <Scope ID="Installation" Template="InstallationSection" Source="NetworkSettingsWindow.BuildGeneralPage"
-                   Description="Local user and system-wide cards; Uninstall opens the Uninstaller surface" />
             <Scope ID="Rendering" Template="RenderingSection" Source="NetworkSettingsWindow.BuildGeneralPage" />
         </Scope>
         <Scope ID="TrayIconPage" Source="NetworkSettingsWindow.BuildTrayIconPage">
