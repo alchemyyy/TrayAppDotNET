@@ -66,7 +66,7 @@ A group with a single process is just that process's row. For bigger groups, it 
 
 How the group totals are built:
 
-- CPU, Disk, Network, GPU and NPU usage, memory, handles, threads, objects, page faults and I/O counters are added up.
+- CPU, Disk, Disk read, Disk write, Network, GPU and NPU usage, memory, handles, threads, objects, page faults and I/O counters are added up.
 - **Lifetime** shows the longest-lived member.
 - **Status** on a synthetic group row shows the most urgent status of any member. On a root-process group row it's blank, and the **Root** entry carries the process's own status.
 - Everything else (PID, user name, command line, etc.) comes from the process that leads the group.
@@ -198,7 +198,7 @@ The **Power throttling** column reports the same thing as Efficiency mode: **Ena
 
 ## Columns
 
-There are 61 columns. These are visible by default: **Name**, **Status**, **PID**, **Disk**, **Network**, **CPU**, **CPU (single)**, **RAM (private)**, **RAM (shared)**, **GDI** and **Command line**. The last three are nicknames; see [Column Properties](#column-properties).
+There are 63 columns. These are visible by default: **Name**, **Status**, **PID**, **Disk**, **Network**, **CPU**, **CPU (single)**, **RAM (private)**, **RAM (shared)**, **GDI** and **Command line**. The last three are nicknames; see [Column Properties](#column-properties).
 
 A column's data is only collected while the column is visible or used by the search. So adding columns costs a bit of CPU, and a newly shown column takes one refresh before it fills in. Rate columns like **Disk** and **CPU (single)** show 0 for their first interval.
 
@@ -250,7 +250,7 @@ A few columns are worth explaining:
 - **CPU** is the process's share of all logical processors together, like in Windows Task Manager.
 - **CPU (single)** is how busy the process's busiest thread was, out of one processor, so 0 to 100 %. Use it to spot single-thread bottlenecks. On a 24-thread CPU, a process with one thread pegged shows about 4.2 % **CPU** but 100 % **CPU (single)**.
 - **CPU utility** is CPU cycles used compared with the nominal cycle capacity of the active processors. Unlike **CPU**, it can read above 100 %.
-- **Disk** only counts actual file reads and writes by the process, in MB/s (1 MB = 1,048,576 bytes). Pipe and device I/O isn't included; that's in the **I/O** columns.
+- **Disk** only counts actual file reads and writes by the process, in MB/s (1 MB = 1,048,576 bytes). Pipe and device I/O isn't included; that's in the **I/O** columns. **Disk read** and **Disk write** split it into its two directions and add up to **Disk**.
 - **Network** is the process's own traffic in Mbps (megabits). It updates when Windows reports, not every second, and it reads **N/A** until the first report comes in. Unless you started the app itself as administrator, only your own processes get numbers; services and other users' processes show 0.
 - **RAM (private)** is **Memory (private working set)**: memory only this process uses. **RAM (shared)** is the rest of its working set.
 - **GPU** and **NPU** show the busiest engine's utilization. **GPU engine** and **NPU engine** say which engine that is, e.g. `GPU 0 - 3D`.
@@ -277,6 +277,8 @@ A few columns are worth explaining:
     | **Memory (private working set)** | Yes, as **RAM (private)** | Yes | Memory only this process uses |
     | **Memory (shared working set)** | Yes, as **RAM (shared)** | Yes | Working set minus the private part |
     | **Disk** | Yes | Yes | File reads and writes, MB/s |
+    | **Disk read** | | Yes | File reads, MB/s |
+    | **Disk write** | | Yes | File writes, MB/s |
     | **Network** | Yes | Yes | Network traffic, Mbps |
     | **Commit size** | | Yes | Committed memory |
     | **Paged pool** | | Yes | Paged kernel pool |
@@ -399,7 +401,7 @@ Number comparisons use the real value, not the rounded number on screen. That's 
 | **CPU time**, **Lifetime** | A number with `ms`, `s`, `m` or `min`, `h`, or `d` (e.g. `90s`, `1.5h`), or the displayed form `1:30:00` / `1d 2:00:00`. No combined units like `1h30m`. |
 | **CPU**, **CPU (single)**, **CPU utility**, **GPU**, **NPU** | A number with an optional `%` |
 | Memory columns and the I/O byte columns | A number with `b`, `k`, `m`, `g` or `t` (`kb`, `kib`, etc. also work), in steps of 1024. Doesn't depend on the unit the column displays. |
-| **Disk** | Same units as memory, optionally followed by `/s` or `ps` |
+| **Disk**, **Disk read**, **Disk write** | Same units as memory, optionally followed by `/s` or `ps` |
 | **Network** | A number with `k`, `m`, `g`, ... in steps of 1000, in bits per second, optionally followed by `/s` or `ps`. `10m`, `10Mb` and `10Mbps` all mean 10 megabits per second. Careful: `MB` means megabits here too. |
 | Other number columns | A plain number, optionally with `k`, `m`, ... in steps of 1000 |
 

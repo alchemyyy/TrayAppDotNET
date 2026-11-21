@@ -35,6 +35,10 @@ internal sealed class ProcessSnapshotService : IDisposable, IRecentProcessTotals
                                                       | ColumnMask(ProcessTableColumnKind.PageFaults)
                                                       | ColumnMask(ProcessTableColumnKind.PageFaultDelta);
 
+    private static readonly ulong DiskColumnsMask = ColumnMask(ProcessTableColumnKind.Disk)
+                                                    | ColumnMask(ProcessTableColumnKind.DiskRead)
+                                                    | ColumnMask(ProcessTableColumnKind.DiskWrite);
+
     private static readonly ulong IOColumnsMask = ColumnMask(ProcessTableColumnKind.IOReads)
                                                   | ColumnMask(ProcessTableColumnKind.IOWrites)
                                                   | ColumnMask(ProcessTableColumnKind.IOOther)
@@ -1045,25 +1049,37 @@ internal sealed class ProcessSnapshotService : IDisposable, IRecentProcessTotals
             history.HasMemorySample = true;
         }
 
-        if (schema.IsVisible(ProcessTableColumnKind.Disk))
+        if (HasAnyColumn(activeMask, DiskColumnsMask))
         {
-            double bytesPerSecond = -1;
+            double readBytesPerSecond = -1;
+            double writeBytesPerSecond = -1;
+            double totalBytesPerSecond = -1;
             if (hasSystemProcessData && systemProcessData.HasDiskCounters)
             {
-                bytesPerSecond = CalculateTransferRate(
+                readBytesPerSecond = CalculateTransferRate(
                     history.HasDiskSample,
-                    history.DiskBytes,
+                    history.DiskReadBytes,
                     history.LastDiskSampleTimestamp,
-                    systemProcessData.DiskBytes,
+                    systemProcessData.DiskReadBytes,
                     sampleTimestamp);
-                history.DiskBytes = systemProcessData.DiskBytes;
+                writeBytesPerSecond = CalculateTransferRate(
+                    history.HasDiskSample,
+                    history.DiskWriteBytes,
+                    history.LastDiskSampleTimestamp,
+                    systemProcessData.DiskWriteBytes,
+                    sampleTimestamp);
+                totalBytesPerSecond = readBytesPerSecond + writeBytesPerSecond;
+                history.DiskReadBytes = systemProcessData.DiskReadBytes;
+                history.DiskWriteBytes = systemProcessData.DiskWriteBytes;
                 history.LastDiskSampleTimestamp = sampleTimestamp;
                 history.HasDiskSample = true;
             }
             else
                 history.HasDiskSample = false;
 
-            SetDynamicDouble(schema, history, ProcessTableColumnKind.Disk, bytesPerSecond);
+            SetDynamicDouble(schema, history, ProcessTableColumnKind.Disk, totalBytesPerSecond);
+            SetDynamicDouble(schema, history, ProcessTableColumnKind.DiskRead, readBytesPerSecond);
+            SetDynamicDouble(schema, history, ProcessTableColumnKind.DiskWrite, writeBytesPerSecond);
         }
 
         if (schema.IsVisible(ProcessTableColumnKind.Network))
@@ -2029,7 +2045,8 @@ internal sealed class ProcessSnapshotService : IDisposable, IRecentProcessTotals
         public long WorkingSetBytes;
         public long PageFaultCount;
         public long LastMemorySampleTimestamp;
-        public ulong DiskBytes;
+        public ulong DiskReadBytes;
+        public ulong DiskWriteBytes;
         public long LastDiskSampleTimestamp;
         public ulong NetworkBytes;
         public long LastNetworkSampleTimestamp;

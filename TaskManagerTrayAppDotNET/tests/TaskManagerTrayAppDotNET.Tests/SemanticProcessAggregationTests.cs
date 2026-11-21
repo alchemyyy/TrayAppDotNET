@@ -6,11 +6,15 @@ namespace TaskManagerTrayAppDotNET.Tests;
 
 public sealed class SemanticProcessAggregationTests
 {
-    [Fact]
-    public void DoubleAggregateCountsOnlyRequestedMembers()
+    [Theory]
+    [InlineData(ProcessTableColumnKind.CPU)]
+    [InlineData(ProcessTableColumnKind.Disk)]
+    [InlineData(ProcessTableColumnKind.DiskRead)]
+    [InlineData(ProcessTableColumnKind.DiskWrite)]
+    public void DoubleAggregateCountsOnlyRequestedMembers(ProcessTableColumnKind column)
     {
         ProcessSnapshotBuffer snapshot = CreateSnapshot(
-            ProcessTableColumnKind.CPU,
+            column,
             EncodeDouble(12.5),
             EncodeDouble(90),
             EncodeDouble(7.25));
@@ -18,7 +22,7 @@ public sealed class SemanticProcessAggregationTests
         long aggregate = SemanticProcessAggregation.AggregateDynamicNumeric(
             snapshot,
             [0, 2],
-            ProcessTableColumnKind.CPU,
+            column,
             representativeRowIndex: 0);
 
         Assert.Equal(expected: 19.75, BitConverter.Int64BitsToDouble(aggregate), precision: 10);

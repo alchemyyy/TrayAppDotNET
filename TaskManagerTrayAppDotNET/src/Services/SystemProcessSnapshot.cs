@@ -185,12 +185,13 @@ internal sealed unsafe class SystemProcessSnapshot : IDisposable
                     : ThreadEntrySize;
                 int availableThreadCount = Math.Max(val1: 0, (entryLength - ProcessHeaderSize) / threadEntrySize);
                 int threadCount = (int)Math.Min(process.NumberOfThreads, (uint)availableThreadCount);
-                bool hasDiskCounters = TryReadDiskBytes(
+                bool hasDiskCounters = TryReadDiskCounters(
                     entryAddress,
                     entryLength,
                     threadEntrySize,
                     threadCount,
-                    out ulong diskBytes);
+                    out ulong diskReadBytes,
+                    out ulong diskWriteBytes);
                 long jobObjectID = hasFullProcessInformation
                     ? ReadJobObjectID(entryAddress, entryLength, threadCount)
                     : -1;
@@ -217,7 +218,8 @@ internal sealed unsafe class SystemProcessSnapshot : IDisposable
                     ToNonNegativeUInt64(process.ReadTransferCount),
                     ToNonNegativeUInt64(process.WriteTransferCount),
                     ToNonNegativeUInt64(process.OtherTransferCount),
-                    diskBytes,
+                    diskReadBytes,
+                    diskWriteBytes,
                     hasDiskCounters,
                     jobObjectID);
             }
@@ -246,23 +248,24 @@ internal sealed unsafe class SystemProcessSnapshot : IDisposable
         return false;
     }
 
-    private static bool TryReadDiskBytes(
+    private static bool TryReadDiskCounters(
         IntPtr entryAddress,
         int entryLength,
         int threadEntrySize,
         int threadCount,
-        out ulong diskBytes)
+        out ulong bytesRead,
+        out ulong bytesWritten)
     {
-        diskBytes = 0;
+        bytesRead = 0;
+        bytesWritten = 0;
         // Windows appends PROCESS_DISK_COUNTERS immediately after the process thread array
         long extensionOffset = ProcessHeaderSize + (long)threadCount * threadEntrySize;
         if (extensionOffset < 0 || extensionOffset > entryLength - DiskCountersPrefixSize)
             return false;
 
         IntPtr extensionAddress = IntPtr.Add(entryAddress, (int)extensionOffset);
-        ulong bytesRead = unchecked((ulong)Marshal.ReadInt64(extensionAddress));
-        ulong bytesWritten = unchecked((ulong)Marshal.ReadInt64(extensionAddress, sizeof(long)));
-        diskBytes = SaturatingAdd(bytesRead, bytesWritten);
+        bytesRead = unchecked((ulong)Marshal.ReadInt64(extensionAddress));
+        bytesWritten = unchecked((ulong)Marshal.ReadInt64(extensionAddress, sizeof(long)));
         return true;
     }
 
@@ -401,9 +404,6 @@ internal sealed unsafe class SystemProcessSnapshot : IDisposable
         return left > long.MaxValue - right ? long.MaxValue : left + right;
     }
 
-    private static ulong SaturatingAdd(ulong left, ulong right) =>
-        ulong.MaxValue - left < right ? ulong.MaxValue : left + right;
-
     public void Dispose()
     {
         if (_disposed) return;
@@ -519,7 +519,8 @@ internal readonly record struct SystemProcessData(
     ulong IOReadBytes,
     ulong IOWriteBytes,
     ulong IOOtherBytes,
-    ulong DiskBytes,
+    ulong DiskReadBytes,
+    ulong DiskWriteBytes,
     bool HasDiskCounters,
     long JobObjectID);
 

@@ -56,6 +56,8 @@ internal static class ProcessLiveTotalFunctions
             ProcessTableColumnKind.CPU
                 or ProcessTableColumnKind.CPUSingle
                 or ProcessTableColumnKind.Disk
+                or ProcessTableColumnKind.DiskRead
+                or ProcessTableColumnKind.DiskWrite
                 or ProcessTableColumnKind.Network
                 or ProcessTableColumnKind.GPU
                 or ProcessTableColumnKind.NPU

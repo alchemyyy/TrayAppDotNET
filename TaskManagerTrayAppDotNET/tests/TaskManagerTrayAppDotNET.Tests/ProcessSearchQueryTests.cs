@@ -115,12 +115,16 @@ public sealed class ProcessSearchQueryTests
         Assert.True(query.Matches(rowIndex: 0, row.Resolve));
     }
 
-    [Fact]
-    public void DiskRateExpressionsUseBinaryMegabytesPerSecond()
+    [Theory]
+    [InlineData("Disk", ProcessTableColumnKind.Disk)]
+    [InlineData("Disk read", ProcessTableColumnKind.DiskRead)]
+    [InlineData("Disk write", ProcessTableColumnKind.DiskWrite)]
+    public void DiskRateExpressionsUseBinaryMegabytesPerSecond(string columnName, ProcessTableColumnKind column)
     {
-        ProcessSearchQuery query = Parse("{Disk}>=1 MB/s&&{Disk}<2 MB/s");
+        ProcessSearchQuery query = Parse($"{{{columnName}}}>=1 MB/s&&{{{columnName}}}<2 MB/s");
         SearchRow row = new();
-        row.SetNumeric(ProcessTableColumnKind.Disk, text: "1.5 MB/s", 1.5 * 1_048_576);
+        // 1.95 MiB/s is above 2,000,000 bytes per second, so only binary megabytes keep it in range
+        row.SetNumeric(column, text: "2.0 MB/s", 1.95 * 1_048_576);
 
         Assert.True(query.Matches(rowIndex: 0, row.Resolve));
     }

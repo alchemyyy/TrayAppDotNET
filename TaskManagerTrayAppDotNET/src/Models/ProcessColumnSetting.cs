@@ -82,6 +82,8 @@ internal static class ProcessColumnSettings
         ProcessTableColumnKind.Status,
         ProcessTableColumnKind.ProcessID,
         ProcessTableColumnKind.Disk,
+        ProcessTableColumnKind.DiskRead,
+        ProcessTableColumnKind.DiskWrite,
         ProcessTableColumnKind.Network,
         ProcessTableColumnKind.UserName,
         ProcessTableColumnKind.SessionID,
@@ -372,6 +374,8 @@ internal static class ProcessColumnSettings
             or ProcessTableColumnKind.PrivateMemory
             or ProcessTableColumnKind.SharedWorkingSet
             or ProcessTableColumnKind.Disk
+            or ProcessTableColumnKind.DiskRead
+            or ProcessTableColumnKind.DiskWrite
             or ProcessTableColumnKind.Network
             or ProcessTableColumnKind.CommitSize
             or ProcessTableColumnKind.PagedPool

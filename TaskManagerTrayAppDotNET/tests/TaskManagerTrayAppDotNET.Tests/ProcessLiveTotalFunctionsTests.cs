@@ -26,11 +26,14 @@ public sealed class ProcessLiveTotalFunctionsTests
         Assert.Equal(expected: 17.75, BitConverter.Int64BitsToDouble(total.EncodedValue), precision: 10);
     }
 
-    [Fact]
-    public void TransferRateAggregateIncludesEveryValidProcess()
+    [Theory]
+    [InlineData(ProcessTableColumnKind.Disk)]
+    [InlineData(ProcessTableColumnKind.DiskRead)]
+    [InlineData(ProcessTableColumnKind.DiskWrite)]
+    public void TransferRateAggregateIncludesEveryValidProcess(ProcessTableColumnKind column)
     {
         ProcessSnapshotBuffer snapshot = CreateSnapshot(
-            ProcessTableColumnKind.Disk,
+            column,
             (ProcessID: 0, EncodeDouble(100)),
             (ProcessID: 10, EncodeDouble(250.5)),
             (ProcessID: 11, EncodeDouble(-1)));
@@ -38,7 +41,7 @@ public sealed class ProcessLiveTotalFunctionsTests
         ProcessLiveTotalValue total = ProcessLiveTotalFunctions.Calculate(
             snapshot,
             snapshot.Count,
-            ProcessTableColumnKind.Disk);
+            column);
 
         Assert.True(total.HasValue);
         Assert.Equal(expected: 350.5, BitConverter.Int64BitsToDouble(total.EncodedValue), precision: 10);

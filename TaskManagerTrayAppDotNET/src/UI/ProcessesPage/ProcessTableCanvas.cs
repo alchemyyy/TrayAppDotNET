@@ -3563,6 +3563,8 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
                         setting.ShowDecimalUsage));
                     break;
                 case ProcessTableColumnKind.Disk:
+                case ProcessTableColumnKind.DiskRead:
+                case ProcessTableColumnKind.DiskWrite:
                     hash.Add(QuantizeTransferRate(
                         BitConverter.Int64BitsToDouble(value),
                         BytesPerMebibyte));
@@ -3654,10 +3656,12 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
                 or ProcessTableColumnKind.GPU
                 or ProcessTableColumnKind.NPU
                 or ProcessTableColumnKind.CPUUtility => CreatePercentageSearchValue(displayText, numericValue),
-            ProcessTableColumnKind.Disk => CreateTransferRateSearchValue(
-                displayText,
-                numericValue,
-                convertToBits: false),
+            ProcessTableColumnKind.Disk
+                or ProcessTableColumnKind.DiskRead
+                or ProcessTableColumnKind.DiskWrite => CreateTransferRateSearchValue(
+                    displayText,
+                    numericValue,
+                    convertToBits: false),
             ProcessTableColumnKind.Network => CreateTransferRateSearchValue(
                 displayText,
                 numericValue,
@@ -3798,10 +3802,12 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
             ProcessTableColumnKind.ActivePrivateWorkingSet => FormatMemory(value, setting, isDelta: false),
             ProcessTableColumnKind.PrivateMemory => FormatMemory(value, setting, isDelta: false),
             ProcessTableColumnKind.SharedWorkingSet => FormatMemory(value, setting, isDelta: false),
-            ProcessTableColumnKind.Disk => FormatTransferRate(
-                BitConverter.Int64BitsToDouble(value),
-                BytesPerMebibyte,
-                suffix: "MB/s"),
+            ProcessTableColumnKind.Disk
+                or ProcessTableColumnKind.DiskRead
+                or ProcessTableColumnKind.DiskWrite => FormatTransferRate(
+                    BitConverter.Int64BitsToDouble(value),
+                    BytesPerMebibyte,
+                    suffix: "MB/s"),
             ProcessTableColumnKind.Network => FormatTransferRate(
                 BitConverter.Int64BitsToDouble(value),
                 BytesPerMegabit,
@@ -3920,10 +3926,12 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
             ProcessTableColumnKind.ActivePrivateWorkingSet => FormatMemory(value, setting, isDelta: false),
             ProcessTableColumnKind.PrivateMemory => FormatMemory(value, setting, isDelta: false),
             ProcessTableColumnKind.SharedWorkingSet => FormatMemory(value, setting, isDelta: false),
-            ProcessTableColumnKind.Disk => FormatTransferRate(
-                BitConverter.Int64BitsToDouble(value),
-                BytesPerMebibyte,
-                suffix: "MB/s"),
+            ProcessTableColumnKind.Disk
+                or ProcessTableColumnKind.DiskRead
+                or ProcessTableColumnKind.DiskWrite => FormatTransferRate(
+                    BitConverter.Int64BitsToDouble(value),
+                    BytesPerMebibyte,
+                    suffix: "MB/s"),
             ProcessTableColumnKind.Network => FormatTransferRate(
                 BitConverter.Int64BitsToDouble(value),
                 BytesPerMegabit,
@@ -6157,6 +6165,8 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
                 or ProcessTableColumnKind.NPU
                 or ProcessTableColumnKind.CPUUtility
                 or ProcessTableColumnKind.Disk
+                or ProcessTableColumnKind.DiskRead
+                or ProcessTableColumnKind.DiskWrite
                 or ProcessTableColumnKind.Network => true,
             _ => false
         };

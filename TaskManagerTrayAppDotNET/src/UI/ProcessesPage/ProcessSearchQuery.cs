@@ -604,7 +604,9 @@ internal sealed class ProcessSearchQuery
             return TryParseDuration(literal, out numericValue);
         if (IsPercentageColumn(column))
             return TryParsePercentage(literal, out numericValue);
-        if (column == ProcessTableColumnKind.Disk)
+        if (column is ProcessTableColumnKind.Disk
+            or ProcessTableColumnKind.DiskRead
+            or ProcessTableColumnKind.DiskWrite)
             return TryParseRate(literal, useBinaryUnits: true, out numericValue);
         if (column == ProcessTableColumnKind.Network)
             return TryParseRate(literal, useBinaryUnits: false, out numericValue);

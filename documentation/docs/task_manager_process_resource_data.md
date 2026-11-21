@@ -1,9 +1,10 @@
 # Task Manager process disk and network data
 
-The TMTADN Processes grid obtains per-process Disk and Network rates through
-different Windows data paths. Neither path starts a kernel ETW session. Disk
-piggybacks on the process snapshot already required by the grid, while Network
-uses the private SRUM real-time API used by Windows Task Manager.
+The TMTADN Processes grid obtains per-process Disk (with its Disk read and Disk
+write split) and Network rates through different Windows data paths. Neither
+path starts a kernel ETW session. Disk piggybacks on the process snapshot
+already required by the grid, while Network uses the private SRUM real-time API
+used by Windows Task Manager.
 
 [Process snapshot service](https://github.com/alchemyyy/TrayAppDotNET/blob/main/TaskManagerTrayAppDotNET/src/Services/ProcessSnapshotService.cs)
 [Process table](https://github.com/alchemyyy/TrayAppDotNET/blob/main/TaskManagerTrayAppDotNET/src/UI/ProcessesPage/ProcessTableCanvas.cs)
@@ -34,7 +35,7 @@ which records an upstream Windows provider produces.
 | Component | Activation | Deactivation | Work while its column is absent |
 | --- | --- | --- | --- |
 | Base process snapshot | Starts with the process sampler | Stops when the process sampler is disposed | Continues because PID, CPU, memory, thread, and other grid data require it |
-| Disk counter extraction | Parsed from every base process snapshot | Stops when the process sampler is disposed | Two 64-bit reads and one saturating addition per process still occur; Disk rate history and formatting do not |
+| Disk counter extraction | Parsed from every base process snapshot | Stops when the process sampler is disposed | Two 64-bit reads per process still occur; disk rate history and formatting do not |
 | Network SRUM collector | Created when Network enters the active schema | Unregistered and disposed when Network leaves the active schema | No worker, COM registration, callback, dictionary, or grid-side rate calculation remains active |
 
 Network follows the strict invariant **no active column means no active
@@ -45,11 +46,11 @@ Adding Network again creates a fresh worker and registration.
 Disk is a smaller exception to the strict invariant:
 
 - Disk has no independent collector to turn off, but its small extension-read
-  cost remains even when Disk is absent.
+  cost remains even when Disk, Disk read, and Disk write are all absent.
 
 To enforce the same strict invariant for Disk in the future, pass a
-Disk-enabled flag into the base snapshot parser and skip the disk extension
-reads when Disk is absent from the active schema.
+disk-enabled flag into the base snapshot parser and skip the disk extension
+reads when no disk column is in the active schema.
 
 Network teardown trades complete hidden-state cost neutrality for registration
 churn and a collection delay after reactivation. A new registration must
@@ -73,8 +74,8 @@ PROCESS_DISK_COUNTERS
 
 The extension begins at the process header size plus the thread count times the
 thread-entry size. Its first two 64-bit values are cumulative bytes read from
-disk and bytes written to disk. TMTADN bounds-checks the extension, reads those
-values, and stores their saturating sum.
+disk and bytes written to disk. TMTADN bounds-checks the extension and reads
+both values, keeping them separate.
 
 These counters are different from the ordinary process I/O transfer counters.
 The ordinary counters also include non-disk file, pipe, device, and network I/O
@@ -84,20 +85,22 @@ and therefore cannot implement a true Disk column.
 
 ### Rate and presentation
 
-Each process history entry retains the previous cumulative byte count and a
-monotonic timestamp. The displayed rate is:
+Each process history entry retains the previous cumulative read and write byte
+counts and one monotonic timestamp. Disk read and Disk write each display:
 
 ```text
-(current disk bytes - previous disk bytes) / elapsed seconds
+(current bytes - previous bytes) / elapsed seconds
 ```
+
+Disk displays the sum of those two rates.
 
 The first sample and any counter reset establish a new baseline and display
 zero. A missing extension produces `Unavailable` rather than a measured zero.
 Process creation time is part of the row identity, so PID reuse also creates a
 new baseline instead of subtracting counters from the previous process.
 
-Disk displays binary megabytes per second under the Windows Task Manager label
-`MB/s`:
+All three columns display binary megabytes per second under the Windows Task
+Manager label `MB/s`:
 
 ```text
 display value = bytes per second / 1,048,576
@@ -108,10 +111,10 @@ Positive values below one displayed tenth are clamped to `0.1 MB/s`.
 ### Cost
 
 Disk does not create another thread, provider, handle, ETW session, or kernel
-query. Its incremental collection cost is the extension bounds check, two
-64-bit reads, and one addition for each process in the already-returned buffer.
-Delta calculation, dynamic storage, search conversion, sorting, and rendering
-only occur while Disk is in the active schema.
+query. Its incremental collection cost is the extension bounds check and two
+64-bit reads for each process in the already-returned buffer. Delta
+calculation, dynamic storage, search conversion, sorting, and rendering only
+occur while Disk, Disk read, or Disk write is in the active schema.
 
 ## Network
 

@@ -391,6 +391,8 @@ public sealed class ProcessColumnSettingsTests
             ProcessTableColumnKind.PrivateMemory,
             ProcessTableColumnKind.SharedWorkingSet,
             ProcessTableColumnKind.Disk,
+            ProcessTableColumnKind.DiskRead,
+            ProcessTableColumnKind.DiskWrite,
             ProcessTableColumnKind.Network,
             ProcessTableColumnKind.Handles,
             ProcessTableColumnKind.Threads,
