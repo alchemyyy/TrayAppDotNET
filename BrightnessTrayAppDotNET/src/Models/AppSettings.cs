@@ -358,6 +358,12 @@ public class AppSettings : AppSettingsCommon<HotkeyBinding, BrightnessHotkeyActi
     /// </summary>
     public bool HasAcknowledgedHardPowerOffWarning { get; set; }
 
+    /// <summary>
+    /// Set once the user confirms ignoring the flyout's warning that Windows' fix for Explorer's Night Light leak is
+    /// off (<see cref="Interop.NightLight.NightLightLeakFix"/>); the warning then never shows again.
+    /// </summary>
+    public bool IgnoreNightLightLeakWarning { get; set; }
+
     public bool FlyoutHasSavedPosition
     {
         get;

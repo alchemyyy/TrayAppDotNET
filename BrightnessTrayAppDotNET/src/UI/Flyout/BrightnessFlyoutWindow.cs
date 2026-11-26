@@ -359,7 +359,11 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         _confirmOverlay?.Cancel();
     }
 
-    protected override void OnRevealing() => AppServices.DisplayEventManager?.RunSingleGatedScan();
+    protected override void OnRevealing()
+    {
+        AppServices.DisplayEventManager?.RunSingleGatedScan();
+        QueueNightLightLeakWarning();
+    }
 
     public bool HasFocus() => IsActive;
 

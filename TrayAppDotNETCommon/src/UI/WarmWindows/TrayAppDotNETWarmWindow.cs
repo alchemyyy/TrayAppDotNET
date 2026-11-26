@@ -124,7 +124,7 @@ public sealed class TrayAppDotNETWarmWindowSlot<TWindow>(
         if (_disposed) return;
         if (Cached == null) return;
         if (Cached.IsVisible) return;
-        if (DefersEvictionForUpdate(Cached)) return;
+        if (DefersEvictionForPromptFlow(Cached)) return;
 
         EvictNow();
     }
@@ -227,16 +227,16 @@ public sealed class TrayAppDotNETWarmWindowSlot<TWindow>(
         CancelIdleEviction();
         if (Cached is { IsVisible: true }) return;
         if (isKeepWarmEnabled()) return;
-        if (DefersEvictionForUpdate(Cached)) return;
+        if (DefersEvictionForPromptFlow(Cached)) return;
 
         EvictNow();
     }
 
-    // A hidden window that owns a confirmed update download, or a prompt for one, stays until that flow ends, so idle
+    // A hidden window that owns a prompt flow, such as a confirmed update download, stays until that flow ends, so idle
     // eviction never strands it; the next idle period after the flow evicts it as usual
-    private bool DefersEvictionForUpdate(TWindow? window)
+    private bool DefersEvictionForPromptFlow(TWindow? window)
     {
-        if (window == null || !TrayAppDotNETUpdatePromptPresenter.IsBusy(window)) return false;
+        if (window == null || !TrayAppDotNETModalPrompt.IsBusy(window)) return false;
 
         ScheduleIdleEviction();
         return true;

@@ -275,7 +275,8 @@
     <!-- Common dialogs -->
 
     <Template ID="Confirmation" Source="TrayAppDotNETConfirmationWindow.BuildContent"
-              Description="Modal; the update prompt uses the modal layout, every other prompt the standard one">
+              Description="Modal; the update prompt and app warnings shown like it, such as Brightness's Night Light
+                           leak warning, use the modal layout, every other prompt the standard one">
         <Leaf ID="Dismiss" Kind="Command" Keys="Escape" Event="KeyDown"
               Source="TrayAppDotNETConfirmationWindow.OnWindowKeyDown"
               Description="Closes with Cancelled, like Cancel and the caption Close" />

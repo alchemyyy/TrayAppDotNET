@@ -223,6 +223,10 @@
   - `TrayAppDotNETCommon/src/UI/FlyoutTrayPlacement.cs` (+ `.axaml`): docked and saved positions, work-area max height,
     companion windows beside the flyout; `FlyoutChromeDragController.cs`: undocked frame drag
   - `TrayAppDotNETCommon/src/UI/Controls/ConfirmOverlay.cs`: `TrayAppDotNETConfirmOverlay`, the flyout confirm overlay
+  - `TrayAppDotNETCommon/src/UI/Controls/TrayAppDotNETModalPrompt.cs`: one prompt flow per owner (`RunExclusiveAsync`,
+    `IsBusy`) and `ShowAsync`, which shows a `TrayAppDotNETConfirmationWindow` the way the update prompt shows (owner
+    dimmed, in a flyout's upper third, closed when the flyout hides); the update presenter and Brightness's Night Light
+    leak warning run on it
   - `TrayAppDotNETCommon/src/Utils/TaskExtensions.cs`: `ForgetLogged` for fire-and-forget UI tasks
 - Control maps (see `CONTROL_MAP_PLAYBOOK.md`):
   - Schema and runtime index: `TrayAppDotNETCommon/src/UI/ControlMapping`
@@ -291,6 +295,10 @@
 - Night Light: `NightLightProvider` (backend choice; never blocks on the helper), `Interop/NightLight`
   (`NightLightHelperProcess.cs` client/server with `RetryableInitialization`, `NightLightRegistry` reads through
   `RegistryBlobCache`, `NightLightCloudStore` known-RVA mirror, `PDBSymbolResolver`, gamma ramp)
+- Explorer's Night Light leak: `Interop/NightLight/NightLightLeakFix.cs` (state recorded at launch from the boot-time
+  feature state, the UserPolicy override and a scan of `Windows.Shell.BlueLightReduction.dll`; the elevated
+  `--set-night-light-leak-fix on` relaunch writes the override) and the flyout's warning in
+  `UI/Flyout/BrightnessFlyoutWindow.NightLightLeak.cs`
 - Monitors: `Services/MonitorService.cs` (first enumeration on the refresh worker; UI hops skipped while draining),
   `Interop/DDCCI/CCD.cs` (`TryQueryActivePaths`, display numbers), `Utils/KnownDisplaysStore.cs`
 - Tests: `BrightnessTrayAppDotNET/tests/BrightnessTrayAppDotNET.Tests`

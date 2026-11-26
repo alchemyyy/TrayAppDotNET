@@ -407,13 +407,13 @@ public abstract class FlyoutWindowCommon : Window, ITrayAppDotNETWarmWindow
     }
 
     /// <summary>
-    /// Shows the install-update prompt over the flyout unless the flyout is closed or a prompt or download for it is
-    /// already running. The presenter tracks both and logs failures.
+    /// Shows the install-update prompt over the flyout unless the flyout is closed or another prompt flow for it, such
+    /// as an update download, is running. The presenter tracks both and logs failures.
     /// </summary>
     protected void ShowInstallUpdatePrompt(Func<TrayAppDotNETUpdatePromptOptions?> createOptions)
     {
         ArgumentNullException.ThrowIfNull(createOptions);
-        if (_isClosed || TrayAppDotNETUpdatePromptPresenter.IsBusy(this)) return;
+        if (_isClosed || TrayAppDotNETModalPrompt.IsBusy(this)) return;
 
         TrayAppDotNETUpdatePromptOptions? options = createOptions();
         if (options == null) return;

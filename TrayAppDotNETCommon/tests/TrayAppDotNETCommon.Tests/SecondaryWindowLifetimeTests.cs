@@ -181,7 +181,7 @@ public sealed class SecondaryWindowLifetimeTests
     });
 
     [Fact]
-    public void UpdateOwnerBackdropWrapsExactOwnerContentAndRestoresIt() => AvaloniaTestHost.Run(() =>
+    public void ModalPromptOwnerBackdropWrapsExactOwnerContentAndRestoresIt() => AvaloniaTestHost.Run(() =>
     {
         CornerRadius ownerCornerRadius = new(8);
         Border originalContent = new() { Background = Brushes.Red, CornerRadius = ownerCornerRadius };
@@ -190,8 +190,8 @@ public sealed class SecondaryWindowLifetimeTests
         owner.UpdateLayout();
         Color backdropColor = Color.FromArgb(a: 0xA0, r: 0x10, g: 0x20, b: 0x30);
 
-        UpdatePromptOwnerBackdrop ownerBackdrop = Assert.IsType<UpdatePromptOwnerBackdrop>(
-            UpdatePromptOwnerBackdrop.Attach(owner, backdropColor));
+        ModalPromptOwnerBackdrop ownerBackdrop = Assert.IsType<ModalPromptOwnerBackdrop>(
+            ModalPromptOwnerBackdrop.Attach(owner, backdropColor));
         Grid overlayHost = Assert.IsType<Grid>(owner.Content);
         Border backdrop = Assert.Single(
             overlayHost.Children.OfType<Border>(),
@@ -440,20 +440,20 @@ public sealed class SecondaryWindowLifetimeTests
     });
 
     [Fact]
-    public void WarmSlotKeepsAHiddenWindowWhileItOwnsAnUpdateFlow() => AvaloniaTestHost.Run(() =>
+    public void WarmSlotKeepsAHiddenWindowWhileItOwnsAPromptFlow() => AvaloniaTestHost.Run(() =>
     {
         FakeWarmWindow window = new();
         TrayAppDotNETWarmWindowSlot<FakeWarmWindow> slot = new(() => false);
         slot.TakeOrCreate(() => window);
-        IDisposable busy = TrayAppDotNETUpdatePromptPresenter.TryBeginBusy(window)
-                           ?? throw new InvalidOperationException("The window already owns an update flow.");
+        IDisposable busy = TrayAppDotNETModalPrompt.TryBeginBusy(window)
+                           ?? throw new InvalidOperationException("The window already owns a prompt flow.");
         try
         {
             // A confirmed download still running for the hidden window must not lose its owner
             slot.Invalidate();
             Assert.Same(window, slot.Cached);
             Assert.Equal(expected: 0, window.CloseAttemptCount);
-            Assert.Null(TrayAppDotNETUpdatePromptPresenter.TryBeginBusy(window));
+            Assert.Null(TrayAppDotNETModalPrompt.TryBeginBusy(window));
         }
         finally
         {
@@ -461,7 +461,7 @@ public sealed class SecondaryWindowLifetimeTests
         }
 
         // Once the flow ends the window evicts as before
-        Assert.False(TrayAppDotNETUpdatePromptPresenter.IsBusy(window));
+        Assert.False(TrayAppDotNETModalPrompt.IsBusy(window));
         slot.Invalidate();
         Assert.Null(slot.Cached);
         Assert.Equal(expected: 1, window.CloseAttemptCount);

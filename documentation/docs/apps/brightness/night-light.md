@@ -103,6 +103,18 @@ Limits:
 
 When displays are plugged in, unplugged or rearranged, and after the PC wakes up or you unlock it, the app re-sends the current Night Light strength, since the tint doesn't always survive a display change.
 
+## Explorer Memory Leak
+
+Windows' own Night Light code in Explorer (`Windows.Shell.BlueLightReduction.dll`) leaks a little every time Night Light changes, and with the **Settings handler** and **Registry** backends the app changes it often (the curve, the slider, the wheel). After about a day, right-click menus in Explorer get noticeably slow. Restarting Explorer clears it until it builds up again.
+
+Windows already contains a fix (feature `62354587`, `BlueLightReductionDEMCacheByMonitorId`), but Windows' feature rollout can leave it off. The app checks it each time it starts and writes the result to its log (a `NightLightLeakFix:` line). While the fix is off, opening the flyout shows a warning with **Fix** and **Ignore**:
+
+- **Fix** shows a UAC prompt, then turns the fix on the way `ViVeTool /enable /id:62354587 /priority:userpolicy` does: a DWORD named `914854031` set to `2` under `HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Policies\Microsoft\FeatureManagement\Overrides`. Explorer reads the fix only when Windows starts, so it takes effect after the next Windows restart; restarting Explorer isn't enough. To undo it, delete that value (or run `ViVeTool /reset /id:62354587 /priority:userpolicy`) and restart Windows.
+- **Ignore** asks once more, then never shows the warning again. To get it back, set `IgnoreNightLightLeakWarning` to `false` in `settings.xml`, see [Configuration](../../getting-started/configuration.md).
+- Closing the warning with ++esc++ decides nothing, so it comes back the next time you open the flyout.
+
+There's no warning when the fix is on, when it's set up and waiting for a Windows restart, or when your Windows build's Night Light has no such fix.
+
 ## Troubleshooting
 
 - **Bulb greyed out**: on **Registry**, Night Light hasn't been set up on this account yet, see [Registry](#registry). On **Settings handler**, the app couldn't find `SettingsHandlers_Display.dll` in `C:\Windows\System32`.

@@ -1,6 +1,5 @@
 using System.Globalization;
 using Avalonia.Controls;
-using Avalonia.Layout;
 using Avalonia.Media;
 using TrayAppDotNETCommon.Services;
 using TrayAppDotNETCommon.UI.ControlMapping;
@@ -26,7 +25,7 @@ public sealed record TrayAppDotNETUpdatePromptOptions
 
     /// <summary>
     /// Gets a callback raised when a prompt or download for the owner starts or ends, so the owner can refresh the
-    /// controls that start one; <see cref="TrayAppDotNETUpdatePromptPresenter.IsBusy"/> holds the state.
+    /// controls that start one; <see cref="TrayAppDotNETModalPrompt.IsBusy"/> holds the state.
     /// </summary>
     public Action<bool>? BusyChanged { get; init; }
 
@@ -45,15 +44,9 @@ public sealed record TrayAppDotNETUpdatePromptOptions
 /// </summary>
 public static class TrayAppDotNETUpdatePromptPresenter
 {
-    // UI-thread only: owners with a prompt open or a download in flight
-    private static readonly HashSet<Window> BusyOwners = [];
-
-    /// <summary>Gets whether a prompt for the owner is open or its download is in flight.</summary>
-    public static bool IsBusy(Window owner) => BusyOwners.Contains(owner);
-
     /// <summary>
-    /// Confirms, stages, and shuts down after a successful update handoff. Returns false at once while another flow
-    /// for the same owner is open or downloading.
+    /// Confirms, stages, and shuts down after a successful update handoff. Returns false at once while another prompt
+    /// flow for the same owner is open or downloading.
     /// </summary>
     public static Task<bool> ShowInstallUpdateAsync(TrayAppDotNETUpdatePromptOptions options) =>
         RunExclusiveAsync(options, ShowInstallUpdateCoreAsync);
@@ -94,43 +87,12 @@ public static class TrayAppDotNETUpdatePromptPresenter
             await ShowSkipConfirmationAsync(options) == TrayAppDotNETConfirmationResult.Confirmed
             && await SkipReleaseAsync(options));
 
-    private static async Task<bool> RunExclusiveAsync(
+    private static Task<bool> RunExclusiveAsync(
         TrayAppDotNETUpdatePromptOptions options,
         Func<TrayAppDotNETUpdatePromptOptions, Task<bool>> flow)
     {
         ArgumentNullException.ThrowIfNull(options);
-        IDisposable? busy = TryBeginBusy(options.Owner);
-        if (busy == null) return false;
-
-        options.BusyChanged?.Invoke(true);
-        try
-        {
-            return await flow(options);
-        }
-        finally
-        {
-            // The owner refreshes from IsBusy, so the state clears before the callback
-            busy.Dispose();
-            options.BusyChanged?.Invoke(false);
-        }
-    }
-
-    /// <summary>
-    /// Marks the owner busy until the returned scope is disposed, or returns null while another flow holds it.
-    /// </summary>
-    internal static IDisposable? TryBeginBusy(Window owner) =>
-        BusyOwners.Add(owner) ? new BusyScope(owner) : null;
-
-    private sealed class BusyScope(Window owner) : IDisposable
-    {
-        private bool _disposed;
-
-        public void Dispose()
-        {
-            if (_disposed) return;
-            _disposed = true;
-            BusyOwners.Remove(owner);
-        }
+        return TrayAppDotNETModalPrompt.RunExclusiveAsync(options.Owner, () => flow(options), options.BusyChanged);
     }
 
     private static async Task<bool> SkipReleaseAsync(TrayAppDotNETUpdatePromptOptions options)
@@ -360,155 +322,14 @@ public static class TrayAppDotNETUpdatePromptPresenter
         _ = await ShowPromptAsync(options, dialog);
     }
 
-    private static async Task<TrayAppDotNETConfirmationResult> ShowPromptAsync(
+    private static Task<TrayAppDotNETConfirmationResult> ShowPromptAsync(
         TrayAppDotNETUpdatePromptOptions options,
         TrayAppDotNETConfirmationWindow dialog)
     {
         dialog.MapTo(options.Node);
-
-        // An owner that was hidden or closed while a confirmed download ran cannot host the result; it still shows
-        if (!options.Owner.IsVisible)
-        {
-            options.Log("TrayAppDotNETUpdatePromptPresenter: the owner window is gone; the prompt opens on its own.");
-            return await ShowUnownedAsync(dialog);
-        }
-
-        if (options.Owner is FlyoutWindowCommon)
-            dialog.PlaceOverOwnerUpperThird(options.Owner);
-
-        UpdatePromptOwnerBackdrop? ownerBackdrop = null;
-        try
-        {
-            try
-            {
-                ownerBackdrop = UpdatePromptOwnerBackdrop.Attach(options.Owner, options.OwnerBackdrop);
-            }
-            catch (Exception exception)
-            {
-                options.Log($"TrayAppDotNETUpdatePromptPresenter.OwnerBackdrop: {exception.Message}");
-            }
-
-            // A flyout closes the dialog when it hides and keeps itself open while the dialog is up
-            if (options.Owner is FlyoutWindowCommon flyout)
-                return await flyout.ShowOwnedDialogAsync<TrayAppDotNETConfirmationResult>(dialog);
-
-            return await ShowAndCloseAsync(options.Owner, dialog);
-        }
-        finally
-        {
-            ownerBackdrop?.Dispose();
-        }
-    }
-
-    private static async Task<TrayAppDotNETConfirmationResult> ShowAndCloseAsync(
-        Window owner,
-        TrayAppDotNETConfirmationWindow dialog)
-    {
-        bool closed = false;
-        EventHandler onClosed = (_, _) => closed = true;
-        dialog.Closed += onClosed;
-        try
-        {
-            return await dialog.ShowDialog<TrayAppDotNETConfirmationResult>(owner);
-        }
-        finally
-        {
-            dialog.Closed -= onClosed;
-
-            // Hiding the owner completes the modal task with the dialog only hidden, not closed
-            if (!closed) dialog.Close();
-        }
-    }
-
-    private static Task<TrayAppDotNETConfirmationResult> ShowUnownedAsync(TrayAppDotNETConfirmationWindow dialog)
-    {
-        TaskCompletionSource<TrayAppDotNETConfirmationResult> completion = new();
-        EventHandler? onClosed = null;
-        onClosed = (_, _) =>
-        {
-            dialog.Closed -= onClosed;
-            completion.TrySetResult(dialog.Result);
-        };
-        dialog.Closed += onClosed;
-        dialog.WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        dialog.Topmost = true;
-        dialog.Show();
-        return completion.Task;
+        return TrayAppDotNETModalPrompt.ShowAsync(options.Owner, dialog, options.OwnerBackdrop, options.Log);
     }
 
     private static string L(TrayAppDotNETUpdatePromptOptions options, string key) =>
         options.L(key);
-}
-
-internal sealed class UpdatePromptOwnerBackdrop : IDisposable
-{
-    private readonly Window _owner;
-    private readonly Control _originalContent;
-    private readonly Grid _host;
-    private readonly Border _backdrop;
-    private int _disposeState;
-
-    private UpdatePromptOwnerBackdrop(
-        Window owner,
-        Control originalContent,
-        Grid host,
-        Border backdrop)
-    {
-        _owner = owner;
-        _originalContent = originalContent;
-        _host = host;
-        _backdrop = backdrop;
-    }
-
-    /// <summary>Adds a non-interactive backdrop over the complete owner client area.</summary>
-    public static UpdatePromptOwnerBackdrop? Attach(Window owner, Color color)
-    {
-        ArgumentNullException.ThrowIfNull(owner);
-
-        if (owner.Content is not Control originalContent) return null;
-
-        Border backdrop = new()
-        {
-            Background = TrayAppDotNETSettingsUI.Brush(color),
-            CornerRadius = originalContent is Border border ? border.CornerRadius : default,
-            Focusable = false,
-            IsHitTestVisible = false,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Stretch,
-            ZIndex = int.MaxValue
-        };
-        Grid host = new();
-        owner.Content = null;
-        try
-        {
-            host.Children.Add(originalContent);
-            host.Children.Add(backdrop);
-            owner.Content = host;
-        }
-        catch
-        {
-            host.Children.Remove(backdrop);
-            host.Children.Remove(originalContent);
-            owner.Content = originalContent;
-            throw;
-        }
-
-        return new UpdatePromptOwnerBackdrop(owner, originalContent, host, backdrop);
-    }
-
-    public void Dispose()
-    {
-        if (Interlocked.Exchange(ref _disposeState, value: 1) != 0) return;
-
-        _host.Children.Remove(_backdrop);
-        if (!ReferenceEquals(_owner.Content, _host))
-        {
-            _host.Children.Remove(_originalContent);
-            return;
-        }
-
-        _owner.Content = null;
-        _host.Children.Remove(_originalContent);
-        _owner.Content = _originalContent;
-    }
 }

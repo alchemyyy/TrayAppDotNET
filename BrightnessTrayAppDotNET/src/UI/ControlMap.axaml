@@ -537,6 +537,16 @@
     <Surface ID="UpdateConfirmation" Template="Confirmation"
              Source="BrightnessFlyoutWindow.ShowUpdateConfirmation"
              Description="Opened by Flyout.Update, TrayIcon.OpenUpdate and the About page" />
+    <Surface ID="NightLightLeakWarning" Template="Confirmation"
+             Source="BrightnessFlyoutWindow.RunNightLightLeakWarningAsync"
+             Description="Over the flyout on each activated open while Windows' fix for Explorer's Night Light leak is
+                          off; Confirm applies it, Alternate opens NightLightLeakIgnoreConfirmation" />
+    <Surface ID="NightLightLeakIgnoreConfirmation" Template="Confirmation"
+             Source="BrightnessFlyoutWindow.RunNightLightLeakWarningAsync"
+             Description="Confirm stops the warning for good; Cancel returns to NightLightLeakWarning" />
+    <Surface ID="NightLightLeakFixResult" Template="Confirmation"
+             Source="BrightnessFlyoutWindow.ApplyNightLightLeakFixAsync"
+             Description="Restart notice, or the failure message, after the elevated change" />
     <Surface ID="ColorPicker" Template="ColorPicker" Source="SettingsWindowCommon.OpenVariantColorPicker"
              Description="Opened by the VariantColorCard swatches on the Theme page" />
     <Surface ID="Uninstaller" Template="Uninstaller" Source="BrightnessAvaloniaApp.ShowUninstallerWindow" />

@@ -71,4 +71,6 @@ start "" /wait VolumeTrayAppDotNET.exe --uninstall-headless local --delete-setti
 
     The run-as-administrator task of Task Manager (**Always run as administrator**) and of Fan Control (always on, see [Running as Administrator](../apps/fan-control/index.md#running-as-administrator)) starts the app with `--elevated-start-task`, followed by nothing but `--autostart` and `--hidden` (any other argument after it makes the app exit with code `2`). Both apps register or delete that task through an elevated copy of themselves started with `--set-elevated-start on` or `off`. See [Always Run as Administrator](../apps/task-manager/index.md#always-run-as-administrator).
 
+    Brightness turns on Windows' fix for Explorer's Night Light leak through an elevated copy of itself started with `--set-night-light-leak-fix on`, which writes no files and reports through its exit code. See [Explorer Memory Leak](../apps/brightness/night-light.md#explorer-memory-leak).
+
     The watcher reads the app's exit code: `0` or `1` means the app exited on purpose, `3` while the watcher sees Windows ending the session means a sign-out or shutdown (the watcher restarts the app only if it was cancelled), and anything else, including `3` at any other time, is a crash. Every restart counts toward the repeated-crash limit.

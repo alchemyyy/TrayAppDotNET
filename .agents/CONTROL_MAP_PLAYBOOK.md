@@ -170,7 +170,8 @@ Common map (`TrayAppDotNETCommon/src/UI/ControlMap.axaml`) templates, by owner:
 - Scrolling: `ScrollBar`, `ScrollViewport`, `VerticalScrollViewport` (the viewports slot their content). The scroll
   bar's right-click menu is the common-map surface `ScrollBarMenu`, not a template
 - Dialogs: `Confirmation` (`TrayAppDotNETConfirmationWindow`: update, skip and backdate prompts plus app prompts such
-  as Task Manager's column reset and Volume's Equalizer APO download), `ColorPicker`, `Installer`, `Uninstaller`
+  as Task Manager's column reset, Volume's Equalizer APO download and Brightness's Night Light leak warning),
+  `ColorPicker`, `Installer`, `Uninstaller`
 - Flyouts: `FlyoutConfirmOverlay` (`TrayAppDotNETConfirmOverlay`; Escape cancels, Confirm). A flyout surface
   instantiates it on a scope with `Template="FlyoutConfirmOverlay"`. Every flyout surface declares a `Close` command
   leaf with `Keys="Escape"` and `Source="FlyoutWindowCommon.FlyoutWindowCommon"`, which the app passes to the

@@ -356,7 +356,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
 
     private async Task ShowUpdateConfirmationAsync()
     {
-        if (TrayAppDotNETUpdatePromptPresenter.IsBusy(this)) return;
+        if (TrayAppDotNETModalPrompt.IsBusy(this)) return;
 
         UpdateCheckService? service = AppServices.UpdateCheckService;
         UpdateInfo? info = service?.AvailableUpdate;
@@ -426,7 +426,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         SettingsNavItem updateButton = SidebarFooterActions[0];
         bool isUpdateAvailable = AppServices.UpdateCheckService?.AvailableUpdate != null;
         updateButton.IsVisible = isUpdateAvailable;
-        updateButton.IsEnabled = isUpdateAvailable && !TrayAppDotNETUpdatePromptPresenter.IsBusy(this);
+        updateButton.IsEnabled = isUpdateAvailable && !TrayAppDotNETModalPrompt.IsBusy(this);
     }
 
     /// <summary>Rebuilds the shared shell after the app theme or settings change.</summary>

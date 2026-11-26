@@ -1152,4 +1152,37 @@
   <data name="Settings_Monitors_IdentifyDisplays_SearchKeywords" xml:space="preserve">
     <value>display number which monitor badge overlay identify</value>
   </data>
+  <data name="Flyout_NightLightLeak_Title" xml:space="preserve">
+    <value>Fix the Explorer memory leak?</value>
+  </data>
+  <data name="Flyout_NightLightLeak_Description" xml:space="preserve">
+    <value>Each Night Light change leaks memory in Explorer, and Brightness changes Night Light often. After a day or so, right-click menus get noticeably slow. Windows has a fix for this, but it's turned off on this PC.</value>
+  </data>
+  <data name="Flyout_NightLightLeak_Notice" xml:space="preserve">
+    <value>Fixing it needs administrator approval and takes effect after Windows restarts.</value>
+  </data>
+  <data name="Flyout_NightLightLeak_Fix" xml:space="preserve">
+    <value>Fix</value>
+  </data>
+  <data name="Flyout_NightLightLeak_Ignore" xml:space="preserve">
+    <value>Ignore</value>
+  </data>
+  <data name="Flyout_NightLightLeak_IgnoreTitle" xml:space="preserve">
+    <value>Ignore the memory leak?</value>
+  </data>
+  <data name="Flyout_NightLightLeak_IgnoreDescription" xml:space="preserve">
+    <value>Brightness won't warn you about it again. Explorer keeps leaking memory as Night Light changes, and right-click menus keep slowing down until Explorer restarts.</value>
+  </data>
+  <data name="Flyout_NightLightLeak_RestartTitle" xml:space="preserve">
+    <value>Restart Windows to finish</value>
+  </data>
+  <data name="Flyout_NightLightLeak_RestartDescription" xml:space="preserve">
+    <value>The fix is saved, and Windows turns it on when it restarts. Until then, Explorer keeps leaking memory.</value>
+  </data>
+  <data name="Flyout_NightLightLeak_FailedTitle" xml:space="preserve">
+    <value>Fix failed</value>
+  </data>
+  <data name="Flyout_NightLightLeak_FailedDescription" xml:space="preserve">
+    <value>The fix could not be saved. Check the log for details.</value>
+  </data>
 </root>

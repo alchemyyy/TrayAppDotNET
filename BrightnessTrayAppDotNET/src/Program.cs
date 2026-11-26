@@ -12,6 +12,14 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        // Elevated, so it writes no file: a same-user process controls the user's folders and could redirect an
+        // elevated write with a junction. Its exit code is the whole report.
+        if (NightLightLeakFix.IsElevatedConfigureLaunch(args))
+        {
+            TADNLog.InitializeForElevatedProcess(forwarder: null);
+            return NightLightLeakFix.RunElevatedConfigure(args);
+        }
+
         if (NightLightHelperServer.TryRun(args, out int nightLightHelperExitCode))
             return nightLightHelperExitCode;
 

@@ -168,6 +168,9 @@ internal sealed class BrightnessAvaloniaApp : Application
         }
         catch (Exception ex) { TADNLog.Log($"BrightnessAvaloniaApp night-light init failed: {ex.Message}"); }
 
+        // Before any flyout opens: an opened flyout warns while the fix is missing
+        NightLightLeakFix.RecordState();
+
         ApplyPDBDownloadTimeout(_settings);
 
         try
