@@ -357,7 +357,6 @@ public sealed class PerformanceDevicePresentationTests
             static statistic => statistic.Value);
 
         Assert.Equal(expected: "3.0/16.0 GB", valuesByLabel[L(nameof(AppStrings.Perf_Label_DedicatedGPUMemory))]);
-        Assert.Equal(expected: "3.5/80.0 GB", valuesByLabel[L(nameof(AppStrings.Perf_Label_GPUMemory))]);
         Assert.Equal(expected: "0.5/64.0 GB", valuesByLabel[L(nameof(AppStrings.Perf_Label_SharedGPUMemory))]);
         Assert.Equal(expected: "32 \u00B0C", valuesByLabel[L(nameof(AppStrings.Perf_Label_Temperature))]);
         Assert.Equal(expected: "25%", valuesByLabel[L(nameof(AppStrings.Perf_Label_Power))]);
@@ -390,39 +389,6 @@ public sealed class PerformanceDevicePresentationTests
                 .Statistics.ToArray()
                 .Single(static statistic => statistic.Label == L(nameof(AppStrings.Perf_Label_Power)))
                 .Value;
-    }
-
-    [Fact]
-    public void GPUTotalMemoryIsUnavailableWhenEitherUsageCounterIsMissing()
-    {
-        const ulong Gibibyte = 1_073_741_824;
-        GPUPerformanceSnapshot GPU = new(
-            DeviceID: "gpu:test",
-            PerformanceDeviceKind.GPU,
-            SortKey: 0,
-            Name: "GPU",
-            AdapterLUID: 1,
-            PhysicalAdapterIndex: 0,
-            HasUtilizationSample: true,
-            UtilizationPercent: 0,
-            ReadOnlyMemory<GPUPerformanceEngineSnapshot>.Empty,
-            HasDedicatedMemoryData: true,
-            Gibibyte,
-            8 * Gibibyte,
-            HasSharedMemoryData: false,
-            SharedMemoryBytes: 0,
-            16 * Gibibyte);
-        PerformanceSnapshot snapshot = PerformanceSnapshot.Empty with { GPUs = new[] { GPU } };
-
-        PerformanceDevicePresentation device = PerformanceDevicePresentationFactory.Create(snapshot)
-            .Single(static candidate => candidate.DeviceID == "gpu:test");
-        Dictionary<string, string> valuesByLabel = device.Statistics.ToArray().ToDictionary(
-            static statistic => statistic.Label,
-            static statistic => statistic.Value);
-
-        Assert.NotEqual(expected: Unavailable, valuesByLabel[L(nameof(AppStrings.Perf_Label_DedicatedGPUMemory))]);
-        Assert.Equal(expected: Unavailable, valuesByLabel[L(nameof(AppStrings.Perf_Label_SharedGPUMemory))]);
-        Assert.Equal(expected: Unavailable, valuesByLabel[L(nameof(AppStrings.Perf_Label_GPUMemory))]);
     }
 
     [Fact]

@@ -1685,7 +1685,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         {
             PerformanceDeviceKind.CPU => 8,
             PerformanceDeviceKind.Memory => 6,
-            PerformanceDeviceKind.GPU => 9,
+            PerformanceDeviceKind.GPU => 8,
             PerformanceDeviceKind.Network => 2,
             PerformanceDeviceKind.Disk => 4,
             _ => 0

@@ -1371,9 +1371,6 @@
   <data name="Perf_Label_DedicatedGPUMemory" xml:space="preserve">
     <value>Dedicated GPU memory</value>
   </data>
-  <data name="Perf_Label_GPUMemory" xml:space="preserve">
-    <value>GPU Memory</value>
-  </data>
   <data name="Perf_Label_SharedGPUMemory" xml:space="preserve">
     <value>Shared GPU memory</value>
   </data>
@@ -1415,9 +1412,6 @@
   </data>
   <data name="Perf_Label_PCIeLink" xml:space="preserve">
     <value>PCIe link</value>
-  </data>
-  <data name="Perf_Label_DedicatedAndSharedGPUMemory" xml:space="preserve">
-    <value>Dedicated and shared GPU memory</value>
   </data>
   <data name="Perf_GPUMenu_ShowPowerInWatts" xml:space="preserve">
     <value>Show power in watts</value>

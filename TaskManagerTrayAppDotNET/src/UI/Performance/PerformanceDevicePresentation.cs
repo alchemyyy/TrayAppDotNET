@@ -330,16 +330,6 @@ internal static class PerformanceDevicePresentationFactory
         string sharedMemory = sample.HasSharedMemoryData
             ? FormatBytePair(sample.SharedMemoryBytes, sample.SharedMemoryCapacityBytes)
             : Unavailable;
-        bool hasGPUMemoryData = sample is { HasDedicatedMemoryData: true, HasSharedMemoryData: true };
-        ulong totalGPUMemoryBytes = SaturatingAdd(
-            sample.DedicatedMemoryBytes,
-            sample.SharedMemoryBytes);
-        ulong totalGPUMemoryCapacityBytes = SaturatingAdd(
-            dedicatedMemoryCapacityBytes,
-            sample.SharedMemoryCapacityBytes);
-        string totalGPUMemory = hasGPUMemoryData && totalGPUMemoryCapacityBytes > 0
-            ? FormatBytePair(totalGPUMemoryBytes, totalGPUMemoryCapacityBytes)
-            : Unavailable;
         string temperature = details?.HasTemperatureData == true
             ? string.Concat(
                 details.TemperatureCelsius.ToString(format: "N0", CultureInfo.CurrentCulture),
@@ -365,7 +355,6 @@ internal static class PerformanceDevicePresentationFactory
         [
             new(Label: L(nameof(AppStrings.Perf_Label_Utilization)), utilization),
             new(Label: L(nameof(AppStrings.Perf_Label_DedicatedGPUMemory)), dedicatedMemory),
-            new(Label: L(nameof(AppStrings.Perf_Label_GPUMemory)), totalGPUMemory),
             new(Label: L(nameof(AppStrings.Perf_Label_SharedGPUMemory)), sharedMemory),
             new(Label: L(nameof(AppStrings.Perf_Label_Temperature)), temperature),
             new(Label: L(nameof(AppStrings.Perf_Label_Power)), power),

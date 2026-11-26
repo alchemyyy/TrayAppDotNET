@@ -113,17 +113,17 @@ Serial numbers are hidden by default. Turn on **Show memory module serial number
 
 Each physical GPU gets one row, even if Windows lists it several times. The device row and the main utilization number follow the busiest engine, not the sum of all engines.
 
-Selecting a GPU shows its graphs two to a row, with memory across the bottom, instead of the single big graph:
+Selecting a GPU shows its graphs two to a row, with dedicated memory across the bottom, instead of the single big graph:
 
 - The first two engines your GPU reports, usually **3D** and **Copy**, each on its own graph. When it doesn't report enough engines, they're filled in with **3D**, **Copy**, **Video Decode** and **Video Encode**.
 - **Video Decode / Encode**: decode as a solid line, encode as a dashed line in a lighter magenta. The header shows both, decode first.
 - **Power**: what the board draws, as a percentage of its default power limit, or in watts once you turn that on (see below).
 - **GPU clock** and **Memory clock**, in MHz. The GPU clock graph tops out at the driver's maximum clock or the highest clock seen, whichever is higher; the memory clock graph at the highest memory clock seen.
-- **Dedicated and shared GPU memory**: dedicated as a solid line and shared as a dashed one, each scaled to its own capacity. The header shows both capacities.
+- **Dedicated GPU memory**, against the card's installed memory, which the header shows.
 
 A graph only appears once its metric has a sample, so a GPU whose driver doesn't report power or clocks, or that lacks an engine, shows no empty graph for it. The graphs left close up, and one that stops reporting goes away once its last sample leaves the graph.
 
-Stats: **Utilization**, **Dedicated GPU memory**, **GPU Memory**, **Shared GPU memory**, **Temperature**, **Power**, **GPU clock**, **Memory clock**, **Max GPU clock**, **Driver version**, **Driver date**, **DirectX version**, **vBIOS version**, **Device ID**, **PCIe link**, **Physical location**, **Hardware reserved memory**.
+Stats: **Utilization**, **Dedicated GPU memory**, **Shared GPU memory**, **Temperature**, **Power**, **GPU clock**, **Memory clock**, **Max GPU clock**, **Driver version**, **Driver date**, **DirectX version**, **vBIOS version**, **Device ID**, **PCIe link**, **Physical location**, **Hardware reserved memory**.
 
 - The clocks come from Windows (the driver's per-engine and adapter performance data), not from a vendor library, and matched `nvidia-smi` on an RTX 5080. **Max GPU clock** is the maximum the driver reports; GPU Boost can run above it (3,210 MHz against a reported 3,090 MHz on that card).
 

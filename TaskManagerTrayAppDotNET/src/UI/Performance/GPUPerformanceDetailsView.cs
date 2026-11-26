@@ -7,8 +7,8 @@ using Avalonia.Media;
 namespace TaskManagerTrayAppDotNET.UI.Performance;
 
 /// <summary>
-/// Displays the GPU's engine histories (the first two alone, the video pair together), its power, and its dedicated
-/// and shared memory on one graph.
+/// Displays the GPU's engine histories (the first two alone, the video pair together), its power and clocks, and its
+/// dedicated memory.
 /// </summary>
 internal sealed class GPUPerformanceDetailsView : Grid
 {
@@ -64,7 +64,6 @@ internal sealed class GPUPerformanceDetailsView : Grid
     private PerformanceMetricHistory _clockHistory;
     private PerformanceMetricHistory _memoryClockHistory;
     private PerformanceMetricHistory _dedicatedMemoryHistory;
-    private PerformanceMetricHistory _sharedMemoryHistory;
     private string? _deviceID;
     private int _historyLengthMinutes;
     private int _sampleIntervalMilliseconds;
@@ -89,7 +88,6 @@ internal sealed class GPUPerformanceDetailsView : Grid
         _clockHistory = CreateMetricHistory();
         _memoryClockHistory = CreateMetricHistory();
         _dedicatedMemoryHistory = CreateMetricHistory();
-        _sharedMemoryHistory = CreateMetricHistory();
         IsVisible = false;
         ColumnSpacing = resources.AxamlTaskManagerPerformance.GPUDetailGraphColumnSpacing;
         RowSpacing = resources.AxamlTaskManagerPerformance.GPUDetailGraphRowSpacing;
@@ -175,21 +173,20 @@ internal sealed class GPUPerformanceDetailsView : Grid
 
         _memoryGraph = new PerformanceMetricHistoryGraph(
             _dedicatedMemoryHistory,
-            _sharedMemoryHistory,
+            secondaryHistory: null,
             primaryLabel: L(nameof(AppStrings.Perf_Label_DedicatedGPUMemory)),
-            secondaryLabel: L(nameof(AppStrings.Perf_Label_SharedGPUMemory)),
+            string.Empty,
             PerformanceDevicePresentationFactory.FormatBytes,
             accent,
             palette,
             resources,
-            isLightTheme,
-            secondaryAccent)
+            isLightTheme)
         {
             Height = resources.AxamlTaskManagerPerformance.GPUDetailMemoryGraphHeight,
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
         _memoryCell = BuildGraphCell(
-            title: L(nameof(AppStrings.Perf_Label_DedicatedAndSharedGPUMemory)),
+            title: L(nameof(AppStrings.Perf_Label_DedicatedGPUMemory)),
             _memoryGraph,
             initialValue: Unavailable,
             out _,
@@ -253,12 +250,11 @@ internal sealed class GPUPerformanceDetailsView : Grid
         _clockHistory = CreateMetricHistory();
         _memoryClockHistory = CreateMetricHistory();
         _dedicatedMemoryHistory = CreateMetricHistory();
-        _sharedMemoryHistory = CreateMetricHistory();
         _powerGraph.SetHistories(_powerHistory, secondaryHistory: null);
         _powerGraph.SetMaximumValue(MinimumPowerScalePercent);
         _clockGraph.SetHistories(_clockHistory, secondaryHistory: null);
         _memoryClockGraph.SetHistories(_memoryClockHistory, secondaryHistory: null);
-        _memoryGraph.SetHistories(_dedicatedMemoryHistory, _sharedMemoryHistory);
+        _memoryGraph.SetHistories(_dedicatedMemoryHistory, secondaryHistory: null);
         _hasPowerSample = false;
         _lastTimestamp = 0;
         for (int snapshotIndex = 0; snapshotIndex < snapshots.Count; snapshotIndex++)
@@ -290,8 +286,6 @@ internal sealed class GPUPerformanceDetailsView : Grid
             AppendClocks(snapshot.CapturedTimestamp, details);
             if (selectedGPU.HasDedicatedMemoryData)
                 _dedicatedMemoryHistory.Add(snapshot.CapturedTimestamp, selectedGPU.DedicatedMemoryBytes);
-            if (selectedGPU.HasSharedMemoryData)
-                _sharedMemoryHistory.Add(snapshot.CapturedTimestamp, selectedGPU.SharedMemoryBytes);
 
             UpdateMemoryScale(selectedGPU);
         }
@@ -534,7 +528,7 @@ internal sealed class GPUPerformanceDetailsView : Grid
             _halfWidthCellVisible[cellIndex] = isVisible;
         }
 
-        bool memoryVisible = _dedicatedMemoryHistory.Count > 0 || _sharedMemoryHistory.Count > 0;
+        bool memoryVisible = _dedicatedMemoryHistory.Count > 0;
         changed |= _memoryCellVisible != memoryVisible;
         _memoryCellVisible = memoryVisible;
         if (!changed) return;
@@ -581,7 +575,6 @@ internal sealed class GPUPerformanceDetailsView : Grid
         _clockHistory.AdvanceTo(timestamp);
         _memoryClockHistory.AdvanceTo(timestamp);
         _dedicatedMemoryHistory.AdvanceTo(timestamp);
-        _sharedMemoryHistory.AdvanceTo(timestamp);
     }
 
     private void UpdateMemoryScale(GPUPerformanceSnapshot GPU)
@@ -595,21 +588,10 @@ internal sealed class GPUPerformanceDetailsView : Grid
         double dedicatedCapacity = dedicatedCapacityBytes > 0
             ? dedicatedCapacityBytes
             : Math.Max(val1: 1, _dedicatedMemoryHistory.GetMaximumValue());
-        double sharedCapacity = GPU.SharedMemoryCapacityBytes > 0
-            ? GPU.SharedMemoryCapacityBytes
-            : Math.Max(val1: 1, _sharedMemoryHistory.GetMaximumValue());
-
-        // Each series fills the graph against its own capacity, as the two separate graphs did
         _memoryGraph.SetMaximumValue(dedicatedCapacity);
-        _memoryGraph.SetSecondaryMaximumValue(sharedCapacity);
-        _memoryCapacityLabel.Text = string.Concat(
-            dedicatedCapacityBytes > 0
-                ? PerformanceDevicePresentationFactory.FormatBytes(dedicatedCapacityBytes)
-                : Unavailable,
-            " / ",
-            GPU.SharedMemoryCapacityBytes > 0
-                ? PerformanceDevicePresentationFactory.FormatBytes(GPU.SharedMemoryCapacityBytes)
-                : Unavailable);
+        _memoryCapacityLabel.Text = dedicatedCapacityBytes > 0
+            ? PerformanceDevicePresentationFactory.FormatBytes(dedicatedCapacityBytes)
+            : Unavailable;
     }
 
     private void RefreshGraphs()
