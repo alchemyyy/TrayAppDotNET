@@ -34,8 +34,8 @@ public sealed class GPUPerformanceDetailsReaderTests
             engines,
             engine => AssertEngine(engine, expectedIndex: 1, expectedName: "3D", expectedUtilization: 30),
             engine => AssertEngine(engine, expectedIndex: 3, expectedName: "Copy", expectedUtilization: 5),
-            engine => AssertEngine(engine, expectedIndex: 2, expectedName: "Video Encode", expectedUtilization: 0),
-            engine => AssertEngine(engine, expectedIndex: 0, expectedName: "Video Decode", expectedUtilization: 7.5));
+            engine => AssertEngine(engine, expectedIndex: 0, expectedName: "Video Decode", expectedUtilization: 7.5),
+            engine => AssertEngine(engine, expectedIndex: 2, expectedName: "Video Encode", expectedUtilization: 0));
     }
 
     [Fact]
@@ -104,7 +104,9 @@ public sealed class GPUPerformanceDetailsReaderTests
             PhysicalLocation: "PCI bus 33, device 0, function 0",
             HasHardwareReservedMemoryData: true,
             HardwareReservedMemoryBytes: 347_078_656,
-            ReadOnlyMemory<GPUAdapterEngineIdentity>.Empty);
+            ReadOnlyMemory<GPUAdapterEngineIdentity>.Empty,
+            GPUAdapterIdentity.Empty,
+            ClockNodeOrdinal: 0);
 
         GPUAdapterHardwareMetadata selectedMetadata =
             GPUPerformanceDetailsReader.SelectMetadataAfterRefresh(
@@ -127,7 +129,9 @@ public sealed class GPUPerformanceDetailsReaderTests
             string.Empty,
             HasHardwareReservedMemoryData: false,
             HardwareReservedMemoryBytes: 0,
-            ReadOnlyMemory<GPUAdapterEngineIdentity>.Empty);
+            ReadOnlyMemory<GPUAdapterEngineIdentity>.Empty,
+            GPUAdapterIdentity.Empty,
+            ClockNodeOrdinal: 0);
         GPUAdapterHardwareMetadata refreshedMetadata = previousMetadata with
         {
             DriverVersion = "2.0.0.0", FeatureLevel = "12.2"
@@ -209,11 +213,17 @@ public sealed class GPUPerformanceDetailsReaderTests
                 Assert.False(string.IsNullOrWhiteSpace(metadata.FeatureLevel));
             }
 
-            bool hasTemperature = GPUAdapterNativeDetailsReader.TryReadTemperature(
+            GPUAdapterPerformanceData performanceData = GPUAdapterNativeDetailsReader.ReadPerformanceData(
                 key,
-                out double temperatureCelsius);
-            if (hasTemperature)
-                Assert.InRange(temperatureCelsius, low: 0.1, high: 200);
+                metadata.ClockNodeOrdinal);
+            if (performanceData.HasClock)
+                Assert.InRange(performanceData.ClockHertz, low: 1_000_000UL, high: 10_000_000_000UL);
+            if (performanceData.HasMemoryClock)
+                Assert.InRange(performanceData.MemoryClockHertz, low: 1_000_000UL, high: 100_000_000_000UL);
+            if (performanceData.HasTemperature)
+                Assert.InRange(performanceData.TemperatureCelsius, low: 0.1, high: 200);
+            if (performanceData.HasPower)
+                Assert.InRange(performanceData.PowerPercent, low: 0.1, high: 1_000);
         }
     }
 

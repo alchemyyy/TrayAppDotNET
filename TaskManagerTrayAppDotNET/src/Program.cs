@@ -20,6 +20,10 @@ internal static class Program
                 : TrayAppDotNETElevatedStartTask.RejectedTaskLaunchExitCode;
         }
 
+        // The GPU power-limit reader loads a vendor library, prints one line and exits: no window, log or instance
+        if (GPUPowerLimitReader.IsHelperLaunch(args))
+            return GPUPowerLimitReader.RunHelper(args);
+
         // Elevated modes write no file in the user's folders: a same-user process controls them and could redirect an
         // elevated write with a junction. The configure modes report through their exit code; the broker sends its log
         // lines to the UI over its pipe. All of them set this up before anything can log.

@@ -179,10 +179,8 @@
   <sys:Double x:Key="TaskManagerPerformance.DetailGraphMinimumHeight">260</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.DetailPrimaryStatisticWidth">132</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.MemoryPrimaryStatisticWidth">225</sys:Double>
-  <sys:Double x:Key="TaskManagerPerformance.DetailMetadataStatisticLabelWidth">112</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.DetailMetadataStatisticColumnSpacing">16</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.DetailStatisticsColumnSpacing">24</sys:Double>
-  <sys:Double x:Key="TaskManagerPerformance.DetailStatisticsPrimaryRatio">2</sys:Double>
-  <sys:Double x:Key="TaskManagerPerformance.DetailStatisticsMetadataRatio">1</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.DetailStatisticLabelFontSize">11</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.DetailPrimaryStatisticValueFontSize">25</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.DetailStatisticValueFontSize">14</sys:Double>
@@ -199,9 +197,10 @@
   <sys:Double x:Key="TaskManagerPerformance.MemoryModuleLabelWidth">72</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.DiskTransferGraphHeight">92</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GPUDetailEngineGraphMinimumHeight">72</sys:Double>
-  <sys:Double x:Key="TaskManagerPerformance.GPUDetailMemoryGraphHeight">62</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.GPUDetailMemoryGraphHeight">96</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GPUDetailGraphColumnSpacing">12</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GPUDetailGraphRowSpacing">7</sys:Double>
+  <Thickness x:Key="TaskManagerPerformance.GPUDetailGraphValueMargin">8,0,0,0</Thickness>
   <sys:Double x:Key="TaskManagerPerformance.LogicalProcessorGraphSpacing">5</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.LogicalProcessorGridAspectRatio">1.3333333333333333</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.DetailedCPUGraphSpacing">8</sys:Double>
@@ -209,6 +208,7 @@
   <Color x:Key="TaskManagerPerformance.CPUAccentColor">#32B5E5</Color>
   <Color x:Key="TaskManagerPerformance.MemoryAccentColor">#5883D0</Color>
   <Color x:Key="TaskManagerPerformance.GPUAccentColor">#A94FC4</Color>
+  <Color x:Key="TaskManagerPerformance.GPUSecondaryAccentColor">#E06AC8</Color>
   <Color x:Key="TaskManagerPerformance.NetworkAccentColor">#D04780</Color>
   <Color x:Key="TaskManagerPerformance.DiskAccentColor">#8BAD3C</Color>
   <Thickness x:Key="TaskManagerPerformance.BodyMargin">8,8,16,16</Thickness>

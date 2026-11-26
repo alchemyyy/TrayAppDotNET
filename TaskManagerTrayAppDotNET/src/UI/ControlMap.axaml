@@ -265,7 +265,7 @@
             <Scope ID="Details" Source="PerformancePage.PerformancePage">
                 <Leaf ID="OpenGraphMenu" Kind="Region" IsTabStop="False" Pointer="RightClick" Event="PointerPressed"
                       Source="PerformancePage.OnGraphSurfacePointerPressed"
-                      Description="Graph area while CPU is selected; opens CPUGraphMenu" />
+                      Description="Graph area while CPU or a GPU is selected; opens CPUGraphMenu or GPUGraphMenu" />
                 <Leaf ID="MemoryModules" Kind="Handle" IsTabStop="False" Pointer="Wheel;Drag"
                       Source="MemoryModuleDetailsPanel.MemoryModuleDetailsPanel"
                       Description="Memory only: plain ScrollViewer over the module cards, no app handler" />
@@ -638,6 +638,12 @@
               Source="PerformancePage.ShowCPUGraphContextMenu" />
         <Leaf ID="DetailedView" Kind="ListItem" Event="MenuEntry"
               Source="PerformancePage.ShowCPUGraphContextMenu" />
+    </Surface>
+
+    <Surface ID="GPUGraphMenu" Kind="Popup" Template="ContextMenu" Source="PerformancePage.ShowGPUGraphContextMenu"
+             Description="GPU power units; greyed out with the reason as its tooltip when the power limit cannot be read">
+        <Leaf ID="ShowPowerInWatts" Kind="ListItem" Event="MenuEntry"
+              Source="PerformancePage.ShowGPUGraphContextMenu" />
     </Surface>
 
     <Surface ID="AppHistoryMoreMenu" Kind="Popup" Template="ContextMenu" Source="AppHistoryPage.OnMoreClick">

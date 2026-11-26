@@ -15,12 +15,13 @@ internal sealed class GPUPerformanceDetailsReader
     private const long MetadataRefreshIntervalMilliseconds =
         MetadataRefreshMinutes * SecondsPerMinute * MillisecondsPerSecond;
 
+    // Video Decode precedes Video Encode because the combined video graph draws decode as its solid trace
     private static readonly string[] PreferredEngineNames =
     [
         "3D",
         "Copy",
-        "Video Encode",
         "Video Decode",
+        "Video Encode",
         "Compute",
         "Video Processing",
         "Optical Flow"
@@ -71,22 +72,30 @@ internal sealed class GPUPerformanceDetailsReader
             cachedMetadata.EngineSlots,
             snapshot.Engines.Span,
             snapshot.HasUtilizationSample);
-        bool hasTemperatureData = GPUAdapterNativeDetailsReader.TryReadTemperature(
+        GPUAdapterPerformanceData performanceData = GPUAdapterNativeDetailsReader.ReadPerformanceData(
             key,
-            out double temperatureCelsius);
+            metadata.ClockNodeOrdinal);
         error = cachedMetadata.Error;
 
         return new GPUPerformanceDetailsSnapshot(
             engines,
-            hasTemperatureData,
-            temperatureCelsius,
+            performanceData.HasTemperature,
+            performanceData.TemperatureCelsius,
+            performanceData.HasPower,
+            performanceData.PowerPercent,
+            performanceData.HasClock,
+            performanceData.ClockHertz,
+            performanceData.MaximumClockHertz,
+            performanceData.HasMemoryClock,
+            performanceData.MemoryClockHertz,
             metadata.DriverVersion,
             metadata.DriverDate,
             metadata.DirectXVersion,
             metadata.FeatureLevel,
             metadata.PhysicalLocation,
             metadata.HasHardwareReservedMemoryData,
-            metadata.HardwareReservedMemoryBytes);
+            metadata.HardwareReservedMemoryBytes,
+            metadata.Identity);
     }
 
     /// <summary>Schedules quick failure retries and periodic successful metadata refreshes.</summary>

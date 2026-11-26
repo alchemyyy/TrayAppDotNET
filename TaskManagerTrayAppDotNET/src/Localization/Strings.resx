@@ -1395,6 +1395,54 @@
   <data name="Perf_Label_HardwareReservedMemory" xml:space="preserve">
     <value>Hardware reserved memory</value>
   </data>
+  <data name="Perf_Label_Power" xml:space="preserve">
+    <value>Power</value>
+  </data>
+  <data name="Perf_Label_GPUClock" xml:space="preserve">
+    <value>GPU clock</value>
+  </data>
+  <data name="Perf_Label_MemoryClock" xml:space="preserve">
+    <value>Memory clock</value>
+  </data>
+  <data name="Perf_Label_MaxGPUClock" xml:space="preserve">
+    <value>Max GPU clock</value>
+  </data>
+  <data name="Perf_Label_VBIOSVersion" xml:space="preserve">
+    <value>vBIOS version</value>
+  </data>
+  <data name="Perf_Label_DeviceID" xml:space="preserve">
+    <value>Device ID</value>
+  </data>
+  <data name="Perf_Label_PCIeLink" xml:space="preserve">
+    <value>PCIe link</value>
+  </data>
+  <data name="Perf_Label_DedicatedAndSharedGPUMemory" xml:space="preserve">
+    <value>Dedicated and shared GPU memory</value>
+  </data>
+  <data name="Perf_GPUMenu_ShowPowerInWatts" xml:space="preserve">
+    <value>Show power in watts</value>
+  </data>
+  <data name="Perf_GPUMenu_ReadingPowerLimit" xml:space="preserve">
+    <value>Reading power limit…</value>
+  </data>
+  <data name="Perf_GPUMenu_ShowPowerInWattsTip" xml:space="preserve">
+    <value>Reads this GPU's default power limit once through {0}, then shows power in watts. The value is kept until the GPU's vBIOS changes.</value>
+    <comment>{0}: the vendor monitoring library file name, such as nvml.dll</comment>
+  </data>
+  <data name="Perf_GPUMenu_NoLibraryTip" xml:space="preserve">
+    <value>Power in watts needs {0}, which this GPU's driver did not install. Power is shown as a percentage of the default power limit.</value>
+    <comment>{0}: the vendor monitoring library file name, such as nvml.dll</comment>
+  </data>
+  <data name="Perf_GPUMenu_UnsupportedVendorTip" xml:space="preserve">
+    <value>Power in watts is only available for NVIDIA, AMD, and Intel GPUs. Power is shown as a percentage of the default power limit.</value>
+  </data>
+  <data name="Perf_GPUMenu_NoPowerDataTip" xml:space="preserve">
+    <value>This GPU's driver does not report power to Windows.</value>
+  </data>
+  <data name="Perf_GPUMenu_ReadFailedTip" xml:space="preserve">
+    <value>The last attempt to read the power limit failed: {0}</value>
+    <comment>{0}: the failure reason reported by the vendor library reader</comment>
+  </data>
   <data name="Perf_Label_Send" xml:space="preserve">
     <value>Send</value>
   </data>

@@ -10,9 +10,13 @@ internal static unsafe class GPUAdapterNativeDetailsReader
     private const int AdapterAddressInformation = 6;
     private const int GetSegmentSizeInformation = 3;
     private const int NodeMetadataInformation = 25;
+    private const int NodePerformanceDataInformation = 61;
     private const int AdapterPerformanceDataInformation = 62;
     private const int MaximumEngineNodeCount = 256;
     private const uint MaximumTemperatureDeciCelsius = 2_000;
+
+    // Ten times the default limit; anything higher is a driver reporting garbage
+    private const uint MaximumPowerDeciPercent = 10_000;
     private const int DXGIErrorDeviceRemoved = unchecked((int)0x887A0005);
     private const int DXGIErrorDeviceHung = unchecked((int)0x887A0006);
     private const int DXGIErrorDeviceReset = unchecked((int)0x887A0007);
@@ -48,6 +52,8 @@ internal static unsafe class GPUAdapterNativeDetailsReader
         GPUAdapterEngineIdentity[] engineCatalog = [];
         ulong visibleDedicatedMemoryBytes = 0;
         string kernelPhysicalLocation = string.Empty;
+        GPUPCIAddress pciAddress = default;
+        int clockNodeOrdinal = -1;
         bool hasKernelMetadata = false;
         if (D3DKMT.TryOpenAdapter(key.LUID, out uint adapterHandle))
         {
@@ -57,6 +63,7 @@ internal static unsafe class GPUAdapterNativeDetailsReader
                 engineCatalog = ReadEngineCatalog(
                     adapterHandle,
                     key.PhysicalAdapterIndex);
+                clockNodeOrdinal = FindClockNode(adapterHandle, key.PhysicalAdapterIndex, engineCatalog);
                 if (TryReadAdapterInformation(
                         adapterHandle,
                         GetSegmentSizeInformation,
@@ -70,6 +77,11 @@ internal static unsafe class GPUAdapterNativeDetailsReader
                     && IsValidPCIAddress(adapterAddress))
                 {
                     kernelPhysicalLocation = FormatPhysicalLocation(
+                        adapterAddress.BusNumber,
+                        adapterAddress.DeviceNumber,
+                        adapterAddress.FunctionNumber);
+                    pciAddress = new GPUPCIAddress(
+                        HasValue: true,
                         adapterAddress.BusNumber,
                         adapterAddress.DeviceNumber,
                         adapterAddress.FunctionNumber);
@@ -115,15 +127,68 @@ internal static unsafe class GPUAdapterNativeDetailsReader
             physicalLocation,
             hasHardwareReservedMemoryData,
             hardwareReservedMemoryBytes,
-            engineCatalog);
+            engineCatalog,
+            CreateIdentity(deviceMetadata, pciAddress),
+            clockNodeOrdinal);
     }
 
-    /// <summary>Reads the optional WDDM adapter temperature, reported in deci-Celsius.</summary>
-    public static bool TryReadTemperature(GPUAdapterKey key, out double temperatureCelsius)
+    /// <summary>Derives the vendor-published versions and parsed IDs from the raw device-manager values.</summary>
+    internal static GPUAdapterIdentity CreateIdentity(GPUDeviceMetadata deviceMetadata, GPUPCIAddress pciAddress)
     {
-        temperatureCelsius = 0;
-        if (key.PhysicalAdapterIndex < 0) return false;
-        if (!D3DKMT.TryOpenAdapter(key.LUID, out uint adapterHandle)) return false;
+        _ = GPUVendorFormatting.TryParseHardwareID(deviceMetadata.HardwareID, out GPUHardwareID hardwareID);
+        return new GPUAdapterIdentity(
+            deviceMetadata.DeviceInstanceID,
+            hardwareID,
+            GPUVendorFormatting.FormatPublicDriverVersion(
+                hardwareID.VendorID,
+                deviceMetadata.DriverVersion,
+                deviceMetadata.AMDSoftwareVersion),
+            GPUVendorFormatting.NormalizeVBIOSVersion(hardwareID.VendorID, deviceMetadata.BIOSString),
+            deviceMetadata.Link,
+            pciAddress);
+    }
+
+    /// <summary>
+    /// Finds the engine node whose performance data carries the GPU clock. Drivers report one clock for the whole
+    /// graphics core on one node (the 3D engine on an RTX 5080) and zero on the rest, so 3D is tried first.
+    /// </summary>
+    private static int FindClockNode(
+        uint adapterHandle,
+        int physicalAdapterIndex,
+        ReadOnlySpan<GPUAdapterEngineIdentity> engineCatalog)
+    {
+        if (physicalAdapterIndex < 0) return -1;
+
+        for (int pass = 0; pass < 2; pass++)
+        {
+            for (int engineIndex = 0; engineIndex < engineCatalog.Length; engineIndex++)
+            {
+                GPUAdapterEngineIdentity engine = engineCatalog[engineIndex];
+                bool is3D = string.Equals(engine.Name, "3D", StringComparison.OrdinalIgnoreCase);
+                if (is3D != (pass == 0)) continue;
+
+                if (TryReadNodePerformanceData(
+                        adapterHandle,
+                        physicalAdapterIndex,
+                        engine.EngineIndex,
+                        out D3DKMT_NODE_PERFDATA nodeData)
+                    && (nodeData.Frequency > 0 || nodeData.MaxFrequency > 0))
+                    return engine.EngineIndex;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// Reads the optional WDDM adapter performance data: temperature (deci-Celsius), power (tenths of a percent of
+    /// the board's default power limit, as measured against nvidia-smi on an RTX 5080), memory clock, and the GPU
+    /// clock from <paramref name="clockNodeOrdinal"/>'s node data. Both clocks matched nvidia-smi on that card.
+    /// </summary>
+    public static GPUAdapterPerformanceData ReadPerformanceData(GPUAdapterKey key, int clockNodeOrdinal)
+    {
+        if (key.PhysicalAdapterIndex < 0) return default;
+        if (!D3DKMT.TryOpenAdapter(key.LUID, out uint adapterHandle)) return default;
 
         try
         {
@@ -134,18 +199,50 @@ internal static unsafe class GPUAdapterNativeDetailsReader
             if (!D3DKMT.TryQueryAdapterInfo(
                     adapterHandle,
                     AdapterPerformanceDataInformation,
-                    ref performanceData)
-                || performanceData.Temperature == 0
-                || performanceData.Temperature > MaximumTemperatureDeciCelsius)
-                return false;
+                    ref performanceData))
+                return default;
 
-            temperatureCelsius = performanceData.Temperature / 10.0;
-            return true;
+            bool hasTemperature = performanceData.Temperature is > 0 and <= MaximumTemperatureDeciCelsius;
+            // A powered adapter never draws nothing, so zero means the driver does not report power
+            bool hasPower = performanceData.Power is > 0 and <= MaximumPowerDeciPercent;
+            bool hasMemoryClock = performanceData.MemoryFrequency > 0;
+            D3DKMT_NODE_PERFDATA nodeData = default;
+            bool hasClock = clockNodeOrdinal >= 0
+                            && TryReadNodePerformanceData(
+                                adapterHandle,
+                                key.PhysicalAdapterIndex,
+                                clockNodeOrdinal,
+                                out nodeData)
+                            && nodeData.Frequency > 0;
+            return new GPUAdapterPerformanceData(
+                hasTemperature,
+                hasTemperature ? performanceData.Temperature / 10.0 : 0,
+                hasPower,
+                hasPower ? performanceData.Power / 10.0 : 0,
+                hasClock,
+                hasClock ? nodeData.Frequency : 0,
+                hasClock ? nodeData.MaxFrequency : 0,
+                hasMemoryClock,
+                performanceData.MemoryFrequency);
         }
         finally
         {
             D3DKMT.CloseAdapter(adapterHandle);
         }
+    }
+
+    private static bool TryReadNodePerformanceData(
+        uint adapterHandle,
+        int physicalAdapterIndex,
+        int nodeOrdinal,
+        out D3DKMT_NODE_PERFDATA nodeData)
+    {
+        nodeData = new D3DKMT_NODE_PERFDATA
+        {
+            NodeOrdinal = checked((uint)nodeOrdinal),
+            PhysicalAdapterIndex = checked((uint)physicalAdapterIndex)
+        };
+        return D3DKMT.TryQueryAdapterInfo(adapterHandle, NodePerformanceDataInformation, ref nodeData);
     }
 
     /// <summary>Calculates installed VRAM that is not exposed as a visible memory segment.</summary>
@@ -343,5 +440,31 @@ internal static unsafe class GPUAdapterNativeDetailsReader
         public byte PowerStateOverride;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct D3DKMT_NODE_PERFDATA
+    {
+        public uint NodeOrdinal;
+        public uint PhysicalAdapterIndex;
+        public ulong Frequency;
+        public ulong MaxFrequency;
+        public ulong MaxFrequencyOC;
+        public uint Voltage;
+        public uint VoltageMax;
+        public uint VoltageMaxOC;
+        public ulong MaxTransitionLatency;
+    }
+
     private readonly record struct DirectXFeatureLevel(int Value, string Name);
 }
+
+/// <summary>One WDDM adapter performance-data sample; power is a percentage of the default power limit.</summary>
+internal readonly record struct GPUAdapterPerformanceData(
+    bool HasTemperature,
+    double TemperatureCelsius,
+    bool HasPower,
+    double PowerPercent,
+    bool HasClock,
+    ulong ClockHertz,
+    ulong MaximumClockHertz,
+    bool HasMemoryClock,
+    ulong MemoryClockHertz);

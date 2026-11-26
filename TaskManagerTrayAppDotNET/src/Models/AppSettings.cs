@@ -436,6 +436,14 @@ public sealed class AppSettings : AppSettingsCommon<HotkeyBinding, HotkeyAction>
         set => SetField(ref field, PerformanceHardwareNameReplacementRuleCollection.Normalize(value));
     } = [];
 
+    [XmlArray("GPUPowerLimits")]
+    [XmlArrayItem("GPU")]
+    public List<GPUPowerLimitRecord> GPUPowerLimits
+    {
+        get;
+        set => SetField(ref field, GPUPowerLimitCollection.Normalize(value));
+    } = [];
+
     public override void OnTrayXmlDeserializing()
     {
         _gridRowSpacingWasDeserialized = false;
@@ -473,6 +481,7 @@ public sealed class AppSettings : AppSettingsCommon<HotkeyBinding, HotkeyAction>
         PerformanceHardwareNameReplacementRules =
             PerformanceHardwareNameReplacementRuleCollection.Normalize(
                 PerformanceHardwareNameReplacementRules);
+        GPUPowerLimits = GPUPowerLimitCollection.Normalize(GPUPowerLimits);
         ProcessGroupingStyle = NormalizeProcessGroupingStyle(ProcessGroupingStyle);
         ProcessTreeDefaultState = NormalizeProcessTreeDefaultState(ProcessTreeDefaultState);
         base.OnTrayXmlDeserialized();
@@ -568,6 +577,41 @@ public sealed class AppSettings : AppSettingsCommon<HotkeyBinding, HotkeyAction>
         if (CPUPerformanceGraphView == normalized) return;
 
         UpdateWithoutShellRefresh(() => CPUPerformanceGraphView = normalized);
+    }
+
+    /// <summary>
+    /// Saves a power limit just read from a GPU's vendor library and turns watts on for it. Reading it was an explicit
+    /// request, so it writes even with <see cref="AppSettingsCommon.Autosave"/> off.
+    /// </summary>
+    internal void UpdateGPUPowerLimit(string deviceInstanceID, string vbiosVersion, uint defaultLimitMilliwatts)
+    {
+        List<GPUPowerLimitRecord> records = [.. GPUPowerLimits];
+        records.Add(new GPUPowerLimitRecord
+        {
+            DeviceInstanceID = deviceInstanceID,
+            VBIOSVersion = vbiosVersion,
+            DefaultLimitMilliwatts = defaultLimitMilliwatts,
+            ShowWatts = true
+        });
+        UpdateWithoutShellRefresh(() => GPUPowerLimits = records);
+        Save();
+    }
+
+    /// <summary>Switches a GPU with a saved power limit between watts and a percentage of that limit.</summary>
+    internal void UpdateGPUShowPowerInWatts(string deviceInstanceID, bool showWatts)
+    {
+        GPUPowerLimitRecord? existing = GPUPowerLimitCollection.Find(GPUPowerLimits, deviceInstanceID);
+        if (existing == null || existing.ShowWatts == showWatts) return;
+
+        List<GPUPowerLimitRecord> records = [.. GPUPowerLimits];
+        records.Add(new GPUPowerLimitRecord
+        {
+            DeviceInstanceID = existing.DeviceInstanceID,
+            VBIOSVersion = existing.VBIOSVersion,
+            DefaultLimitMilliwatts = existing.DefaultLimitMilliwatts,
+            ShowWatts = showWatts
+        });
+        UpdateWithoutShellRefresh(() => GPUPowerLimits = records);
     }
 
     /// <summary>

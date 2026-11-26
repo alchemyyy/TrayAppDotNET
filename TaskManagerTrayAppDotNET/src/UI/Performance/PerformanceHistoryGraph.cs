@@ -36,6 +36,7 @@ internal sealed class PerformanceHistoryGraph : Control
     private PerformanceHistory? _hoverTimelineHistory;
     private int _hoverTimelineCount;
     private long _hoverTimelineTimestamp;
+    private Color? _secondaryLineColor;
     private bool _showUnderfill = true;
 
     public PerformanceHistoryGraph(
@@ -133,6 +134,17 @@ internal sealed class PerformanceHistoryGraph : Control
         if (ReferenceEquals(_secondaryHistory, history)) return;
 
         _secondaryHistory = history;
+        InvalidateVisual();
+    }
+
+    /// <summary>
+    /// Draws the secondary history as a full-weight dashed trace in its own color, for a graph that shows two equal
+    /// series instead of the default faint overlay.
+    /// </summary>
+    public void SetSecondaryLineColor(Color color)
+    {
+        _secondaryLineColor = color;
+        _secondaryLinePen = CreateSecondaryLinePen(_accent);
         InvalidateVisual();
     }
 
@@ -388,6 +400,11 @@ internal sealed class PerformanceHistoryGraph : Control
 
     private Pen CreateSecondaryLinePen(Color accent)
     {
+        // AXAML hot-reload exception: DashStyle is not a linker-supported AXAML primitive, so the Pen retains
+        // Avalonia's built-in Dash preset
+        if (_secondaryLineColor is { } secondaryLineColor)
+            return new Pen(new SolidColorBrush(secondaryLineColor), _lineThickness, DashStyle.Dash);
+
         byte alpha = (byte)Math.Round(accent.A * _secondaryLineOpacity);
         Color dimAccent = Color.FromArgb(alpha, accent.R, accent.G, accent.B);
         return new Pen(

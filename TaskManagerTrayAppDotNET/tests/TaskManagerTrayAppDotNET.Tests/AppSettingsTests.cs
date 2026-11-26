@@ -507,6 +507,23 @@ public sealed class AppSettingsTests
     }
 
     [Fact]
+    public void ReadGPUPowerLimitSurvivesARestart()
+    {
+        using TempDirectory temp = new();
+        string path = Path.Combine(temp.Combine("settings"), "settings.xml");
+        AppSettings settings = AppSettings.LoadOrDefault(path);
+        settings.UpdateGPUPowerLimit(@"PCI\VEN_10DE&DEV_2C02&SUBSYS_20961771&REV_A1\4&1", "98.03.3B.C0.AB", 360_000);
+        settings.Store!.Flush();
+
+        AppSettings restarted = AppSettings.LoadOrDefault(path);
+
+        GPUPowerLimitRecord record = Assert.Single(restarted.GPUPowerLimits);
+        Assert.Equal(expected: 360_000u, record.DefaultLimitMilliwatts);
+        Assert.Equal(expected: "98.03.3B.C0.AB", record.VBIOSVersion);
+        Assert.True(record.ShowWatts);
+    }
+
+    [Fact]
     public void ImplicitSavesWaitForAutosaveAndDetachedInstancesNeverWrite()
     {
         using TempDirectory temp = new();

@@ -16,7 +16,7 @@ namespace TaskManagerTrayAppDotNET.UI.Performance;
 /// <summary>Displays direct-OS CPU, memory, GPU, network, and disk performance snapshots.</summary>
 internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
 {
-    private const int MaximumDetailStatistics = 16;
+    private const int MaximumDetailStatistics = 20;
     private const double BytesPerGibibyte = 1_073_741_824;
 
     private readonly AppSettings _settings;
@@ -59,7 +59,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     private readonly List<PerformanceHistory> _cpuLogicalProcessorHistories = [];
     private readonly List<PerformanceHistoryGraph> _cpuLogicalProcessorGraphs = [];
     private readonly WrapPanel _primaryStatistics;
-    private readonly StackPanel _metadataStatistics;
+    private readonly Grid _metadataStatistics;
     private readonly StackPanel[] _statisticContainers = new StackPanel[MaximumDetailStatistics];
     private readonly TextBlock[] _statisticLabels = new TextBlock[MaximumDetailStatistics];
     private readonly TextBlock[] _statisticValues = new TextBlock[MaximumDetailStatistics];
@@ -71,7 +71,12 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     private MemoryPerformanceSnapshot _latestMemorySnapshot = MemoryPerformanceSnapshot.Empty;
     private PerformanceHistory _cpuHighestCoreHistory;
     private PerformanceMetricHistory _memoryUsedHistory;
-    private TaskManagerContextMenuWindow? _cpuGraphContextMenuWindow;
+    private TaskManagerContextMenuWindow? _graphContextMenuWindow;
+
+    // Device instance IDs whose power limit is being read, and the last failure per device
+    private readonly HashSet<string> _gpuPowerLimitReads = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _gpuPowerLimitErrors = new(StringComparer.OrdinalIgnoreCase);
+    private readonly CancellationTokenSource _disposeCancellation = new();
     private string? _selectedDeviceID;
     private int _historyLengthMinutes;
     private int _sampleIntervalMilliseconds;
@@ -284,9 +289,13 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         {
             HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Top
         };
-        _metadataStatistics = new StackPanel
+        // Metadata labels share one auto-sized column, so the longest label sets where every value starts
+        _metadataStatistics = new Grid
         {
-            HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Top
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Top,
+            ColumnSpacing = resources.AxamlTaskManagerPerformance.DetailMetadataStatisticColumnSpacing,
+            ColumnDefinitions = { new ColumnDefinition(GridLength.Auto), new ColumnDefinition(GridLength.Star) }
         };
         for (int statisticIndex = 0; statisticIndex < MaximumDetailStatistics; statisticIndex++)
         {
@@ -308,18 +317,12 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             _statisticValues[statisticIndex] = value;
         }
 
+        // The metadata column takes the width its longest label and value need, so nothing in it is cut off; the
+        // primary statistics wrap within whatever is left
         Grid statistics = new()
         {
             ColumnSpacing = resources.AxamlTaskManagerPerformance.DetailStatisticsColumnSpacing,
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(new GridLength(
-                    resources.AxamlTaskManagerPerformance.DetailStatisticsPrimaryRatio,
-                    GridUnitType.Star)),
-                new ColumnDefinition(new GridLength(
-                    resources.AxamlTaskManagerPerformance.DetailStatisticsMetadataRatio,
-                    GridUnitType.Star))
-            }
+            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }
         };
         statistics.Children.Add(_primaryStatistics);
         SetColumn(_metadataStatistics, value: 1);
@@ -446,6 +449,13 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             _hardwareNameResolver = PerformanceHardwareNameResolver.Create(
                 _settings.PerformanceHardwareNameReplacementRules);
             ApplySnapshotPresentation(_snapshotService.GetLatestSnapshot());
+            return;
+        }
+
+        if (eventArgs.PropertyName == nameof(AppSettings.GPUPowerLimits))
+        {
+            ApplySnapshotPresentation(_snapshotService.GetLatestSnapshot());
+            UpdateGPUPowerDisplay();
             return;
         }
 
@@ -739,7 +749,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             PerformanceDevicePresentationFactory.Create(
                 snapshot,
                 _historyLengthMinutes,
-                _hardwareNameResolver);
+                _hardwareNameResolver,
+                _settings.GPUPowerLimits);
         _devices.Clear();
         List<PerformanceDeviceOrderItem> orderItems = new(liveDevices.Count);
         for (int deviceIndex = 0; deviceIndex < liveDevices.Count; deviceIndex++)
@@ -1193,32 +1204,39 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         object? sender,
         PointerPressedEventArgs eventArgs)
     {
+        PerformanceDeviceKind? selectedKind = GetSelectedDeviceKind();
         if (_disposed
             || !eventArgs.GetCurrentPoint(_graphSurface).Properties.IsRightButtonPressed
-            || !IsCPUSelected()
+            || selectedKind is not (PerformanceDeviceKind.CPU or PerformanceDeviceKind.GPU)
             || TopLevel.GetTopLevel(this) is not Window owner)
             return;
 
         PixelPoint screenPosition = _graphSurface.PointToScreen(
             eventArgs.GetPosition(_graphSurface));
+        string selectedDeviceID = _selectedDeviceID!;
         eventArgs.Handled = true;
         Dispatcher.UIThread.Post(() =>
         {
-            if (!_disposed && IsCPUSelected())
+            if (_disposed || !string.Equals(_selectedDeviceID, selectedDeviceID, StringComparison.Ordinal)) return;
+
+            if (selectedKind == PerformanceDeviceKind.CPU)
                 ShowCPUGraphContextMenu(owner, screenPosition);
+            else
+                ShowGPUGraphContextMenu(owner, screenPosition, selectedDeviceID);
         });
     }
 
-    private bool IsCPUSelected() =>
+    private PerformanceDeviceKind? GetSelectedDeviceKind() =>
         _selectedDeviceID != null
         && _devices.TryGetValue(
             _selectedDeviceID,
             out PerformanceDevicePresentation? selectedDevice)
-        && selectedDevice.Kind == PerformanceDeviceKind.CPU;
+            ? selectedDevice.Kind
+            : null;
 
     private void ShowCPUGraphContextMenu(Window owner, PixelPoint screenPosition)
     {
-        CloseCPUGraphContextMenu();
+        CloseGraphContextMenu();
         ContextMenuEntryBuilder entries = new();
         entries.Add(new ContextMenuEntry(
             Text: L(nameof(AppStrings.Perf_Label_LogicalProcessors)),
@@ -1251,13 +1269,147 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             Node = ControlMap.CPUGraphMenu.DetailedView
         });
 
+        ShowGraphContextMenu(owner, screenPosition, entries, ControlMap.CPUGraphMenu.ID);
+    }
+
+    /// <summary>
+    /// Offers watts for a GPU's power. The first choice reads the default power limit once through the vendor library;
+    /// the entry stays greyed out, with the reason as its tooltip, when that cannot work.
+    /// </summary>
+    private void ShowGPUGraphContextMenu(Window owner, PixelPoint screenPosition, string deviceID)
+    {
+        CloseGraphContextMenu();
+        GPUPerformanceSnapshot? GPU = FindLatestGPU(deviceID);
+        GPUAdapterIdentity identity = GPU?.Details?.Identity ?? GPUAdapterIdentity.Empty;
+        ushort vendorID = identity.HardwareID.VendorID;
+        string libraryFileName = GPUPowerLimitReader.GetLibraryFileName(vendorID);
+        GPUPowerLimitRecord? record = GPUPowerLimitCollection.Find(
+            _settings.GPUPowerLimits,
+            identity.DeviceInstanceID);
+        bool hasCurrentLimit = record != null && GPUPowerLimitCollection.IsCurrent(record, identity.VBIOSVersion);
+        bool showsWatts = hasCurrentLimit && record!.ShowWatts;
+        bool isReading = _gpuPowerLimitReads.Contains(identity.DeviceInstanceID);
+        string? disabledReason = GPU?.Details?.HasPowerData != true || identity.DeviceInstanceID.Length == 0
+            ? L(nameof(AppStrings.Perf_GPUMenu_NoPowerDataTip))
+            : hasCurrentLimit
+                ? null
+                : libraryFileName.Length == 0
+                    ? L(nameof(AppStrings.Perf_GPUMenu_UnsupportedVendorTip))
+                    : !GPUPowerLimitReader.TryFindLibrary(vendorID, out _)
+                        ? F(nameof(AppStrings.Perf_GPUMenu_NoLibraryTip), libraryFileName)
+                        : null;
+        string? tip = disabledReason
+                      ?? (_gpuPowerLimitErrors.TryGetValue(identity.DeviceInstanceID, out string? error)
+                          ? F(nameof(AppStrings.Perf_GPUMenu_ReadFailedTip), error)
+                          : hasCurrentLimit
+                              ? null
+                              : F(nameof(AppStrings.Perf_GPUMenu_ShowPowerInWattsTip), libraryFileName));
+
+        ContextMenuEntryBuilder entries = new();
+        entries.Add(new ContextMenuEntry(
+            Text: isReading
+                ? L(nameof(AppStrings.Perf_GPUMenu_ReadingPowerLimit))
+                : L(nameof(AppStrings.Perf_GPUMenu_ShowPowerInWatts)),
+            () => OnShowGPUPowerInWattsClicked(identity, hasCurrentLimit, showsWatts))
+        {
+            TrailingGlyphMetadata = showsWatts ? TaskManagerGlyphCatalog.SELECTED : null,
+            IsEnabled = disabledReason == null && !isReading,
+            ToolTip = tip,
+            Node = ControlMap.GPUGraphMenu.ShowPowerInWatts
+        });
+        ShowGraphContextMenu(owner, screenPosition, entries, ControlMap.GPUGraphMenu.ID);
+    }
+
+    private void OnShowGPUPowerInWattsClicked(GPUAdapterIdentity identity, bool hasCurrentLimit, bool showsWatts)
+    {
+        if (_disposed) return;
+
+        if (hasCurrentLimit)
+        {
+            _settings.UpdateGPUShowPowerInWatts(identity.DeviceInstanceID, !showsWatts);
+            return;
+        }
+
+        ReadGPUPowerLimitAsync(identity).ForgetLogged(nameof(ReadGPUPowerLimitAsync));
+    }
+
+    /// <summary>Reads the GPU's default power limit in a child process, then saves it and switches to watts.</summary>
+    private async Task ReadGPUPowerLimitAsync(GPUAdapterIdentity identity)
+    {
+        string deviceInstanceID = identity.DeviceInstanceID;
+        if (!_gpuPowerLimitReads.Add(deviceInstanceID)) return;
+
+        _gpuPowerLimitErrors.Remove(deviceInstanceID);
+        UpdateGPUPowerDisplay();
+        GPUPowerLimitResult result;
+        try
+        {
+            result = await GPUPowerLimitReader.ReadAsync(
+                new GPUPowerLimitTarget(identity.HardwareID.VendorID, deviceInstanceID, identity.Address),
+                _disposeCancellation.Token);
+        }
+        finally
+        {
+            _gpuPowerLimitReads.Remove(deviceInstanceID);
+        }
+
+        if (_disposed) return;
+
+        if (result.Succeeded)
+            _settings.UpdateGPUPowerLimit(deviceInstanceID, identity.VBIOSVersion, result.DefaultLimitMilliwatts);
+        else
+        {
+            _gpuPowerLimitErrors[deviceInstanceID] = result.Error;
+            TADNLog.Log($"PerformancePage.ReadGPUPowerLimitAsync: {deviceInstanceID}: {result.Error}");
+        }
+
+        UpdateGPUPowerDisplay();
+    }
+
+    /// <summary>Points the GPU view's power graph at watts or a percentage for the GPU it shows.</summary>
+    private void UpdateGPUPowerDisplay()
+    {
+        string? deviceID = _gpuPerformanceDetailsView.DeviceID;
+        GPUPerformanceSnapshot? GPU = deviceID != null ? FindLatestGPU(deviceID) : null;
+        if (GPU == null)
+        {
+            _gpuPerformanceDetailsView.SetPowerDisplay(double.NaN, status: null);
+            return;
+        }
+
+        string deviceInstanceID = GPU.Details?.Identity.DeviceInstanceID ?? string.Empty;
+        _gpuPerformanceDetailsView.SetPowerDisplay(
+            PerformanceDevicePresentationFactory.GetGPUPowerLimitWatts(GPU, _settings.GPUPowerLimits),
+            _gpuPowerLimitReads.Contains(deviceInstanceID)
+                ? L(nameof(AppStrings.Perf_GPUMenu_ReadingPowerLimit))
+                : null);
+    }
+
+    private GPUPerformanceSnapshot? FindLatestGPU(string deviceID)
+    {
+        ReadOnlySpan<GPUPerformanceSnapshot> GPUs = _snapshotService.GetLatestSnapshot().GPUs.Span;
+        for (int GPUIndex = 0; GPUIndex < GPUs.Length; GPUIndex++)
+        {
+            if (string.Equals(GPUs[GPUIndex].DeviceID, deviceID, StringComparison.Ordinal))
+                return GPUs[GPUIndex];
+        }
+
+        return null;
+    }
+
+    private void ShowGraphContextMenu(
+        Window owner,
+        PixelPoint screenPosition,
+        ContextMenuEntryBuilder entries,
+        ControlMapNodeID surface)
+    {
         TaskManagerContextMenuWindow menuWindow = new TaskManagerContextMenuWindow(
             entries.ToList(),
             _palette,
             _settings.EnableRoundedCorners,
-            _settings).MapTo(ControlMap.CPUGraphMenu.ID);
-        _cpuGraphContextMenuWindow = menuWindow;
-        menuWindow.Closed += OnCPUGraphContextMenuClosed;
+            _settings).MapTo(surface);
+        _graphContextMenuWindow = menuWindow;
+        menuWindow.Closed += OnGraphContextMenuClosed;
         menuWindow.ShowAt(owner, screenPosition);
     }
 
@@ -1268,22 +1420,22 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         _settings.UpdateCPUPerformanceGraphView(graphView);
     }
 
-    private void CloseCPUGraphContextMenu()
+    private void CloseGraphContextMenu()
     {
-        TaskManagerContextMenuWindow? menuWindow = _cpuGraphContextMenuWindow;
+        TaskManagerContextMenuWindow? menuWindow = _graphContextMenuWindow;
         if (menuWindow == null) return;
 
-        _cpuGraphContextMenuWindow = null;
-        menuWindow.Closed -= OnCPUGraphContextMenuClosed;
+        _graphContextMenuWindow = null;
+        menuWindow.Closed -= OnGraphContextMenuClosed;
         menuWindow.Close();
     }
 
-    private void OnCPUGraphContextMenuClosed(object? sender, EventArgs eventArgs)
+    private void OnGraphContextMenuClosed(object? sender, EventArgs eventArgs)
     {
         if (sender is TaskManagerContextMenuWindow menuWindow)
-            menuWindow.Closed -= OnCPUGraphContextMenuClosed;
-        if (ReferenceEquals(sender, _cpuGraphContextMenuWindow))
-            _cpuGraphContextMenuWindow = null;
+            menuWindow.Closed -= OnGraphContextMenuClosed;
+        if (ReferenceEquals(sender, _graphContextMenuWindow))
+            _graphContextMenuWindow = null;
     }
 
     private void OnDeviceOrderChanged(IReadOnlyList<string> visibleDeviceIDs)
@@ -1363,6 +1515,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                     _sampleIntervalMilliseconds,
                     _snapshotService.GetSnapshotHistory());
             }
+
+            UpdateGPUPowerDisplay();
         }
         else
             _gpuPerformanceDetailsView.Hide();
@@ -1476,6 +1630,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         _configuredStatisticDeviceKind = deviceKind;
         _primaryStatistics.Children.Clear();
         _metadataStatistics.Children.Clear();
+        _metadataStatistics.RowDefinitions.Clear();
         for (int statisticIndex = 0; statisticIndex < MaximumDetailStatistics; statisticIndex++)
         {
             StackPanel statistic = _statisticContainers[statisticIndex];
@@ -1486,25 +1641,38 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             if (!isVisible) continue;
 
             bool isPrimary = statisticIndex < primaryStatisticCount;
-            statistic.Orientation = isPrimary ? Orientation.Vertical : Orientation.Horizontal;
-            statistic.Width = isPrimary
-                ? deviceKind == PerformanceDeviceKind.Memory
-                    ? _resources.AxamlTaskManagerPerformance.MemoryPrimaryStatisticWidth
-                    : _resources.AxamlTaskManagerPerformance.DetailPrimaryStatisticWidth
-                : double.NaN;
-            statistic.Margin = isPrimary
-                ? _resources.AxamlTaskManagerPerformance.DetailPrimaryStatisticMargin
-                : _resources.AxamlTaskManagerPerformance.DetailMetadataStatisticMargin;
-            label.Width = isPrimary
-                ? double.NaN
-                : _resources.AxamlTaskManagerPerformance.DetailMetadataStatisticLabelWidth;
-            value.FontSize = isPrimary
-                ? _resources.AxamlTaskManagerPerformance.DetailPrimaryStatisticValueFontSize
-                : _resources.AxamlTaskManagerPerformance.DetailStatisticValueFontSize;
+            statistic.Children.Clear();
             if (isPrimary)
+            {
+                statistic.Width = deviceKind == PerformanceDeviceKind.Memory
+                    ? _resources.AxamlTaskManagerPerformance.MemoryPrimaryStatisticWidth
+                    : _resources.AxamlTaskManagerPerformance.DetailPrimaryStatisticWidth;
+                statistic.Margin = _resources.AxamlTaskManagerPerformance.DetailPrimaryStatisticMargin;
+                label.Margin = default;
+                value.Margin = default;
+                value.TextTrimming = TextTrimming.None;
+                value.FontSize = _resources.AxamlTaskManagerPerformance.DetailPrimaryStatisticValueFontSize;
+                statistic.Children.Add(label);
+                statistic.Children.Add(value);
                 _primaryStatistics.Children.Add(statistic);
-            else
-                _metadataStatistics.Children.Add(statistic);
+                continue;
+            }
+
+            // A metadata pair sits in the shared label and value columns rather than in its own panel
+            int row = _metadataStatistics.RowDefinitions.Count;
+            _metadataStatistics.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            label.Margin = _resources.AxamlTaskManagerPerformance.DetailMetadataStatisticMargin;
+            value.Margin = _resources.AxamlTaskManagerPerformance.DetailMetadataStatisticMargin;
+            label.VerticalAlignment = VerticalAlignment.Center;
+            value.VerticalAlignment = VerticalAlignment.Center;
+            value.TextTrimming = TextTrimming.CharacterEllipsis;
+            value.FontSize = _resources.AxamlTaskManagerPerformance.DetailStatisticValueFontSize;
+            Grid.SetRow(label, row);
+            Grid.SetColumn(label, value: 0);
+            Grid.SetRow(value, row);
+            Grid.SetColumn(value, value: 1);
+            _metadataStatistics.Children.Add(label);
+            _metadataStatistics.Children.Add(value);
         }
     }
 
@@ -1517,7 +1685,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         {
             PerformanceDeviceKind.CPU => 8,
             PerformanceDeviceKind.Memory => 6,
-            PerformanceDeviceKind.GPU => 5,
+            PerformanceDeviceKind.GPU => 9,
             PerformanceDeviceKind.Network => 2,
             PerformanceDeviceKind.Disk => 4,
             _ => 0
@@ -1531,7 +1699,9 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
 
         SetPageActive(false);
         _disposed = true;
-        CloseCPUGraphContextMenu();
+        CloseGraphContextMenu();
+        _disposeCancellation.Cancel();
+        _disposeCancellation.Dispose();
         _graphSurface.PointerPressed -= OnGraphSurfacePointerPressed;
         _settings.PropertyChanged -= OnSettingsPropertyChanged;
         _snapshotService.SnapshotUpdated -= OnSnapshotUpdated;

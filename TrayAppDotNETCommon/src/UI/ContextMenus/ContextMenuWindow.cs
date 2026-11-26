@@ -25,6 +25,15 @@ public sealed record ContextMenuEntry(string Text, Action Click)
     public bool HasTopRule { get; init; }
     public bool HasBottomRule { get; init; }
 
+    /// <summary>
+    /// False shows the row in the palette's disabled color and ignores clicks and keys on it, as a greyed-out Win32
+    /// menu item does; the selection can still land on it so its <see cref="ToolTip"/> can explain why.
+    /// </summary>
+    public bool IsEnabled { get; init; } = true;
+
+    /// <summary>Text shown while the pointer rests on the row.</summary>
+    public string? ToolTip { get; init; }
+
     // The control map leaf this entry's row represents
     public ControlMapNodeID? Node { get; init; }
 
@@ -1048,12 +1057,15 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
         {
             _entry = entry;
             _options = options;
-            _invoke = invoke;
+            // A disabled row keeps its hover and selection but never runs: Win32 leaves the menu open on such a click
+            _invoke = entry.IsEnabled ? invoke : static (_, _, _) => { };
             _itemHoverChanged = itemHoverChanged;
             _hoverChanged = entry.HoverChanged;
             Background = Brushes.Transparent;
-            Cursor = TrayAppDotNETCursors.Hand;
+            Cursor = entry.IsEnabled ? TrayAppDotNETCursors.Hand : null;
             Focusable = true;
+            if (!string.IsNullOrEmpty(entry.ToolTip))
+                TrayAppDotNETToolTip.SetTip(this, entry.ToolTip);
 
             _itemBorder = new Border
             {
@@ -1108,6 +1120,8 @@ public class ContextMenuWindow : Window, ITrayAppDotNETWarmWindow
         private static Control BuildContent(ContextMenuEntry entry, ContextMenuWindowOptions options)
         {
             TextBlock label = TrayAppDotNETSettingsUI.Text(entry.Text, options.Palette, options.FontSize);
+            if (!entry.IsEnabled)
+                label.Foreground = TrayAppDotNETSettingsUI.Brush(options.Palette.DisabledForeground);
             label.FontWeight = options.FontWeight;
             label.VerticalAlignment = VerticalAlignment.Center;
             label.TextTrimming = TextTrimming.CharacterEllipsis;

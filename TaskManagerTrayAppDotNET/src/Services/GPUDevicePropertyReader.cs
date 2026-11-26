@@ -12,6 +12,12 @@ internal static class GPUDevicePropertyReader
     private const uint DevpropTypeUInt64 = 0x00000009;
     private const uint DevpropTypeFileTime = 0x00000010;
     private const uint DevpropTypeString = 0x00000012;
+    private const uint DevpropTypeStringList = 0x00002012;
+    private const int ConfigManagerSuccess = 0;
+    private const int ConfigManagerBufferSmall = 0x1A;
+    private const int MaximumBridgeWalkDepth = 8;
+    private const uint MaximumRegistryStringBytes = 4_096;
+    private const uint RegString = 1;
     private const uint DicsFlagGlobal = 0x00000001;
     private const uint DiregDriver = 0x00000002;
     private const uint KeyRead = 0x00020019;
@@ -43,6 +49,30 @@ internal static class GPUDevicePropertyReader
     private static readonly DEVPROPKEY LocationInformationProperty = new(
         new Guid("a45c254e-df1c-4efd-8020-67d146a850e0"),
         propertyID: 15);
+
+    private static readonly DEVPROPKEY HardwareIDsProperty = new(
+        new Guid("a45c254e-df1c-4efd-8020-67d146a850e0"),
+        propertyID: 3);
+
+    private static readonly DEVPROPKEY InstanceIDProperty = new(
+        new Guid("78c34fc8-104a-4aca-9ea4-524d52996e57"),
+        propertyID: 256);
+
+    private static readonly DEVPROPKEY PCICurrentLinkSpeedProperty = new(
+        new Guid("3ab22e31-8264-4b4e-9af5-a8d2d8e33e62"),
+        propertyID: 9);
+
+    private static readonly DEVPROPKEY PCICurrentLinkWidthProperty = new(
+        new Guid("3ab22e31-8264-4b4e-9af5-a8d2d8e33e62"),
+        propertyID: 10);
+
+    private static readonly DEVPROPKEY PCIMaximumLinkSpeedProperty = new(
+        new Guid("3ab22e31-8264-4b4e-9af5-a8d2d8e33e62"),
+        propertyID: 11);
+
+    private static readonly DEVPROPKEY PCIMaximumLinkWidthProperty = new(
+        new Guid("3ab22e31-8264-4b4e-9af5-a8d2d8e33e62"),
+        propertyID: 12);
 
     /// <summary>Finds the display-class device whose graphics-kernel LUID matches the sampler.</summary>
     public static GPUDeviceMetadata Read(GPUAdapterKey key, out string? error)
@@ -111,10 +141,16 @@ internal static class GPUDevicePropertyReader
                     ref deviceInformation,
                     LocationInformationProperty,
                     out string locationInformation);
-                bool hasInstalledMemory = TryReadInstalledMemory(
+                bool hasInstalledMemory = TryReadDriverKey(
                     deviceInformationSet,
                     ref deviceInformation,
-                    out ulong installedMemoryBytes);
+                    out ulong installedMemoryBytes,
+                    out string biosString,
+                    out string amdSoftwareVersion);
+                uint deviceInstance = unchecked((uint)deviceInformation.DevInst);
+                _ = TryReadDevNodeString(deviceInstance, InstanceIDProperty, out string deviceInstanceID);
+                string hardwareID = ReadFirstHardwareID(deviceInstance);
+                GPUPCIeLink link = ReadPCIeLink(deviceInstance, hardwareID);
 
                 error = null;
                 return new GPUDeviceMetadata(
@@ -123,7 +159,12 @@ internal static class GPUDevicePropertyReader
                     driverDate,
                     locationInformation,
                     hasInstalledMemory,
-                    installedMemoryBytes);
+                    installedMemoryBytes,
+                    deviceInstanceID,
+                    hardwareID,
+                    biosString,
+                    amdSoftwareVersion,
+                    link);
             }
 
             error = null;
@@ -273,12 +314,20 @@ internal static class GPUDevicePropertyReader
         return false;
     }
 
-    private static bool TryReadInstalledMemory(
+    /// <summary>
+    /// Reads the values the display driver writes to its own registry key: installed memory, the vBIOS string, and
+    /// (AMD only) the Adrenalin release the package installed. Returns whether installed memory was found.
+    /// </summary>
+    private static bool TryReadDriverKey(
         IntPtr deviceInformationSet,
         ref SetupAPI.SP_DEVINFO_DATA deviceInformation,
-        out ulong installedMemoryBytes)
+        out ulong installedMemoryBytes,
+        out string biosString,
+        out string amdSoftwareVersion)
     {
         installedMemoryBytes = 0;
+        biosString = string.Empty;
+        amdSoftwareVersion = string.Empty;
         IntPtr driverKey = SetupDiOpenDevRegKey(
             deviceInformationSet,
             ref deviceInformation,
@@ -290,6 +339,13 @@ internal static class GPUDevicePropertyReader
 
         try
         {
+            _ = TryReadRegistryString(driverKey, valueName: "HardwareInformation.BiosString", out biosString);
+
+            // Adrenalin writes its release as RadeonSoftwareVersion; older Crimson and Catalyst packages wrote only
+            // Catalyst_Version. Neither name has been confirmed on an AMD machine here.
+            if (!TryReadRegistryString(driverKey, valueName: "RadeonSoftwareVersion", out amdSoftwareVersion))
+                _ = TryReadRegistryString(driverKey, valueName: "Catalyst_Version", out amdSoftwareVersion);
+
             if (TryReadRegistryInteger(
                     driverKey,
                     valueName: "HardwareInformation.qwMemorySize",
@@ -306,6 +362,124 @@ internal static class GPUDevicePropertyReader
         {
             _ = RegCloseKey(driverKey);
         }
+    }
+
+    /// <summary>Reads a registry string a driver may store as REG_SZ or as raw UTF-16 REG_BINARY.</summary>
+    private static bool TryReadRegistryString(IntPtr key, string valueName, out string value)
+    {
+        value = string.Empty;
+        uint valueType = 0;
+        uint dataSize = 0;
+        int result = RegQueryValueExW(key, valueName, IntPtr.Zero, ref valueType, data: null, ref dataSize);
+        if (result != ErrorSuccess || dataSize is 0 or > MaximumRegistryStringBytes) return false;
+
+        byte[] data = new byte[dataSize];
+        result = RegQueryValueExW(key, valueName, IntPtr.Zero, ref valueType, data, ref dataSize);
+        if (result != ErrorSuccess || valueType is not (RegString or RegBinary)) return false;
+
+        value = Encoding.Unicode.GetString(data, index: 0, (int)dataSize & ~1).TrimEnd('\0').Trim();
+        return value.Length > 0;
+    }
+
+    /// <summary>Returns the most specific hardware ID, the one naming vendor, device, subsystem and revision.</summary>
+    private static string ReadFirstHardwareID(uint deviceInstance)
+    {
+        if (!TryReadDevNodeProperty(deviceInstance, HardwareIDsProperty, out uint type, out byte[] data)
+            || type != DevpropTypeStringList)
+            return string.Empty;
+
+        string list = Encoding.Unicode.GetString(data);
+        int terminator = list.IndexOf('\0');
+        return (terminator >= 0 ? list[..terminator] : list).Trim();
+    }
+
+    /// <summary>
+    /// Reads the PCIe link of the slot a GPU sits in. AMD's discrete cards put a PCIe switch of their own between the
+    /// GPU and the slot, so the GPU's own link is the card-internal one. Walking up through parents from the GPU's
+    /// own vendor reaches the switch's upstream port, whose link is the slot's; GPUs without such a switch stop at
+    /// themselves because their parent is the platform's root port.
+    /// </summary>
+    private static GPUPCIeLink ReadPCIeLink(uint deviceInstance, string hardwareID)
+    {
+        uint linkDevice = deviceInstance;
+        if (GPUVendorFormatting.TryParseHardwareID(hardwareID, out GPUHardwareID parsed))
+        {
+            uint current = deviceInstance;
+            for (int depth = 0; depth < MaximumBridgeWalkDepth; depth++)
+            {
+                if (CM_Get_Parent(out uint parent, current, flags: 0) != ConfigManagerSuccess) break;
+                if (!GPUVendorFormatting.TryParseHardwareID(ReadFirstHardwareID(parent), out GPUHardwareID parentID)
+                    || parentID.VendorID != parsed.VendorID)
+                    break;
+
+                linkDevice = parent;
+                current = parent;
+            }
+        }
+
+        bool hasCurrentSpeed = TryReadDevNodeUInt32(linkDevice, PCICurrentLinkSpeedProperty, out uint currentSpeed);
+        bool hasCurrentWidth = TryReadDevNodeUInt32(linkDevice, PCICurrentLinkWidthProperty, out uint currentWidth);
+        _ = TryReadDevNodeUInt32(linkDevice, PCIMaximumLinkSpeedProperty, out uint maximumSpeed);
+        _ = TryReadDevNodeUInt32(linkDevice, PCIMaximumLinkWidthProperty, out uint maximumWidth);
+        return hasCurrentSpeed || hasCurrentWidth
+            ? new GPUPCIeLink(HasValue: true, currentSpeed, currentWidth, maximumSpeed, maximumWidth)
+            : default;
+    }
+
+    private static bool TryReadDevNodeUInt32(uint deviceInstance, DEVPROPKEY propertyKey, out uint value)
+    {
+        value = 0;
+        if (!TryReadDevNodeProperty(deviceInstance, propertyKey, out uint type, out byte[] data)
+            || type != DevpropTypeUInt32
+            || data.Length < sizeof(uint))
+            return false;
+
+        value = BinaryPrimitives.ReadUInt32LittleEndian(data);
+        return true;
+    }
+
+    private static bool TryReadDevNodeString(uint deviceInstance, DEVPROPKEY propertyKey, out string value)
+    {
+        value = string.Empty;
+        if (!TryReadDevNodeProperty(deviceInstance, propertyKey, out uint type, out byte[] data)
+            || type != DevpropTypeString)
+            return false;
+
+        value = Encoding.Unicode.GetString(data).TrimEnd('\0').Trim();
+        return value.Length > 0;
+    }
+
+    private static bool TryReadDevNodeProperty(
+        uint deviceInstance,
+        DEVPROPKEY propertyKey,
+        out uint propertyType,
+        out byte[] propertyData)
+    {
+        propertyData = [];
+        DEVPROPKEY mutablePropertyKey = propertyKey;
+        uint size = 0;
+        int result = CM_Get_DevNode_PropertyW(
+            deviceInstance,
+            ref mutablePropertyKey,
+            out propertyType,
+            propertyBuffer: null,
+            ref size,
+            flags: 0);
+        if (result != ConfigManagerBufferSmall || size is 0 or > int.MaxValue) return false;
+
+        byte[] buffer = new byte[size];
+        mutablePropertyKey = propertyKey;
+        result = CM_Get_DevNode_PropertyW(
+            deviceInstance,
+            ref mutablePropertyKey,
+            out propertyType,
+            buffer,
+            ref size,
+            flags: 0);
+        if (result != ConfigManagerSuccess || size > buffer.Length) return false;
+
+        propertyData = size == buffer.Length ? buffer : buffer[..(int)size];
+        return true;
     }
 
     private static bool TryReadRegistryInteger(
@@ -386,6 +560,18 @@ internal static class GPUDevicePropertyReader
     [DllImport("advapi32.dll")]
     private static extern int RegCloseKey(IntPtr key);
 
+    [DllImport("cfgmgr32.dll")]
+    private static extern int CM_Get_Parent(out uint parentDeviceInstance, uint deviceInstance, uint flags);
+
+    [DllImport("cfgmgr32.dll", CharSet = CharSet.Unicode)]
+    private static extern int CM_Get_DevNode_PropertyW(
+        uint deviceInstance,
+        ref DEVPROPKEY propertyKey,
+        out uint propertyType,
+        [Out] byte[]? propertyBuffer,
+        ref uint propertyBufferSize,
+        uint flags);
+
     [StructLayout(LayoutKind.Sequential)]
     private readonly struct DEVPROPKEY(Guid formatID, uint propertyID)
     {
@@ -401,7 +587,12 @@ internal readonly record struct GPUDeviceMetadata(
     DateOnly? DriverDate,
     string LocationInformation,
     bool HasInstalledMemory,
-    ulong InstalledMemoryBytes)
+    ulong InstalledMemoryBytes,
+    string DeviceInstanceID,
+    string HardwareID,
+    string BIOSString,
+    string AMDSoftwareVersion,
+    GPUPCIeLink Link)
 {
     public static GPUDeviceMetadata Empty { get; } = new(
         HasValue: false,
@@ -409,5 +600,10 @@ internal readonly record struct GPUDeviceMetadata(
         DriverDate: null,
         string.Empty,
         HasInstalledMemory: false,
-        InstalledMemoryBytes: 0);
+        InstalledMemoryBytes: 0,
+        string.Empty,
+        string.Empty,
+        string.Empty,
+        string.Empty,
+        default);
 }

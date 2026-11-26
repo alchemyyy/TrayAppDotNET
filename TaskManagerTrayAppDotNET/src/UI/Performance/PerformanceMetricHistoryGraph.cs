@@ -14,6 +14,7 @@ internal sealed class PerformanceMetricHistoryGraph : Control
     private readonly Pen _gridPen;
     private readonly PerformanceGraphHoverPresenter _hover;
     private readonly IBrush _underfillBrush;
+    private readonly IBrush _secondaryUnderfillBrush;
     private readonly double _hoverTextInset;
     private readonly int _gridColumns;
     private readonly int _gridRows;
@@ -23,6 +24,7 @@ internal sealed class PerformanceMetricHistoryGraph : Control
     private string _primaryLabel;
     private string _secondaryLabel;
     private double _maximumValue = 1;
+    private double _secondaryMaximumValue = double.NaN;
     private Point _hoverPointerPosition;
     private bool _showUnderfill = true;
 
@@ -35,7 +37,8 @@ internal sealed class PerformanceMetricHistoryGraph : Control
         Color accent,
         SettingsPalette palette,
         TaskManagerWindowResources resources,
-        bool isLightTheme)
+        bool isLightTheme,
+        Color? secondaryAccent = null)
     {
         _primaryHistory = primaryHistory;
         _secondaryHistory = secondaryHistory;
@@ -66,14 +69,13 @@ internal sealed class PerformanceMetricHistoryGraph : Control
         // AXAML hot-reload exception: DashStyle is not a linker-supported AXAML primitive, so
         // the immutable Pens retain Avalonia's built-in Dash preset
         SecondaryPen = new Pen(
-            accentBrush,
+            secondaryAccent is { } secondaryColor ? new SolidColorBrush(secondaryColor) : accentBrush,
             resources.AxamlTaskManagerPerformance.GraphLineThickness,
             DashStyle.Dash);
-        _underfillBrush = new SolidColorBrush(
-            PerformanceGraphRendering.CreateUnderfillColor(
-                accent,
-                resources.AxamlTaskManagerPerformance.GraphUnderfillOpacity,
-                resources.AxamlTaskManagerPerformance.GraphUnderfillDarkenAmount));
+        _underfillBrush = CreateUnderfillBrush(accent, resources);
+        _secondaryUnderfillBrush = secondaryAccent is { } secondaryUnderfillColor
+            ? CreateUnderfillBrush(secondaryUnderfillColor, resources)
+            : _underfillBrush;
         Color configuredHoverLineColor = resources.GraphHoverLineColor(isLightTheme);
         byte hoverLineAlpha = (byte)Math.Round(
             configuredHoverLineColor.A * Math.Clamp(
@@ -153,6 +155,24 @@ internal sealed class PerformanceMetricHistoryGraph : Control
         InvalidateVisual();
     }
 
+    /// <summary>
+    /// Scales the secondary history against its own top value, for two series with different capacities. Without
+    /// one, both histories share <see cref="SetMaximumValue"/>.
+    /// </summary>
+    public void SetSecondaryMaximumValue(double maximumValue)
+    {
+        double normalizedMaximum = double.IsFinite(maximumValue) && maximumValue > 0
+            ? maximumValue
+            : double.NaN;
+        if (_secondaryMaximumValue.Equals(normalizedMaximum)) return;
+
+        _secondaryMaximumValue = normalizedMaximum;
+        InvalidateVisual();
+    }
+
+    private double SecondaryMaximumValue =>
+        double.IsNaN(_secondaryMaximumValue) ? _maximumValue : _secondaryMaximumValue;
+
     /// <summary>Schedules a repaint after either history receives a sample.</summary>
     public void Refresh()
     {
@@ -220,6 +240,8 @@ internal sealed class PerformanceMetricHistoryGraph : Control
                 DrawHistoryUnderfill(
                     context,
                     _secondaryHistory,
+                    _secondaryUnderfillBrush,
+                    SecondaryMaximumValue,
                     width,
                     height,
                     windowStartTimestamp,
@@ -229,6 +251,8 @@ internal sealed class PerformanceMetricHistoryGraph : Control
             DrawHistoryUnderfill(
                 context,
                 _primaryHistory,
+                _underfillBrush,
+                _maximumValue,
                 width,
                 height,
                 windowStartTimestamp,
@@ -240,6 +264,7 @@ internal sealed class PerformanceMetricHistoryGraph : Control
             context,
             _primaryHistory,
             PrimaryPen,
+            _maximumValue,
             width,
             height,
             windowStartTimestamp,
@@ -250,6 +275,7 @@ internal sealed class PerformanceMetricHistoryGraph : Control
                 context,
                 _secondaryHistory,
                 SecondaryPen,
+                SecondaryMaximumValue,
                 width,
                 height,
                 windowStartTimestamp,
@@ -323,10 +349,11 @@ internal sealed class PerformanceMetricHistoryGraph : Control
         }
     }
 
-    private void DrawHistory(
+    private static void DrawHistory(
         DrawingContext context,
         PerformanceMetricHistory history,
         Pen pen,
+        double maximumValue,
         double width,
         double height,
         double windowStartTimestamp,
@@ -337,6 +364,7 @@ internal sealed class PerformanceMetricHistoryGraph : Control
         Point previousPoint = PointForSample(
             history,
             sampleIndex: 0,
+            maximumValue,
             width,
             height,
             windowStartTimestamp,
@@ -346,6 +374,7 @@ internal sealed class PerformanceMetricHistoryGraph : Control
             Point currentPoint = PointForSample(
                 history,
                 sampleIndex,
+                maximumValue,
                 width,
                 height,
                 windowStartTimestamp,
@@ -356,9 +385,11 @@ internal sealed class PerformanceMetricHistoryGraph : Control
     }
 
     /// <summary>Fills the polygon bounded by one metric trace and the graph baseline.</summary>
-    private void DrawHistoryUnderfill(
+    private static void DrawHistoryUnderfill(
         DrawingContext context,
         PerformanceMetricHistory history,
+        IBrush brush,
+        double maximumValue,
         double width,
         double height,
         double windowStartTimestamp,
@@ -370,6 +401,7 @@ internal sealed class PerformanceMetricHistoryGraph : Control
         Point firstPoint = PointForSample(
             history,
             sampleIndex: 0,
+            maximumValue,
             width,
             height,
             windowStartTimestamp,
@@ -385,6 +417,7 @@ internal sealed class PerformanceMetricHistoryGraph : Control
                 lastPoint = PointForSample(
                     history,
                     sampleIndex,
+                    maximumValue,
                     width,
                     height,
                     windowStartTimestamp,
@@ -396,12 +429,13 @@ internal sealed class PerformanceMetricHistoryGraph : Control
             geometryContext.EndFigure(true);
         }
 
-        context.DrawGeometry(_underfillBrush, pen: null, geometry);
+        context.DrawGeometry(brush, pen: null, geometry);
     }
 
-    private Point PointForSample(
+    private static Point PointForSample(
         PerformanceMetricHistory history,
         int sampleIndex,
+        double maximumValue,
         double width,
         double height,
         double windowStartTimestamp,
@@ -411,9 +445,15 @@ internal sealed class PerformanceMetricHistoryGraph : Control
         long timestamp = history.GetTimestampChronological(sampleIndex);
         double elapsedWindowFraction = (timestamp - windowStartTimestamp) / durationTicks;
         double positionX = Math.Clamp(elapsedWindowFraction, min: 0, max: 1) * width;
-        double positionY = height - Math.Clamp(value / _maximumValue, min: 0, max: 1) * height;
+        double positionY = height - Math.Clamp(value / maximumValue, min: 0, max: 1) * height;
         return new Point(positionX, positionY);
     }
+
+    private static SolidColorBrush CreateUnderfillBrush(Color color, TaskManagerWindowResources resources) =>
+        new(PerformanceGraphRendering.CreateUnderfillColor(
+            color,
+            resources.AxamlTaskManagerPerformance.GraphUnderfillOpacity,
+            resources.AxamlTaskManagerPerformance.GraphUnderfillDarkenAmount));
 
     private string BuildHoverMetric(
         bool hasPrimary,

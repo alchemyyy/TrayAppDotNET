@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net.NetworkInformation;
 using Avalonia.Media;
+using TaskManagerTrayAppDotNET.Services;
 using static TaskManagerTrayAppDotNET.UI.Performance.PerformanceText;
 
 namespace TaskManagerTrayAppDotNET.UI.Performance;
@@ -35,6 +36,7 @@ internal static class PerformanceDevicePresentationFactory
     private const double BytesPerTebibyte = BytesPerGibibyte * 1_024;
     private const double BitsPerMegabit = 1_000_000;
     private const double HertzPerGigahertz = 1_000_000_000;
+    private const double HertzPerMegahertz = 1_000_000;
     private const string NetworkDeviceNameSeparator = " - ";
 
     /// <summary>Projects one immutable snapshot into the complete live device list.</summary>
@@ -54,10 +56,19 @@ internal static class PerformanceDevicePresentationFactory
     public static List<PerformanceDevicePresentation> Create(
         PerformanceSnapshot snapshot,
         int historyLengthMinutes,
-        PerformanceHardwareNameResolver hardwareNameResolver)
+        PerformanceHardwareNameResolver hardwareNameResolver) =>
+        Create(snapshot, historyLengthMinutes, hardwareNameResolver, gpuPowerLimits: []);
+
+    /// <summary>Projects one immutable snapshot, showing GPU power in watts where a saved power limit allows it.</summary>
+    public static List<PerformanceDevicePresentation> Create(
+        PerformanceSnapshot snapshot,
+        int historyLengthMinutes,
+        PerformanceHardwareNameResolver hardwareNameResolver,
+        IReadOnlyList<GPUPowerLimitRecord> gpuPowerLimits)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(hardwareNameResolver);
+        ArgumentNullException.ThrowIfNull(gpuPowerLimits);
 
         string graphWindow = FormatHistoryWindow(historyLengthMinutes);
         int capacity = 2 + snapshot.GPUs.Length + snapshot.Networks.Length + snapshot.Disks.Length;
@@ -69,7 +80,14 @@ internal static class PerformanceDevicePresentationFactory
 
         ReadOnlySpan<GPUPerformanceSnapshot> GPUs = snapshot.GPUs.Span;
         for (int GPUIndex = 0; GPUIndex < GPUs.Length; GPUIndex++)
-            devices.Add(CreateGPU(GPUs[GPUIndex], graphWindow, hardwareNameResolver));
+        {
+            GPUPerformanceSnapshot GPU = GPUs[GPUIndex];
+            devices.Add(CreateGPU(
+                GPU,
+                graphWindow,
+                hardwareNameResolver,
+                GetGPUPowerLimitWatts(GPU, gpuPowerLimits)));
+        }
 
         ReadOnlySpan<NetworkPerformanceSnapshot> networks = snapshot.Networks.Span;
         for (int networkIndex = 0; networkIndex < networks.Length; networkIndex++)
@@ -105,6 +123,37 @@ internal static class PerformanceDevicePresentationFactory
         return F(
             normalizedLength == 1 ? nameof(AppStrings.Perf_MinuteFormat) : nameof(AppStrings.Perf_MinutesFormat),
             normalizedLength);
+    }
+
+    /// <summary>Returns the saved default power limit in watts a GPU's power should be shown against, or NaN.</summary>
+    public static double GetGPUPowerLimitWatts(
+        GPUPerformanceSnapshot GPU,
+        IReadOnlyList<GPUPowerLimitRecord> gpuPowerLimits)
+    {
+        GPUAdapterIdentity? identity = GPU.Details?.Identity;
+        return identity != null
+               && GPUPowerLimitCollection.TryGetDisplayLimitWatts(
+                   gpuPowerLimits,
+                   identity.DeviceInstanceID,
+                   identity.VBIOSVersion,
+                   out double limitWatts)
+            ? limitWatts
+            : double.NaN;
+    }
+
+    /// <summary>
+    /// Formats GPU power, which Windows reports as a percentage of the board's default limit: watts when that limit is
+    /// known, otherwise the percentage. It is not clamped, since a raised power limit lets a board exceed 100%.
+    /// </summary>
+    internal static string FormatGPUPower(double percentOfDefaultLimit, double limitWatts)
+    {
+        if (!double.IsFinite(percentOfDefaultLimit) || percentOfDefaultLimit < 0) return Unavailable;
+
+        return double.IsFinite(limitWatts) && limitWatts > 0
+            ? string.Concat(
+                (percentOfDefaultLimit / 100 * limitWatts).ToString(format: "N0", CultureInfo.CurrentCulture),
+                " W")
+            : string.Concat(percentOfDefaultLimit.ToString(format: "N0", CultureInfo.CurrentCulture), "%");
     }
 
     /// <summary>Calculates the normalized network value used by cards and history graphs.</summary>
@@ -263,9 +312,11 @@ internal static class PerformanceDevicePresentationFactory
     private static PerformanceDevicePresentation CreateGPU(
         GPUPerformanceSnapshot sample,
         string graphWindow,
-        PerformanceHardwareNameResolver hardwareNameResolver)
+        PerformanceHardwareNameResolver hardwareNameResolver,
+        double powerLimitWatts)
     {
         GPUPerformanceDetailsSnapshot? details = sample.Details;
+        GPUAdapterIdentity identity = details?.Identity ?? GPUAdapterIdentity.Empty;
         string hardwareName = hardwareNameResolver.Resolve(sample.Kind, sample.Name);
         string utilization = FormatPercent(sample.HasUtilizationSample, sample.UtilizationPercent);
         ulong dedicatedMemoryCapacityBytes = details?.HasHardwareReservedMemoryData == true
@@ -304,6 +355,12 @@ internal static class PerformanceDevicePresentationFactory
                     details.FeatureLevel,
                     str3: ")")
             : Unavailable;
+        string power = details?.HasPowerData == true
+            ? FormatGPUPower(details.PowerPercent, powerLimitWatts)
+            : Unavailable;
+        string driverVersion = details != null
+            ? GPUVendorFormatting.FormatDriverVersionDisplay(identity.PublicDriverVersion, details.DriverVersion)
+            : string.Empty;
         PerformanceStatistic[] statistics =
         [
             new(Label: L(nameof(AppStrings.Perf_Label_Utilization)), utilization),
@@ -311,21 +368,32 @@ internal static class PerformanceDevicePresentationFactory
             new(Label: L(nameof(AppStrings.Perf_Label_GPUMemory)), totalGPUMemory),
             new(Label: L(nameof(AppStrings.Perf_Label_SharedGPUMemory)), sharedMemory),
             new(Label: L(nameof(AppStrings.Perf_Label_Temperature)), temperature),
+            new(Label: L(nameof(AppStrings.Perf_Label_Power)), power),
             new(
-                Label: L(nameof(AppStrings.Perf_Label_DriverVersion)),
-                details != null && !string.IsNullOrWhiteSpace(details.DriverVersion)
-                    ? details.DriverVersion
-                    : Unavailable),
+                Label: L(nameof(AppStrings.Perf_Label_GPUClock)),
+                details?.HasClockData == true ? FormatMegahertz(details.ClockHertz) : Unavailable),
+            new(
+                Label: L(nameof(AppStrings.Perf_Label_MemoryClock)),
+                details?.HasMemoryClockData == true ? FormatMegahertz(details.MemoryClockHertz) : Unavailable),
+            new(
+                Label: L(nameof(AppStrings.Perf_Label_MaxGPUClock)),
+                details?.HasClockData == true ? FormatMegahertz(details.MaximumClockHertz) : Unavailable),
+            new(Label: L(nameof(AppStrings.Perf_Label_DriverVersion)), OrUnavailable(driverVersion)),
             new(
                 Label: L(nameof(AppStrings.Perf_Label_DriverDate)),
                 details?.DriverDate?.ToString(format: "d", CultureInfo.CurrentCulture)
                 ?? Unavailable),
             new(Label: L(nameof(AppStrings.Perf_Label_DirectXVersion)), directXVersion),
+            new(Label: L(nameof(AppStrings.Perf_Label_VBIOSVersion)), OrUnavailable(identity.VBIOSVersion)),
+            new(
+                Label: L(nameof(AppStrings.Perf_Label_DeviceID)),
+                OrUnavailable(GPUVendorFormatting.FormatHardwareID(identity.HardwareID))),
+            new(
+                Label: L(nameof(AppStrings.Perf_Label_PCIeLink)),
+                OrUnavailable(GPUVendorFormatting.FormatPCIeLink(identity.Link))),
             new(
                 Label: L(nameof(AppStrings.Perf_Label_PhysicalLocation)),
-                details != null && !string.IsNullOrWhiteSpace(details.PhysicalLocation)
-                    ? details.PhysicalLocation
-                    : Unavailable),
+                OrUnavailable(details?.PhysicalLocation)),
             new(
                 Label: L(nameof(AppStrings.Perf_Label_HardwareReservedMemory)),
                 details?.HasHardwareReservedMemoryData == true
@@ -346,6 +414,9 @@ internal static class PerformanceDevicePresentationFactory
             GetAccent(PerformanceDeviceKind.GPU),
             statistics);
     }
+
+    private static string OrUnavailable(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? Unavailable : value;
 
     private static PerformanceDevicePresentation CreateNetwork(
         NetworkPerformanceSnapshot sample,
@@ -587,6 +658,14 @@ internal static class PerformanceDevicePresentationFactory
         string.Concat(
             (hertz / HertzPerGigahertz).ToString(format: "N2", CultureInfo.CurrentCulture),
             str1: " GHz");
+
+    /// <summary>Formats a GPU clock in megahertz, the unit GPU vendors publish clocks in.</summary>
+    internal static string FormatMegahertz(double hertz) =>
+        double.IsFinite(hertz) && hertz > 0
+            ? string.Concat(
+                (hertz / HertzPerMegahertz).ToString(format: "N0", CultureInfo.CurrentCulture),
+                str1: " MHz")
+            : Unavailable;
 
     private static string FormatBitRate(long bitsPerSecond) =>
         bitsPerSecond > 0

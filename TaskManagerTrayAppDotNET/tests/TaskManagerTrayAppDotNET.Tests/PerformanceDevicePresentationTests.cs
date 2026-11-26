@@ -326,13 +326,27 @@ public sealed class PerformanceDevicePresentationTests
                 ReadOnlyMemory<GPUPerformanceDetailEngineSnapshot>.Empty,
                 HasTemperatureData: true,
                 TemperatureCelsius: 32,
+                HasPowerData: true,
+                PowerPercent: 25,
+                HasClockData: true,
+                ClockHertz: 2_760_000_000,
+                MaximumClockHertz: 3_090_000_000,
+                HasMemoryClockData: true,
+                MemoryClockHertz: 17_601_000_000,
                 DriverVersion: "32.0.15.9660",
                 new DateOnly(year: 2026, month: 5, day: 22),
                 DirectXVersion: "12",
                 FeatureLevel: "12.2",
                 PhysicalLocation: "PCI bus 33, device 0, function 0",
                 HasHardwareReservedMemoryData: true,
-                Gibibyte)
+                Gibibyte,
+                new GPUAdapterIdentity(
+                    DeviceInstanceID: @"PCI\VEN_10DE&DEV_2C02&SUBSYS_20961771&REV_A1\4&1",
+                    new GPUHardwareID(HasValue: true, 0x10DE, 0x2C02, 0x1771, 0x2096, 0xA1),
+                    PublicDriverVersion: "596.60",
+                    VBIOSVersion: "98.03.3B.C0.AB",
+                    new GPUPCIeLink(HasValue: true, 4, 8, 5, 16),
+                    new GPUPCIAddress(HasValue: true, 33, 0, 0)))
         };
         PerformanceSnapshot snapshot = PerformanceSnapshot.Empty with { GPUs = new[] { GPU } };
 
@@ -346,10 +360,36 @@ public sealed class PerformanceDevicePresentationTests
         Assert.Equal(expected: "3.5/80.0 GB", valuesByLabel[L(nameof(AppStrings.Perf_Label_GPUMemory))]);
         Assert.Equal(expected: "0.5/64.0 GB", valuesByLabel[L(nameof(AppStrings.Perf_Label_SharedGPUMemory))]);
         Assert.Equal(expected: "32 \u00B0C", valuesByLabel[L(nameof(AppStrings.Perf_Label_Temperature))]);
-        Assert.Equal(expected: "32.0.15.9660", valuesByLabel[L(nameof(AppStrings.Perf_Label_DriverVersion))]);
+        Assert.Equal(expected: "25%", valuesByLabel[L(nameof(AppStrings.Perf_Label_Power))]);
+        Assert.Equal(expected: "2,760 MHz", valuesByLabel[L(nameof(AppStrings.Perf_Label_GPUClock))]);
+        Assert.Equal(expected: "17,601 MHz", valuesByLabel[L(nameof(AppStrings.Perf_Label_MemoryClock))]);
+        Assert.Equal(expected: "3,090 MHz", valuesByLabel[L(nameof(AppStrings.Perf_Label_MaxGPUClock))]);
+        Assert.Equal(expected: "596.60 (32.0.15.9660)", valuesByLabel[L(nameof(AppStrings.Perf_Label_DriverVersion))]);
         Assert.Equal(expected: "12 (FL 12.2)", valuesByLabel[L(nameof(AppStrings.Perf_Label_DirectXVersion))]);
+        Assert.Equal(expected: "98.03.3B.C0.AB", valuesByLabel[L(nameof(AppStrings.Perf_Label_VBIOSVersion))]);
+        Assert.Equal(expected: "10DE:2C02 (1771:2096, rev A1)", valuesByLabel[L(nameof(AppStrings.Perf_Label_DeviceID))]);
+        Assert.Equal(expected: "Gen 4 x8 (max Gen 5 x16)", valuesByLabel[L(nameof(AppStrings.Perf_Label_PCIeLink))]);
         Assert.Equal(expected: "PCI bus 33, device 0, function 0", valuesByLabel[L(nameof(AppStrings.Perf_Label_PhysicalLocation))]);
         Assert.Equal(expected: "1.0 GB", valuesByLabel[L(nameof(AppStrings.Perf_Label_HardwareReservedMemory))]);
+
+        // A saved limit read under the current vBIOS turns the same 25% into watts; one read under another does not
+        GPUPowerLimitRecord record = new()
+        {
+            DeviceInstanceID = GPU.Details.Identity.DeviceInstanceID,
+            VBIOSVersion = "98.03.3B.C0.AB",
+            DefaultLimitMilliwatts = 360_000,
+            ShowWatts = true
+        };
+        Assert.Equal(expected: "90 W", PowerFor(snapshot, record));
+        record.VBIOSVersion = "98.03.3B.C0.AA";
+        Assert.Equal(expected: "25%", PowerFor(snapshot, record));
+
+        static string PowerFor(PerformanceSnapshot snapshot, GPUPowerLimitRecord record) =>
+            PerformanceDevicePresentationFactory.Create(snapshot, 1, PerformanceHardwareNameResolver.Empty, [record])
+                .Single(static candidate => candidate.DeviceID == "gpu:test")
+                .Statistics.ToArray()
+                .Single(static statistic => statistic.Label == L(nameof(AppStrings.Perf_Label_Power)))
+                .Value;
     }
 
     [Fact]

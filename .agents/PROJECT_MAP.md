@@ -352,6 +352,14 @@
 - Processes Status column, mirrored from Taskmgr.exe: `TaskManagerTrayAppDotNET/src/Models/ProcessStatus.cs`,
   `TaskManagerTrayAppDotNET/src/Services/ProcessHungWindowCollector.cs`; rules in
   `documentation/docs/task_manager_process_status.md`
+- GPU device metadata: `Services/GPUDevicePropertyReader.cs` (driver key, hardware ID, PCIe link, walking up
+  same-vendor bridges for AMD's on-card switch), `Services/GPUVendorFormatting.cs` (public driver version, vBIOS,
+  device ID and link formatting), `Services/GPUAdapterNativeDetailsReader.cs` (`ReadPerformanceData`: WDDM
+  temperature and power, power being a percentage of the default power limit)
+- GPU power in watts: `Services/GPUPowerLimitReader.cs` reads the default power limit once through NVML, ADLX or IGCL
+  in a child process (`TaskManagerTrayAppDotNET.exe --read-gpu-power-limit`, checked in `Program.Main` before every
+  mode but the elevated task start); the result is `AppSettings.GPUPowerLimits` (`Models/GPUPowerLimitRecord.cs`),
+  keyed by device instance ID and invalidated by a vBIOS change. Only the NVML path is verified on hardware
 - Always run as administrator (Task Manager as a setting, Fan Control always): Common's
   `TrayAppDotNETCommon/src/Services/Install/ElevatedStartTask.cs` (`TrayAppDotNETElevatedStartTask`, one instance per
   app in its `AppServices.ElevatedStart`: per-account highest-privileges scheduled task, hand-off, Fan Control's
