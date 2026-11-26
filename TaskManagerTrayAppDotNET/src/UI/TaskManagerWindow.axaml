@@ -59,6 +59,8 @@
   <CornerRadius x:Key="TaskManagerDetails.SearchActionVisualCornerRadius">4</CornerRadius>
   <sys:Double x:Key="TaskManagerDetails.SearchActionSpacing">6</sys:Double>
   <Thickness x:Key="TaskManagerDetails.SearchActionButtonPadding">0</Thickness>
+  <!-- Translucent so the same red reads on the dark and light title bars -->
+  <Color x:Key="TaskManagerDetails.SearchInvalidTintColor">#66E81123</Color>
   <sys:Double x:Key="TaskManagerDetails.RunInputWidth">430</sys:Double>
   <Thickness x:Key="TaskManagerDetails.RunPanelPadding">12</Thickness>
   <CornerRadius x:Key="TaskManagerDetails.PanelCornerRadius">6</CornerRadius>

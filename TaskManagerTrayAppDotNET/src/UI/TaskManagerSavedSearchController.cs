@@ -1,30 +1,42 @@
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using TrayAppDotNETCommon.UI.ControlMapping;
 using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
 
-namespace TaskManagerTrayAppDotNET.UI.ProcessesPage;
+namespace TaskManagerTrayAppDotNET.UI;
 
-/// <summary>Hosts the saved-search menu anchored directly beneath the Processes search box.</summary>
-internal sealed class ProcessSavedSearchController : IDisposable
+/// <summary>
+/// Lays out a page search box with its Clear and Save actions and hosts the saved-search menu anchored
+/// directly beneath the box.
+/// </summary>
+internal sealed class TaskManagerSavedSearchController : IDisposable
 {
     private static string SaveSearchTip => LocalizationManager.Instance[nameof(AppStrings.SavedSearch_Save)];
     private static string SearchAlreadySavedTip => LocalizationManager.Instance[nameof(AppStrings.SavedSearch_AlreadySaved)];
+    private static string ClearSearchTip => LocalizationManager.Instance[nameof(AppStrings.SavedSearch_Clear)];
 
     private readonly TextBox _textBox;
     private readonly SettingsPalette _palette;
     private readonly bool _enableRoundedCorners;
     private readonly ITrayAppDotNETTrayMenuSettings _trayMenuSettings;
-    private readonly Action<IReadOnlyList<ProcessSavedSearch>> _savedSearchesChanged;
-    private readonly Func<ProcessSavedSearch, Task<bool>> _confirmRegexDeletion;
+    private readonly Action<IReadOnlyList<SavedSearch>> _savedSearchesChanged;
+    private readonly Func<SavedSearch, Task<bool>> _confirmRegexDeletion;
+    private readonly bool _leftAligned;
     private readonly InsetGlyphButton _clearButton;
     private readonly InsetGlyphButton _saveButton;
-    private List<ProcessSavedSearch> _savedSearches;
+    private readonly Grid _searchControls;
+    private readonly TranslateTransform _searchControlsTransform = new();
+    private double _actionSpacing;
+    private IBrush _invalidTint;
+    private string? _queryError;
+    private List<SavedSearch> _savedSearches;
     private EditableContextMenuWindow? _menuWindow;
     private Window? _menuOwner;
     private bool _menuRepositionPending;
@@ -34,15 +46,18 @@ internal sealed class ProcessSavedSearchController : IDisposable
 #endif
     private bool _disposed;
 
-    public ProcessSavedSearchController(
+    public TaskManagerSavedSearchController(
         TextBox textBox,
-        IReadOnlyList<ProcessSavedSearch> savedSearches,
+        ControlMapNodeID clearNode,
+        ControlMapNodeID saveNode,
+        IReadOnlyList<SavedSearch> savedSearches,
         SettingsPalette palette,
         TaskManagerWindowResources windowResources,
+        bool leftAligned,
         bool enableRoundedCorners,
         ITrayAppDotNETTrayMenuSettings trayMenuSettings,
-        Action<IReadOnlyList<ProcessSavedSearch>> savedSearchesChanged,
-        Func<ProcessSavedSearch, Task<bool>> confirmRegexDeletion)
+        Action<IReadOnlyList<SavedSearch>> savedSearchesChanged,
+        Func<SavedSearch, Task<bool>> confirmRegexDeletion)
     {
         ArgumentNullException.ThrowIfNull(textBox);
         ArgumentNullException.ThrowIfNull(savedSearches);
@@ -58,7 +73,10 @@ internal sealed class ProcessSavedSearchController : IDisposable
         _trayMenuSettings = trayMenuSettings;
         _savedSearchesChanged = savedSearchesChanged;
         _confirmRegexDeletion = confirmRegexDeletion;
-        _savedSearches = ProcessSavedSearchCollection.Normalize(savedSearches);
+        _leftAligned = leftAligned;
+        _actionSpacing = windowResources.AxamlTaskManagerDetails.SearchActionSpacing;
+        _invalidTint = TrayAppDotNETSettingsUI.Brush(windowResources.AxamlTaskManagerDetails.SearchInvalidTintColor);
+        _savedSearches = SavedSearchCollection.Normalize(savedSearches);
 
         double actionButtonSize = textBox.Height;
         double actionGlyphFontSize =
@@ -73,9 +91,9 @@ internal sealed class ProcessSavedSearchController : IDisposable
             windowResources.AxamlTaskManagerDetails.SearchActionButtonPadding,
             windowResources.AxamlTaskManagerDetails.SearchActionGlyphOpacity,
             windowResources.AxamlTaskManagerDetails.SearchActionDisabledOpacity) { IsVisible = HasQuery() };
-        _clearButton.MapTo(ControlMap.Main.ProcessesPage.Search.Clear);
+        _clearButton.MapTo(clearNode);
         _clearButton.Click += OnClearClick;
-        TrayAppDotNETToolTip.SetTip(_clearButton, tip: LocalizationManager.Instance[nameof(AppStrings.SavedSearch_Clear)]);
+        TrayAppDotNETToolTip.SetTip(_clearButton, ClearSearchTip);
         TrayAppDotNETToolTip.SuppressWhileEngaged(_clearButton);
 
         _saveButton = new InsetGlyphButton(
@@ -88,11 +106,30 @@ internal sealed class ProcessSavedSearchController : IDisposable
             windowResources.AxamlTaskManagerDetails.SearchActionButtonPadding,
             windowResources.AxamlTaskManagerDetails.SearchActionGlyphOpacity,
             windowResources.AxamlTaskManagerDetails.SearchActionDisabledOpacity) { IsVisible = HasQuery() };
-        _saveButton.MapTo(ControlMap.Main.ProcessesPage.Search.Save);
+        _saveButton.MapTo(saveNode);
         _saveButton.Click += OnSaveClick;
         TrayAppDotNETToolTip.SetTip(_saveButton, SaveSearchTip);
         TrayAppDotNETToolTip.SuppressWhileEngaged(_saveButton);
         UpdateSaveButtonState();
+
+        _searchControls = new Grid
+        {
+            VerticalAlignment = VerticalAlignment.Top,
+            RenderTransform = _searchControlsTransform,
+            ColumnDefinitions =
+            {
+                new ColumnDefinition(GridLength.Auto),
+                new ColumnDefinition(GridLength.Auto),
+                new ColumnDefinition(GridLength.Auto)
+            }
+        };
+        _searchControls.Children.Add(_clearButton);
+        Grid.SetColumn(_saveButton, value: 1);
+        _searchControls.Children.Add(_saveButton);
+        Grid.SetColumn(_textBox, value: 2);
+        _searchControls.Children.Add(_textBox);
+        ApplyActionSpacing();
+        UpdateSearchControlsPosition();
 
         _textBox.TextChanged += OnTextChanged;
         _textBox.AddHandler(
@@ -104,9 +141,45 @@ internal sealed class ProcessSavedSearchController : IDisposable
         _textBox.LostFocus += OnTextBoxLostFocus;
     }
 
-    public Control ClearButton => _clearButton;
+    /// <summary>Gets Clear, Save and the search box, shifted so the box keeps its place while actions show.</summary>
+    public Control SearchControls => _searchControls;
 
     public Control SaveButton => _saveButton;
+
+    /// <summary>Gets the search box and visible leading action widths for restored-window drag avoidance.</summary>
+    public bool TryGetSearchDragRegionPixelWidths(
+        out int searchWidth,
+        out int leadingActionWidth)
+    {
+        searchWidth = 0;
+        leadingActionWidth = 0;
+        TopLevel? topLevel = TopLevel.GetTopLevel(_textBox);
+        if (!_textBox.IsEffectivelyVisible
+            || _textBox.Bounds.Width <= 0
+            || topLevel == null)
+            return false;
+
+        PixelPoint screenLeft = _textBox.PointToScreen(default);
+        PixelPoint screenRight = _textBox.PointToScreen(new Point(_textBox.Bounds.Width, y: 0));
+        int searchLeft = Math.Min(screenLeft.X, screenRight.X);
+        searchWidth = Math.Abs(screenRight.X - screenLeft.X);
+        if (searchWidth <= 0) return false;
+
+        if (!_clearButton.IsEffectivelyVisible) return true;
+        if (_clearButton.Bounds.Width <= 0
+            || TopLevel.GetTopLevel(_clearButton) == null)
+        {
+            leadingActionWidth = (int)Math.Ceiling(
+                GetLeadingSearchActionWidth() * topLevel.RenderScaling);
+            return true;
+        }
+
+        PixelPoint actionLeft = _clearButton.PointToScreen(default);
+        PixelPoint actionRight = _clearButton.PointToScreen(new Point(_clearButton.Bounds.Width, y: 0));
+        int actionLeftX = Math.Min(actionLeft.X, actionRight.X);
+        leadingActionWidth = Math.Max(val1: 0, searchLeft - actionLeftX);
+        return true;
+    }
 
 #if DEBUG
     /// <summary>Attaches process-wide reload notifications after the owning page is fully built.</summary>
@@ -146,15 +219,64 @@ internal sealed class ProcessSavedSearchController : IDisposable
             windowResources.AxamlTaskManagerDetails.SearchActionButtonPadding,
             windowResources.AxamlTaskManagerDetails.SearchActionGlyphOpacity,
             windowResources.AxamlTaskManagerDetails.SearchActionDisabledOpacity);
+        _actionSpacing = windowResources.AxamlTaskManagerDetails.SearchActionSpacing;
+        _invalidTint = TrayAppDotNETSettingsUI.Brush(windowResources.AxamlTaskManagerDetails.SearchInvalidTintColor);
+        ApplyQueryErrorVisual();
+        ApplyActionSpacing();
+        UpdateSearchControlsPosition();
     }
 #endif
 
     private bool HasQuery() => !string.IsNullOrWhiteSpace(_textBox.Text);
 
+    /// <summary>Tints Clear red and explains the error in its tooltip while the query is invalid.</summary>
+    /// <param name="errorMessage">The query's error, or <see langword="null"/> when it is valid or empty.</param>
+    public void SetQueryError(string? errorMessage)
+    {
+        if (_disposed || string.Equals(_queryError, errorMessage, StringComparison.Ordinal)) return;
+
+        _queryError = errorMessage;
+        ApplyQueryErrorVisual();
+    }
+
+    private void ApplyQueryErrorVisual()
+    {
+        _clearButton.SetTint(_queryError == null ? null : _invalidTint);
+        TrayAppDotNETToolTip.SetTip(
+            _clearButton,
+            _queryError == null
+                ? ClearSearchTip
+                : string.Format(
+                    CultureInfo.CurrentCulture,
+                    LocalizationManager.Instance[nameof(AppStrings.SavedSearch_ClearInvalidFormat)],
+                    _queryError));
+    }
+
+    private void ApplyActionSpacing() =>
+        _saveButton.Margin = new Thickness(left: 0, top: 0, _actionSpacing, bottom: 0);
+
+    /// <summary>Shifts the controls left by the visible actions so the box itself does not move.</summary>
+    private void UpdateSearchControlsPosition()
+    {
+        if (!HasQuery())
+        {
+            _searchControlsTransform.X = 0;
+            return;
+        }
+
+        double leadingActionWidth = GetLeadingSearchActionWidth();
+        _searchControlsTransform.X = _leftAligned
+            ? -leadingActionWidth
+            : -leadingActionWidth / 2;
+    }
+
+    private double GetLeadingSearchActionWidth() =>
+        _clearButton.Width + _saveButton.Width + _actionSpacing;
+
     /// <summary>Disables Save and explains why while the current query is already saved.</summary>
     private void UpdateSaveButtonState()
     {
-        bool canSave = !ProcessSavedSearchCollection.ContainsQuery(_savedSearches, _textBox.Text);
+        bool canSave = !SavedSearchCollection.ContainsQuery(_savedSearches, _textBox.Text);
         if (_saveButton.IsEnabled == canSave) return;
 
         _saveButton.IsEnabled = canSave;
@@ -167,6 +289,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
         _clearButton.IsVisible = hasQuery;
         _saveButton.IsVisible = hasQuery;
         UpdateSaveButtonState();
+        UpdateSearchControlsPosition();
         if (hasQuery) Close();
     }
 
@@ -252,7 +375,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
         TaskManagerContextMenuResources resources = TaskManagerContextMenuResources.Current;
         for (int searchIndex = 0; searchIndex < _savedSearches.Count; searchIndex++)
         {
-            ProcessSavedSearch savedSearch = _savedSearches[searchIndex];
+            SavedSearch savedSearch = _savedSearches[searchIndex];
             int capturedSearchIndex = searchIndex;
             EditableContextMenuEntryButton renameButton = new(static () => { })
             {
@@ -287,7 +410,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
                 TrailingButton = deleteButton,
                 InlineTextEdit =
                     new EditableContextMenuInlineTextEdit(name => RenameSavedSearch(capturedSearchIndex, name)),
-                Node = ControlMap.ProcessSavedSearchMenu.SavedSearch.ID
+                Node = ControlMap.SavedSearchMenu.SavedSearch.ID
             });
         }
 
@@ -467,7 +590,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
     {
         if (_disposed) return;
 
-        List<ProcessSavedSearch> updated = ProcessSavedSearchCollection.Add(
+        List<SavedSearch> updated = SavedSearchCollection.Add(
             _savedSearches,
             _textBox.Text);
         if (updated.Count == _savedSearches.Count) return;
@@ -515,10 +638,8 @@ internal sealed class ProcessSavedSearchController : IDisposable
     {
         if (_disposed || (uint)searchIndex >= (uint)_savedSearches.Count) return;
 
-        ProcessSavedSearch savedSearch = _savedSearches[searchIndex];
-        bool usesRegularExpression =
-            ProcessSavedSearchCollection.UsesRegularExpression(savedSearch.Query);
-        if (usesRegularExpression)
+        SavedSearch savedSearch = _savedSearches[searchIndex];
+        if (SavedSearchCollection.UsesRegularExpression(savedSearch.Query))
         {
             if (_deleteConfirmationPending) return;
 
@@ -541,7 +662,7 @@ internal sealed class ProcessSavedSearchController : IDisposable
 
         if ((uint)searchIndex >= (uint)_savedSearches.Count) return;
 
-        List<ProcessSavedSearch> updated = [.. _savedSearches];
+        List<SavedSearch> updated = [.. _savedSearches];
         updated.RemoveAt(searchIndex);
         Persist(updated);
         _menuWindow?.ReplaceEntries(BuildEntries());
@@ -553,11 +674,11 @@ internal sealed class ProcessSavedSearchController : IDisposable
             return name.Trim();
 
         string previousName = _savedSearches[searchIndex].Name;
-        List<ProcessSavedSearch> updated = ProcessSavedSearchCollection.Rename(
+        List<SavedSearch> updated = SavedSearchCollection.Rename(
             _savedSearches,
             searchIndex,
             name);
-        if (ProcessSavedSearchCollection.AreEquivalent(updated, _savedSearches))
+        if (SavedSearchCollection.AreEquivalent(updated, _savedSearches))
             return previousName;
 
         Persist(updated);
@@ -566,9 +687,9 @@ internal sealed class ProcessSavedSearchController : IDisposable
             : previousName;
     }
 
-    private void Persist(IReadOnlyList<ProcessSavedSearch> searches)
+    private void Persist(IReadOnlyList<SavedSearch> searches)
     {
-        List<ProcessSavedSearch> normalized = ProcessSavedSearchCollection.Normalize(searches);
+        List<SavedSearch> normalized = SavedSearchCollection.Normalize(searches);
         try
         {
             _savedSearchesChanged(normalized);

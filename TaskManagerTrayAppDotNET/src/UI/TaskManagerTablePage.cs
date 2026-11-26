@@ -26,6 +26,8 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
     private readonly Grid _informationHost;
     private readonly TextBlock _emptyMessage;
     private readonly TextBox _searchBox;
+    private readonly SearchAutocompleteController _searchAutocomplete;
+    private readonly TaskManagerSavedSearchController _savedSearches;
     private readonly TaskManagerSearchOverlay _searchOverlay;
     private readonly TextBox _runInput;
     private readonly Border _runPanel;
@@ -55,7 +57,10 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
         TaskManagerWindowResources resources,
         bool isLightTheme,
         Func<string, bool> startProcess,
-        string searchPlaceholder)
+        string searchPlaceholder,
+        IReadOnlyList<SavedSearch> savedSearches,
+        Action<IReadOnlyList<SavedSearch>> savedSearchesChanged,
+        Func<SavedSearch, Task<bool>> confirmDeleteSavedSearch)
         : base(title, palette, resources, isLightTheme)
     {
         ArgumentNullException.ThrowIfNull(schema);
@@ -83,13 +88,35 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
         _searchBox.PlaceholderText = searchPlaceholder;
         _searchBox.VerticalAlignment = VerticalAlignment.Top;
         _searchBox.TextChanged += OnSearchTextChanged;
-        _searchBox.MapTo(ControlMap.TaskManagerTablePage.Search);
-        _searchOverlay = new TaskManagerSearchOverlay(
+        _searchBox.MapTo(ControlMap.TaskManagerTablePage.Search.SearchText);
+        TrayAppDotNETToolTip.SetTip(
             _searchBox,
+            LocalizationManager.Instance[nameof(AppStrings.Table_SearchHelp)]);
+        _searchAutocomplete = new SearchAutocompleteController(
+            _searchBox,
+            schema.SearchCatalog,
+            ControlMap.TaskManagerTablePage.Search.Suggestion,
+            palette,
+            settings.EnableRoundedCorners);
+        _savedSearches = new TaskManagerSavedSearchController(
+            _searchBox,
+            ControlMap.TaskManagerTablePage.Search.Clear,
+            ControlMap.TaskManagerTablePage.Search.Save,
+            savedSearches,
+            palette,
+            resources,
+            settings.LeftAlignProcessSearchBar,
+            settings.EnableRoundedCorners,
+            settings,
+            savedSearchesChanged,
+            confirmDeleteSavedSearch);
+        _searchOverlay = new TaskManagerSearchOverlay(
+            _savedSearches.SearchControls,
             _searchBox,
             settings.LeftAlignProcessSearchBar,
             resources.AxamlTaskManagerDetails.SearchMargin,
             resources.AxamlTaskManagerDetails.SearchCaptionSpacing);
+        _searchOverlay.AddOverlay(_searchAutocomplete.Popup);
 
         // The shell hosts the overlay outside the page, so the overlay carries the page id the search box resolves in
         _searchOverlay.MapTo(pageNode);
@@ -132,6 +159,7 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
         _table.GridRowSpacingRequested += OnGridRowSpacingRequested;
         _table.GridRowSpacingResetRequested += OnGridRowSpacingResetRequested;
         _table.GridRowSpacingBaselineRequested += OnGridRowSpacingBaselineRequested;
+        _table.FilterErrorChanged += OnFilterErrorChanged;
 
         Grid tableSurface = new();
         tableSurface.Children.Add(_table);
@@ -173,6 +201,10 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
 
         AttachedToVisualTree += OnAttachedToVisualTree;
         DetachedFromVisualTree += OnDetachedFromVisualTree;
+#if DEBUG
+        _searchAutocomplete.AttachAXAMLHotReload();
+        _savedSearches.AttachAXAMLHotReload();
+#endif
     }
 
     public event Action<TaskManagerTableRow?>? SelectedRowChanged;
@@ -180,24 +212,11 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
 
     internal override Control? PageOverlay => _searchOverlay;
 
-    /// <summary>Returns the generic search-box width; these pages have no leading search actions.</summary>
+    /// <summary>Gets the search box and visible leading action widths for restored-window drag avoidance.</summary>
     public bool TryGetSearchDragRegionPixelWidths(
         out int searchWidth,
-        out int leadingActionWidth)
-    {
-        searchWidth = 0;
-        leadingActionWidth = 0;
-        TopLevel? topLevel = TopLevel.GetTopLevel(_searchBox);
-        if (!_searchBox.IsEffectivelyVisible
-            || _searchBox.Bounds.Width <= 0
-            || topLevel == null)
-            return false;
-
-        PixelPoint screenLeft = _searchBox.PointToScreen(default);
-        PixelPoint screenRight = _searchBox.PointToScreen(new Point(_searchBox.Bounds.Width, y: 0));
-        searchWidth = Math.Abs(screenRight.X - screenLeft.X);
-        return searchWidth > 0;
-    }
+        out int leadingActionWidth) =>
+        _savedSearches.TryGetSearchDragRegionPixelWidths(out searchWidth, out leadingActionWidth);
 
     /// <summary>Reserves the live caption-button width supplied by the owning shell.</summary>
     public void SetSearchCaptionButtonAreaWidth(double width) =>
@@ -366,6 +385,8 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
         HandleRowActivated(row);
         RowActivated?.Invoke(row);
     }
+
+    private void OnFilterErrorChanged(string? errorMessage) => _savedSearches.SetQueryError(errorMessage);
 
     private void OnSearchTextChanged(object? sender, TextChangedEventArgs eventArgs)
     {
@@ -546,6 +567,8 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
         DetachExternalSubscriptions();
         _searchBox.TextChanged -= OnSearchTextChanged;
         _searchOverlay.Dispose();
+        _savedSearches.Dispose();
+        _searchAutocomplete.Dispose();
         _runInput.KeyDown -= OnRunInputKeyDown;
         _submitRunButton.Click -= OnSubmitRunClick;
         _cancelRunButton.Click -= OnCancelRunClick;
@@ -557,6 +580,7 @@ internal class TaskManagerTablePage : TaskManagerPageLayout, ITaskManagerSearchO
         _table.GridRowSpacingRequested -= OnGridRowSpacingRequested;
         _table.GridRowSpacingResetRequested -= OnGridRowSpacingResetRequested;
         _table.GridRowSpacingBaselineRequested -= OnGridRowSpacingBaselineRequested;
+        _table.FilterErrorChanged -= OnFilterErrorChanged;
         for (int registrationIndex = 0;
              registrationIndex < _headerActionRegistrations.Count;
              registrationIndex++)

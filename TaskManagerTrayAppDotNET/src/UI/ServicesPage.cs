@@ -34,7 +34,8 @@ internal sealed class ServicesPage : TaskManagerTablePage
         bool isLightTheme,
         Func<string, bool> startProcess,
         Func<WindowsServiceSnapshot, Task<bool>> confirmDisable,
-        Action<string, string> reportMessage)
+        Action<string, string> reportMessage,
+        Func<SavedSearch, Task<bool>> confirmDeleteSavedSearch)
         : base(
             title: LocalizationManager.Instance[nameof(AppStrings.Page_Services)],
             ControlMap.Main.ServicesPage.ID,
@@ -45,7 +46,10 @@ internal sealed class ServicesPage : TaskManagerTablePage
             resources,
             isLightTheme,
             startProcess,
-            searchPlaceholder: LocalizationManager.Instance[nameof(AppStrings.Services_SearchPlaceholder)])
+            searchPlaceholder: LocalizationManager.Instance[nameof(AppStrings.Services_SearchPlaceholder)],
+            settings.ServicesSavedSearches,
+            settings.UpdateServicesSavedSearches,
+            confirmDeleteSavedSearch)
     {
         _serviceManager = serviceManager;
         _startProcess = startProcess;
@@ -79,7 +83,8 @@ internal sealed class ServicesPage : TaskManagerTablePage
                 Title: LocalizationManager.Instance[nameof(AppStrings.Services_Column_PID)],
                 resources.AxamlTaskManagerTable.ServicesPIDColumnWidth,
                 TaskManagerTableAlignment.Right,
-                SortDescendingByDefault: true),
+                SortDescendingByDefault: true,
+                SearchValueKind.Number),
             new TaskManagerTableColumn(
                 Key: "description",
                 Title: LocalizationManager.Instance[nameof(AppStrings.Services_Column_Description)],

@@ -11,26 +11,27 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using TrayAppDotNETCommon.UI.ControlMapping;
 
-namespace TaskManagerTrayAppDotNET.UI.ProcessesPage;
+namespace TaskManagerTrayAppDotNET.UI;
 
-internal readonly record struct ProcessSearchColumnToken(
+internal readonly record struct SearchColumnToken(
     int OpeningBraceIndex,
     int ClosingBraceIndex,
     string Fragment);
 
-internal readonly record struct ProcessSearchColumnSuggestion(
-    ProcessTableColumnKind Column,
+/// <summary>One completion row; <paramref name="Column"/> is a catalog column ID.</summary>
+internal readonly record struct SearchColumnSuggestion(
+    int Column,
     string ColumnName,
     string DisplayText);
 
 /// <summary>Finds, ranks, and completes column tokens independently of the popup UI.</summary>
-internal static class ProcessSearchAutocompleteLogic
+internal static class SearchAutocompleteLogic
 {
     /// <summary>Finds the brace-delimited column token containing the keyboard caret.</summary>
     public static bool TryGetColumnToken(
         string? text,
         int caretIndex,
-        out ProcessSearchColumnToken token)
+        out SearchColumnToken token)
     {
         string queryText = text ?? string.Empty;
         int boundedCaretIndex = Math.Clamp(caretIndex, min: 0, queryText.Length);
@@ -63,58 +64,49 @@ internal static class ProcessSearchAutocompleteLogic
         }
 
         string fragment = queryText[(openingBraceIndex + 1)..boundedCaretIndex].Trim();
-        token = new ProcessSearchColumnToken(openingBraceIndex, closingBraceIndex, fragment);
+        token = new SearchColumnToken(openingBraceIndex, closingBraceIndex, fragment);
         return true;
     }
 
-    /// <summary>Ranks catalog columns using their title, enum name, and optional nickname.</summary>
-    public static ProcessSearchColumnSuggestion[] RankSuggestions(
+    /// <summary>Ranks catalog columns using their title, alternate name, and optional nickname.</summary>
+    public static SearchColumnSuggestion[] RankSuggestions(
         string fragment,
-        IReadOnlyList<ProcessColumnSetting> columnSettings,
+        SearchColumnCatalog catalog,
         int maximumSuggestionCount)
     {
-        ArgumentNullException.ThrowIfNull(columnSettings);
+        ArgumentNullException.ThrowIfNull(catalog);
         if (maximumSuggestionCount <= 0)
             throw new ArgumentOutOfRangeException(nameof(maximumSuggestionCount));
 
-        string?[] nicknames = new string?[ProcessTableColumnCatalog.Definitions.Length];
-        for (int settingIndex = 0; settingIndex < columnSettings.Count; settingIndex++)
-        {
-            ProcessColumnSetting setting = columnSettings[settingIndex];
-            if (!Enum.IsDefined(setting.Column)) continue;
-            nicknames[(int)setting.Column] = setting.Nickname.Trim();
-        }
-
         List<RankedSuggestion> rankedSuggestions = [];
-        for (int definitionIndex = 0;
-             definitionIndex < ProcessTableColumnCatalog.Definitions.Length;
-             definitionIndex++)
+        IReadOnlyList<SearchColumn> columns = catalog.Columns;
+        for (int catalogIndex = 0; catalogIndex < columns.Count; catalogIndex++)
         {
-            ProcessTableColumnDefinition definition = ProcessTableColumnCatalog.Definitions[definitionIndex];
-            string nickname = nicknames[definitionIndex] ?? string.Empty;
+            SearchColumn column = columns[catalogIndex];
+            string nickname = column.Nickname;
             string searchText = string.Concat(
-                definition.Title,
+                column.Title,
                 " ",
-                definition.Kind.ToString(),
+                column.AlternateName,
                 " ",
                 nickname);
             SearchMatch combinedMatch = SearchMatcher.Score(searchText, fragment);
-            SearchMatch titleMatch = SearchMatcher.Score(definition.Title, fragment);
-            SearchMatch enumMatch = SearchMatcher.Score(definition.Kind.ToString(), fragment);
+            SearchMatch titleMatch = SearchMatcher.Score(column.Title, fragment);
+            SearchMatch alternateMatch = SearchMatcher.Score(column.AlternateName, fragment);
             SearchMatch nicknameMatch = SearchMatcher.Score(nickname, fragment);
             int score = Math.Max(
                 Math.Max(combinedMatch.Score, titleMatch.Score),
-                Math.Max(enumMatch.Score, nicknameMatch.Score));
+                Math.Max(alternateMatch.Score, nicknameMatch.Score));
             if (score == int.MinValue) continue;
 
             string displayText = nickname.Length == 0
-                ? definition.Title
-                : string.Concat(definition.Title, str1: " (", nickname, str3: ")");
-            ProcessSearchColumnSuggestion suggestion = new(
-                definition.Kind,
-                definition.Title,
+                ? column.Title
+                : string.Concat(column.Title, str1: " (", nickname, str3: ")");
+            SearchColumnSuggestion suggestion = new(
+                column.ID,
+                column.Title,
                 displayText);
-            rankedSuggestions.Add(new RankedSuggestion(suggestion, score, definitionIndex));
+            rankedSuggestions.Add(new RankedSuggestion(suggestion, score, catalogIndex));
         }
 
         rankedSuggestions.Sort(static (left, right) =>
@@ -124,7 +116,7 @@ internal static class ProcessSearchAutocompleteLogic
         });
 
         int resultCount = Math.Min(maximumSuggestionCount, rankedSuggestions.Count);
-        ProcessSearchColumnSuggestion[] result = new ProcessSearchColumnSuggestion[resultCount];
+        SearchColumnSuggestion[] result = new SearchColumnSuggestion[resultCount];
         for (int resultIndex = 0; resultIndex < resultCount; resultIndex++)
             result[resultIndex] = rankedSuggestions[resultIndex].Suggestion;
         return result;
@@ -134,12 +126,12 @@ internal static class ProcessSearchAutocompleteLogic
     public static bool TryComplete(
         string? text,
         int caretIndex,
-        ProcessSearchColumnSuggestion suggestion,
+        SearchColumnSuggestion suggestion,
         out string completedText,
         out int completedCaretIndex)
     {
         string queryText = text ?? string.Empty;
-        if (!TryGetColumnToken(queryText, caretIndex, out ProcessSearchColumnToken token))
+        if (!TryGetColumnToken(queryText, caretIndex, out SearchColumnToken token))
         {
             completedText = queryText;
             completedCaretIndex = Math.Clamp(caretIndex, min: 0, queryText.Length);
@@ -205,13 +197,13 @@ internal static class ProcessSearchAutocompleteLogic
     }
 
     private readonly record struct RankedSuggestion(
-        ProcessSearchColumnSuggestion Suggestion,
+        SearchColumnSuggestion Suggestion,
         int Score,
         int CatalogIndex);
 }
 
 /// <summary>Shows a focus-preserving TADN column-completion menu beneath a search box.</summary>
-internal sealed class ProcessSearchAutocompleteController : IDisposable
+internal sealed class SearchAutocompleteController : IDisposable
 {
     private readonly TextBox _textBox;
     private readonly SettingsPalette _palette;
@@ -219,8 +211,9 @@ internal sealed class ProcessSearchAutocompleteController : IDisposable
     private readonly StackPanel _itemsPanel;
     private readonly Border _popupBorder;
     private readonly List<Border> _itemBorders = [];
-    private IReadOnlyList<ProcessColumnSetting> _columnSettings;
-    private ProcessSearchColumnSuggestion[] _suggestions = [];
+    private readonly ControlMapNodeID _suggestionNode;
+    private SearchColumnCatalog _catalog;
+    private SearchColumnSuggestion[] _suggestions = [];
     private int _maximumSuggestionCount = 1;
     private int _selectedIndex;
     private bool _updateScheduled;
@@ -230,18 +223,20 @@ internal sealed class ProcessSearchAutocompleteController : IDisposable
 #endif
     private bool _disposed;
 
-    public ProcessSearchAutocompleteController(
+    public SearchAutocompleteController(
         TextBox textBox,
-        IReadOnlyList<ProcessColumnSetting> columnSettings,
+        SearchColumnCatalog catalog,
+        ControlMapNodeID suggestionNode,
         SettingsPalette palette,
         bool enableRoundedCorners)
     {
         ArgumentNullException.ThrowIfNull(textBox);
-        ArgumentNullException.ThrowIfNull(columnSettings);
+        ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(palette);
 
         _textBox = textBox;
-        _columnSettings = columnSettings;
+        _catalog = catalog;
+        _suggestionNode = suggestionNode;
         _palette = palette;
         _enableRoundedCorners = enableRoundedCorners;
         _itemsPanel = new StackPanel();
@@ -283,11 +278,11 @@ internal sealed class ProcessSearchAutocompleteController : IDisposable
     }
 #endif
 
-    /// <summary>Refreshes aliases after column properties change.</summary>
-    public void SetColumnSettings(IReadOnlyList<ProcessColumnSetting> columnSettings)
+    /// <summary>Refreshes column names and nicknames after the page's columns change.</summary>
+    public void SetCatalog(SearchColumnCatalog catalog)
     {
-        ArgumentNullException.ThrowIfNull(columnSettings);
-        _columnSettings = columnSettings;
+        ArgumentNullException.ThrowIfNull(catalog);
+        _catalog = catalog;
         ScheduleUpdate();
     }
 
@@ -356,19 +351,19 @@ internal sealed class ProcessSearchAutocompleteController : IDisposable
         }
 
         string queryText = _textBox.Text ?? string.Empty;
-        if (!ProcessSearchAutocompleteLogic.TryGetColumnToken(
+        if (!SearchAutocompleteLogic.TryGetColumnToken(
                 queryText,
                 _textBox.CaretIndex,
-                out ProcessSearchColumnToken token))
+                out SearchColumnToken token))
         {
             Close();
             return;
         }
 
-        ProcessSearchColumnSuggestion[] nextSuggestions =
-            ProcessSearchAutocompleteLogic.RankSuggestions(
+        SearchColumnSuggestion[] nextSuggestions =
+            SearchAutocompleteLogic.RankSuggestions(
                 token.Fragment,
-                _columnSettings,
+                _catalog,
                 _maximumSuggestionCount);
         if (nextSuggestions.Length == 0)
         {
@@ -376,7 +371,7 @@ internal sealed class ProcessSearchAutocompleteController : IDisposable
             return;
         }
 
-        ProcessTableColumnKind? previouslySelectedColumn =
+        int? previouslySelectedColumn =
             (uint)_selectedIndex < (uint)_suggestions.Length
                 ? _suggestions[_selectedIndex].Column
                 : null;
@@ -406,7 +401,7 @@ internal sealed class ProcessSearchAutocompleteController : IDisposable
         TaskManagerContextMenuResources resources = TaskManagerContextMenuResources.Current;
         for (int suggestionIndex = 0; suggestionIndex < _suggestions.Length; suggestionIndex++)
         {
-            ProcessSearchColumnSuggestion suggestion = _suggestions[suggestionIndex];
+            SearchColumnSuggestion suggestion = _suggestions[suggestionIndex];
             TextBlock label = TrayAppDotNETSettingsUI.Text(
                 suggestion.DisplayText,
                 _palette,
@@ -430,7 +425,7 @@ internal sealed class ProcessSearchAutocompleteController : IDisposable
             };
             itemBorder.PointerEntered += OnSuggestionPointerEntered;
             itemBorder.PointerPressed += OnSuggestionPointerPressed;
-            itemBorder.MapTo(ControlMap.Main.ProcessesPage.Search.Suggestion);
+            itemBorder.MapTo(_suggestionNode);
             itemBorder.MapActivation(_ => CompleteSuggestion(itemBorder));
             _itemBorders.Add(itemBorder);
             _itemsPanel.Children.Add(itemBorder);
@@ -523,7 +518,7 @@ internal sealed class ProcessSearchAutocompleteController : IDisposable
     private void CompleteSelectedSuggestion()
     {
         if ((uint)_selectedIndex >= (uint)_suggestions.Length) return;
-        if (!ProcessSearchAutocompleteLogic.TryComplete(
+        if (!SearchAutocompleteLogic.TryComplete(
                 _textBox.Text,
                 _textBox.CaretIndex,
                 _suggestions[_selectedIndex],

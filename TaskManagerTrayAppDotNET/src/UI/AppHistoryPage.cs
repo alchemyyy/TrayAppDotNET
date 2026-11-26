@@ -33,7 +33,8 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
         SettingsPalette palette,
         TaskManagerWindowResources resources,
         bool isLightTheme,
-        Func<string, bool> startProcess)
+        Func<string, bool> startProcess,
+        Func<SavedSearch, Task<bool>> confirmDeleteSavedSearch)
         : base(
             title: L(nameof(AppStrings.AppHistory_Title)),
             ControlMap.Main.AppHistoryPage.ID,
@@ -44,7 +45,10 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
             resources,
             isLightTheme,
             startProcess,
-            searchPlaceholder: L(nameof(AppStrings.AppHistory_SearchPlaceholder)))
+            searchPlaceholder: L(nameof(AppStrings.AppHistory_SearchPlaceholder)),
+            settings.AppHistorySavedSearches,
+            settings.UpdateAppHistorySavedSearches,
+            confirmDeleteSavedSearch)
     {
         _snapshotService = snapshotService;
         _historyStore = historyStore;
@@ -85,19 +89,22 @@ internal sealed class AppHistoryPage : TaskManagerTablePage
                 Title: L(nameof(AppStrings.AppHistory_Column_CPUTime)),
                 resources.AxamlTaskManagerTable.AppHistoryCPUTimeColumnWidth,
                 TaskManagerTableAlignment.Right,
-                SortDescendingByDefault: true),
+                SortDescendingByDefault: true,
+                SearchValueKind.Duration),
             new TaskManagerTableColumn(
                 Key: "network",
                 Title: L(nameof(AppStrings.AppHistory_Column_Network)),
                 resources.AxamlTaskManagerTable.AppHistoryNetworkColumnWidth,
                 TaskManagerTableAlignment.Right,
-                SortDescendingByDefault: true),
+                SortDescendingByDefault: true,
+                SearchValueKind.Bytes),
             new TaskManagerTableColumn(
                 Key: "notifications",
                 Title: L(nameof(AppStrings.AppHistory_Column_Notifications)),
                 resources.AxamlTaskManagerTable.AppHistoryNotificationsColumnWidth,
                 TaskManagerTableAlignment.Right,
-                SortDescendingByDefault: true)
+                SortDescendingByDefault: true,
+                SearchValueKind.Number)
         ], resources.AxamlTaskManagerTable.MinimumColumnWidth);
 
     internal override void SetPageActive(bool isActive)

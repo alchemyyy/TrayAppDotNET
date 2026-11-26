@@ -3,8 +3,8 @@ using System.Xml.Serialization;
 
 namespace TaskManagerTrayAppDotNET.Models;
 
-/// <summary>One named Processes-page search stored in Task Manager settings.</summary>
-public sealed class ProcessSavedSearch
+/// <summary>One named page search stored in Task Manager settings.</summary>
+public sealed class SavedSearch
 {
     [XmlAttribute]
     [AllowNull]
@@ -23,18 +23,18 @@ public sealed class ProcessSavedSearch
     } = string.Empty;
 }
 
-/// <summary>Normalizes and edits persisted process searches without sharing mutable entries.</summary>
-internal static class ProcessSavedSearchCollection
+/// <summary>Normalizes and edits persisted page searches without sharing mutable entries.</summary>
+internal static class SavedSearchCollection
 {
     private const string DefaultNamePrefix = "Saved Search ";
 
-    public static List<ProcessSavedSearch> Normalize(
-        IEnumerable<ProcessSavedSearch?>? searches)
+    public static List<SavedSearch> Normalize(
+        IEnumerable<SavedSearch?>? searches)
     {
-        List<ProcessSavedSearch> normalized = [];
+        List<SavedSearch> normalized = [];
         if (searches == null) return normalized;
 
-        foreach (ProcessSavedSearch? search in searches)
+        foreach (SavedSearch? search in searches)
         {
             if (search == null) continue;
 
@@ -44,22 +44,22 @@ internal static class ProcessSavedSearchCollection
             string name = search.Name.Trim();
             if (name.Length == 0)
                 name = ResolveNextDefaultName(normalized);
-            normalized.Add(new ProcessSavedSearch { Name = name, Query = query });
+            normalized.Add(new SavedSearch { Name = name, Query = query });
         }
 
         return normalized;
     }
 
     /// <summary>Adds an unsaved query under the next non-conflicting one-based default name.</summary>
-    public static List<ProcessSavedSearch> Add(
-        IEnumerable<ProcessSavedSearch>? searches,
+    public static List<SavedSearch> Add(
+        IEnumerable<SavedSearch>? searches,
         string? query)
     {
-        List<ProcessSavedSearch> updated = Normalize(searches);
+        List<SavedSearch> updated = Normalize(searches);
         string normalizedQuery = query?.Trim() ?? string.Empty;
         if (normalizedQuery.Length == 0 || ContainsQuery(updated, normalizedQuery)) return updated;
 
-        updated.Add(new ProcessSavedSearch { Name = ResolveNextDefaultName(updated), Query = normalizedQuery });
+        updated.Add(new SavedSearch { Name = ResolveNextDefaultName(updated), Query = normalizedQuery });
         return updated;
     }
 
@@ -69,7 +69,7 @@ internal static class ProcessSavedSearchCollection
     /// Regex queries compare exactly because escapes such as \d and \D differ only by case.
     /// </remarks>
     public static bool ContainsQuery(
-        IReadOnlyList<ProcessSavedSearch> searches,
+        IReadOnlyList<SavedSearch> searches,
         string? query)
     {
         ArgumentNullException.ThrowIfNull(searches);
@@ -90,26 +90,26 @@ internal static class ProcessSavedSearchCollection
     }
 
     /// <summary>Renames one saved search while preserving its query and list position.</summary>
-    public static List<ProcessSavedSearch> Rename(
-        IEnumerable<ProcessSavedSearch>? searches,
+    public static List<SavedSearch> Rename(
+        IEnumerable<SavedSearch>? searches,
         int searchIndex,
         string? name)
     {
-        List<ProcessSavedSearch> updated = Normalize(searches);
+        List<SavedSearch> updated = Normalize(searches);
         if ((uint)searchIndex >= (uint)updated.Count) return updated;
 
         string normalizedName = name?.Trim() ?? string.Empty;
         if (normalizedName.Length == 0) return updated;
 
-        ProcessSavedSearch existing = updated[searchIndex];
-        updated[searchIndex] = new ProcessSavedSearch { Name = normalizedName, Query = existing.Query };
+        SavedSearch existing = updated[searchIndex];
+        updated[searchIndex] = new SavedSearch { Name = normalizedName, Query = existing.Query };
         return updated;
     }
 
     /// <summary>Returns whether two normalized saved-search lists have the same content.</summary>
     public static bool AreEquivalent(
-        IReadOnlyList<ProcessSavedSearch> left,
-        IReadOnlyList<ProcessSavedSearch> right)
+        IReadOnlyList<SavedSearch> left,
+        IReadOnlyList<SavedSearch> right)
     {
         ArgumentNullException.ThrowIfNull(left);
         ArgumentNullException.ThrowIfNull(right);
@@ -117,8 +117,8 @@ internal static class ProcessSavedSearchCollection
 
         for (int searchIndex = 0; searchIndex < left.Count; searchIndex++)
         {
-            ProcessSavedSearch leftSearch = left[searchIndex];
-            ProcessSavedSearch rightSearch = right[searchIndex];
+            SavedSearch leftSearch = left[searchIndex];
+            SavedSearch rightSearch = right[searchIndex];
             if (!string.Equals(leftSearch.Name, rightSearch.Name, StringComparison.Ordinal)
                 || !string.Equals(leftSearch.Query, rightSearch.Query, StringComparison.Ordinal))
                 return false;
@@ -178,7 +178,7 @@ internal static class ProcessSavedSearchCollection
     }
 
     private static string ResolveNextDefaultName(
-        List<ProcessSavedSearch> searches)
+        List<SavedSearch> searches)
     {
         HashSet<string> names = new(StringComparer.OrdinalIgnoreCase);
         for (int searchIndex = 0; searchIndex < searches.Count; searchIndex++)

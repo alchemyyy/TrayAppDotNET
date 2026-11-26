@@ -21,6 +21,7 @@ internal sealed class InsetGlyphButton : Border, IDisposable
     private readonly TextBlock _glyphText;
 #endif
     private double _disabledOpacity;
+    private IBrush? _tint;
     private bool _disposed;
 
     public InsetGlyphButton(
@@ -75,7 +76,7 @@ internal sealed class InsetGlyphButton : Border, IDisposable
 
         _state = FlyoutButtonState.Attach(
             this,
-            static () => Brushes.Transparent,
+            () => _tint ?? Brushes.Transparent,
             () => TrayAppDotNETSettingsUI.Brush(palette.Hover),
             () => TrayAppDotNETSettingsUI.Brush(palette.Pressed),
             _ =>
@@ -87,6 +88,15 @@ internal sealed class InsetGlyphButton : Border, IDisposable
     }
 
     public event EventHandler? Click;
+
+    /// <summary>Paints the resting surface with <paramref name="tint"/>; hover and press still use their own colors.</summary>
+    public void SetTint(IBrush? tint)
+    {
+        if (_disposed || ReferenceEquals(_tint, tint)) return;
+
+        _tint = tint;
+        _state.Refresh();
+    }
 
 #if DEBUG
     /// <summary>Applies current glyph-button metrics while retaining its input and pointer state.</summary>

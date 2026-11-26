@@ -34,11 +34,9 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
     private readonly ProcessTableCanvas _processCanvas;
     private readonly ProcessRowContextMenuController _rowContextMenuController;
     private readonly TextBox _searchBox;
-    private readonly Grid _searchControls;
     private readonly TaskManagerSearchOverlay _searchOverlay;
-    private readonly ProcessSearchAutocompleteController _searchAutocomplete;
-    private readonly ProcessSavedSearchController _savedSearches;
-    private readonly TranslateTransform _searchControlsTransform = new();
+    private readonly SearchAutocompleteController _searchAutocomplete;
+    private readonly TaskManagerSavedSearchController _savedSearches;
     private readonly TextBox _runInput;
     private readonly Border _runPanel;
     private readonly SettingsButton _runTaskButton;
@@ -78,7 +76,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         Func<Task<ElevatedTerminationRequestOutcome>> requestElevatedTerminationOnDemand,
         Func<ActionConfirmation, Task<bool>> confirmAction,
         Func<Task<bool>> confirmRestartExplorer,
-        Func<ProcessSavedSearch, Task<bool>> confirmDeleteSavedSearch,
+        Func<SavedSearch, Task<bool>> confirmDeleteSavedSearch,
         Func<Task<ExplorerRestartResult>> restartExplorer,
         Action<string, string> reportMessage,
         Func<string, bool> startProcess)
@@ -190,50 +188,32 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         TrayAppDotNETToolTip.SetTip(
             _searchBox,
             LocalizationManager.Instance[nameof(AppStrings.Processes_SearchHelp)]);
-        _searchAutocomplete = new ProcessSearchAutocompleteController(
+        _searchAutocomplete = new SearchAutocompleteController(
             _searchBox,
-            settings.DetailsColumns,
+            ProcessSearchColumns.CreateCatalog(settings.DetailsColumns),
+            ControlMap.Main.ProcessesPage.Search.Suggestion,
             palette,
             settings.EnableRoundedCorners);
-        _savedSearches = new ProcessSavedSearchController(
+        _savedSearches = new TaskManagerSavedSearchController(
             _searchBox,
+            ControlMap.Main.ProcessesPage.Search.Clear,
+            ControlMap.Main.ProcessesPage.Search.Save,
             settings.ProcessSavedSearches,
             palette,
             resources,
+            settings.LeftAlignProcessSearchBar,
             settings.EnableRoundedCorners,
             settings,
             settings.UpdateProcessSavedSearches,
             confirmDeleteSavedSearch);
-        _savedSearches.ClearButton.Margin = default;
-        _savedSearches.SaveButton.Margin = new Thickness(
-            left: 0,
-            top: 0,
-            resources.AxamlTaskManagerDetails.SearchActionSpacing,
-            bottom: 0);
-        _searchControls = new Grid
-        {
-            VerticalAlignment = VerticalAlignment.Top,
-            RenderTransform = _searchControlsTransform,
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Auto),
-                new ColumnDefinition(GridLength.Auto),
-                new ColumnDefinition(GridLength.Auto)
-            }
-        };
-        _searchControls.Children.Add(_savedSearches.ClearButton);
-        SetColumn(_savedSearches.SaveButton, value: 1);
-        _searchControls.Children.Add(_savedSearches.SaveButton);
-        SetColumn(_searchBox, value: 2);
-        _searchControls.Children.Add(_searchBox);
-        UpdateSearchControlsPosition();
         _searchOverlay = new TaskManagerSearchOverlay(
-            _searchControls,
+            _savedSearches.SearchControls,
             _searchBox,
             settings.LeftAlignProcessSearchBar,
             resources.AxamlTaskManagerDetails.SearchMargin,
             resources.AxamlTaskManagerDetails.SearchCaptionSpacing);
         _searchOverlay.AddOverlay(_searchAutocomplete.Popup);
+        _processCanvas.FilterErrorChanged += OnFilterErrorChanged;
 
         _runInput = TrayAppDotNETSettingsUI.TextBox(
             palette,
@@ -309,70 +289,13 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
     /// <summary>Gets the search controls rendered by the shell-level page overlay.</summary>
     internal override Control? PageOverlay => _searchOverlay;
 
-    /// <summary>Gets the search box and visible leading action widths for restored-window drag avoidance.</summary>
-    internal bool TryGetSearchDragRegionPixelWidths(
-        out int searchWidth,
-        out int leadingActionWidth)
-    {
-        searchWidth = 0;
-        leadingActionWidth = 0;
-        TopLevel? topLevel = TopLevel.GetTopLevel(_searchBox);
-        if (!_searchBox.IsEffectivelyVisible
-            || _searchBox.Bounds.Width <= 0
-            || topLevel == null)
-            return false;
-
-        PixelPoint screenLeft = _searchBox.PointToScreen(default);
-        PixelPoint screenRight = _searchBox.PointToScreen(new Point(_searchBox.Bounds.Width, y: 0));
-        int searchLeft = Math.Min(screenLeft.X, screenRight.X);
-        searchWidth = Math.Abs(screenRight.X - screenLeft.X);
-        if (searchWidth <= 0) return false;
-
-        Control leftmostActionButton = _savedSearches.ClearButton;
-        if (!leftmostActionButton.IsEffectivelyVisible) return true;
-        if (leftmostActionButton.Bounds.Width <= 0
-            || TopLevel.GetTopLevel(leftmostActionButton) == null)
-        {
-            leadingActionWidth = (int)Math.Ceiling(
-                GetLeadingSearchActionWidth() * topLevel.RenderScaling);
-            return true;
-        }
-
-        PixelPoint actionLeft = leftmostActionButton.PointToScreen(default);
-        PixelPoint actionRight = leftmostActionButton.PointToScreen(
-            new Point(leftmostActionButton.Bounds.Width, y: 0));
-        int actionLeftX = Math.Min(actionLeft.X, actionRight.X);
-        leadingActionWidth = Math.Max(val1: 0, searchLeft - actionLeftX);
-        return true;
-    }
-
     bool ITaskManagerSearchOverlayPage.TryGetSearchDragRegionPixelWidths(
         out int searchWidth,
         out int leadingActionWidth) =>
-        TryGetSearchDragRegionPixelWidths(out searchWidth, out leadingActionWidth);
+        _savedSearches.TryGetSearchDragRegionPixelWidths(out searchWidth, out leadingActionWidth);
 
     void ITaskManagerSearchOverlayPage.SetSearchCaptionButtonAreaWidth(double width) =>
         _searchOverlay.SetCaptionButtonAreaWidth(width);
-
-    private void UpdateSearchControlsPosition()
-    {
-        bool hasLeadingAction = !string.IsNullOrWhiteSpace(_searchBox.Text);
-        if (!hasLeadingAction)
-        {
-            _searchControlsTransform.X = 0;
-            return;
-        }
-
-        double leadingActionWidth = GetLeadingSearchActionWidth();
-        _searchControlsTransform.X = _settings.LeftAlignProcessSearchBar
-            ? -leadingActionWidth
-            : -leadingActionWidth / 2;
-    }
-
-    private double GetLeadingSearchActionWidth() =>
-        _savedSearches.ClearButton.Width
-        + _savedSearches.SaveButton.Width
-        + _resources.AxamlTaskManagerDetails.SearchActionSpacing;
 
     private StackPanel BuildGroupProcessesHeaderControl(
         SettingsPalette palette,
@@ -507,7 +430,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         if (hotReloadedColumnSettings != null)
         {
             _settings.ApplyHotReloadedDetailsColumnLayout(hotReloadedColumnSettings);
-            _searchAutocomplete.SetColumnSettings(hotReloadedColumnSettings);
+            _searchAutocomplete.SetCatalog(ProcessSearchColumns.CreateCatalog(hotReloadedColumnSettings));
         }
 
         double moreButtonSize = resources.AxamlTaskManagerReorderDialog.MoreButtonSize;
@@ -523,17 +446,10 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _groupProcessesHeaderControl.Spacing = resources.AxamlTaskManagerDetails.ToolbarSpacing;
 
         _searchBox.Width = resources.AxamlTaskManagerDetails.SearchWidth;
-        _savedSearches.ClearButton.Margin = default;
-        _savedSearches.SaveButton.Margin = new Thickness(
-            left: 0,
-            top: 0,
-            resources.AxamlTaskManagerDetails.SearchActionSpacing,
-            bottom: 0);
         _savedSearches.ApplyAXAMLResources(resources);
         _searchOverlay.ApplyAXAMLResources(
             resources.AxamlTaskManagerDetails.SearchMargin,
             resources.AxamlTaskManagerDetails.SearchCaptionSpacing);
-        UpdateSearchControlsPosition();
 
         Grid runActions = (Grid)_runPanel.Child!;
         runActions.ColumnSpacing = resources.AxamlTaskManagerDetails.ToolbarSpacing;
@@ -633,6 +549,8 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _columnHeaderBorder.BorderThickness = new Thickness(left: 0, top: 0, right: 0, borderThickness);
         _columnHeaderBorder.Height = headerHeight + borderThickness / 2;
     }
+
+    private void OnFilterErrorChanged(string? errorMessage) => _savedSearches.SetQueryError(errorMessage);
 
     private void OnHeaderHeightChanged()
     {
@@ -791,7 +709,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
     private void OnColumnLayoutChanged(List<ProcessColumnSetting> settings)
     {
         _settings.UpdateDetailsColumnLayout(settings);
-        _searchAutocomplete.SetColumnSettings(settings);
+        _searchAutocomplete.SetCatalog(ProcessSearchColumns.CreateCatalog(settings));
     }
 
     private void OnMoreActionsClick(object? sender, EventArgs eventArgs) => ShowHeaderActionsMenu();
@@ -945,11 +863,8 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _processCanvas.ApplyColumnSettings(settings);
     }
 
-    private void OnSearchTextChanged(object? sender, TextChangedEventArgs eventArgs)
-    {
+    private void OnSearchTextChanged(object? sender, TextChangedEventArgs eventArgs) =>
         _processCanvas.SetFilter(_searchBox.Text);
-        UpdateSearchControlsPosition();
-    }
 
 #if DEBUG
     /// <summary>Replaces cached scrollbar menu options without rebuilding Processes state.</summary>
@@ -1141,6 +1056,7 @@ internal sealed class ProcessDetailsPage : TaskManagerPageLayout, ITaskManagerSe
         _processCanvas.ColumnPropertiesRequested -= OnColumnPropertiesRequested;
         _processCanvas.ColumnLayoutChanged -= OnColumnLayoutChanged;
         _processCanvas.HeaderHeightChanged -= OnHeaderHeightChanged;
+        _processCanvas.FilterErrorChanged -= OnFilterErrorChanged;
         _processCanvas.GridZoomRequested -= OnGridZoomRequested;
         _processCanvas.GridZoomResetRequested -= OnGridZoomResetRequested;
         _processCanvas.GridZoomBaselineRequested -= OnGridZoomBaselineRequested;

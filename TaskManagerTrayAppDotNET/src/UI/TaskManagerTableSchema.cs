@@ -125,12 +125,17 @@ internal readonly record struct TaskManagerTableCell(
 }
 
 /// <summary>Defines one generic Task Manager table column.</summary>
+/// <param name="SearchValueKind">
+/// How search expressions compare the column's numbers; cells keep their raw value as the sort value, and
+/// <see cref="UI.SearchValueKind.BitRate"/> cells hold bytes per second, which search reads as bits.
+/// </param>
 internal readonly record struct TaskManagerTableColumn(
     string Key,
     string Title,
     double Width,
     TaskManagerTableAlignment Alignment = TaskManagerTableAlignment.Left,
-    bool SortDescendingByDefault = false);
+    bool SortDescendingByDefault = false,
+    SearchValueKind SearchValueKind = SearchValueKind.Text);
 
 /// <summary>Defines the stable row identity, hierarchy, cells, icon source, and caller-owned tag.</summary>
 internal sealed class TaskManagerTableRow
@@ -163,6 +168,8 @@ internal sealed class TaskManagerTableSchema
 
         MinimumColumnWidth = minimumColumnWidth;
         Columns = new TaskManagerTableColumn[columns.Count];
+        SearchColumn[] searchColumns = new SearchColumn[columns.Count];
+        int[] searchColumnIDs = new int[columns.Count];
         HashSet<string> keys = new(StringComparer.OrdinalIgnoreCase);
         for (int columnIndex = 0; columnIndex < columns.Count; columnIndex++)
         {
@@ -177,11 +184,43 @@ internal sealed class TaskManagerTableSchema
                 throw new ArgumentException($"Duplicate table column key '{column.Key}'.", nameof(columns));
 
             Columns[columnIndex] = column with { Width = Math.Max(minimumColumnWidth, column.Width) };
+            searchColumns[columnIndex] = new SearchColumn(columnIndex, column.Title, column.Key, column.SearchValueKind);
+            searchColumnIDs[columnIndex] = columnIndex;
         }
+
+        // Plain search text matches any column; column IDs are column indexes
+        SearchCatalog = new SearchColumnCatalog(searchColumns, searchColumnIDs);
+        ResolveSearchValue = GetSearchValue;
     }
 
     public TaskManagerTableColumn[] Columns { get; }
     public double MinimumColumnWidth { get; }
+    public SearchColumnCatalog SearchCatalog { get; }
+    public SearchValueResolver<TaskManagerTableRow> ResolveSearchValue { get; }
+
+    private SearchColumnValue GetSearchValue(TaskManagerTableRow row, int column)
+    {
+        TaskManagerTableCell cell = row.Cells[column];
+        TaskManagerTableSortValue sortValue = cell.SortValue;
+        double numericValue;
+        switch (sortValue.Kind)
+        {
+            case TaskManagerTableSortValueKind.Signed:
+                numericValue = sortValue.Signed;
+                break;
+            case TaskManagerTableSortValueKind.Unsigned:
+                numericValue = sortValue.Unsigned;
+                break;
+            case TaskManagerTableSortValueKind.Decimal:
+                numericValue = sortValue.Decimal;
+                break;
+            default:
+                return SearchColumnValue.TextOnly(cell.Text);
+        }
+
+        if (Columns[column].SearchValueKind == SearchValueKind.BitRate) numericValue *= 8;
+        return SearchColumnValue.Numeric(cell.Text, numericValue);
+    }
 }
 
 /// <summary>Builds the sorted, filtered, and expanded flat projection rendered by a table.</summary>
@@ -193,15 +232,17 @@ internal static class TaskManagerTableProjection
         int sortColumnIndex,
         bool sortDescending,
         IReadOnlySet<string> collapsedGroupKeys,
-        string? filterText)
+        SearchQuery filterQuery,
+        SearchValueResolver<TaskManagerTableRow> resolveSearchValue)
     {
         ArgumentNullException.ThrowIfNull(sourceRows);
         ArgumentNullException.ThrowIfNull(collapsedGroupKeys);
+        ArgumentNullException.ThrowIfNull(filterQuery);
+        ArgumentNullException.ThrowIfNull(resolveSearchValue);
         if (columnCount <= 0) throw new ArgumentOutOfRangeException(nameof(columnCount));
         if ((uint)sortColumnIndex >= (uint)columnCount)
             throw new ArgumentOutOfRangeException(nameof(sortColumnIndex));
 
-        string filter = filterText?.Trim() ?? string.Empty;
         Dictionary<string, List<TaskManagerTableRow>> childrenByParent = new(
             StringComparer.Ordinal);
         List<TaskManagerTableRow> rootRows = [];
@@ -242,13 +283,13 @@ internal static class TaskManagerTableProjection
         {
             TaskManagerTableRow root = rootRows[rootIndex];
             childrenByParent.TryGetValue(root.Key, out List<TaskManagerTableRow>? children);
-            bool rootMatches = MatchesFilter(root, filter);
+            bool rootMatches = filterQuery.Matches(root, resolveSearchValue);
             bool hasMatchingChild = false;
             if (!rootMatches && children != null)
             {
                 for (int childIndex = 0; childIndex < children.Count; childIndex++)
                 {
-                    if (!MatchesFilter(children[childIndex], filter)) continue;
+                    if (!filterQuery.Matches(children[childIndex], resolveSearchValue)) continue;
                     hasMatchingChild = true;
                     break;
                 }
@@ -261,7 +302,7 @@ internal static class TaskManagerTableProjection
             for (int childIndex = 0; childIndex < children.Count; childIndex++)
             {
                 TaskManagerTableRow child = children[childIndex];
-                if (filter.Length > 0 && !rootMatches && !MatchesFilter(child, filter)) continue;
+                if (!rootMatches && !filterQuery.Matches(child, resolveSearchValue)) continue;
                 projectedRows.Add(child);
             }
         }
@@ -285,18 +326,5 @@ internal static class TaskManagerTableProjection
                 $"Table row '{row.Key}' has {row.Cells?.Length ?? 0} cells; expected {columnCount}.",
                 nameof(row));
         }
-    }
-
-    private static bool MatchesFilter(TaskManagerTableRow row, string filter)
-    {
-        if (filter.Length == 0) return true;
-
-        for (int cellIndex = 0; cellIndex < row.Cells.Length; cellIndex++)
-        {
-            if (row.Cells[cellIndex].Text.Contains(filter, StringComparison.CurrentCultureIgnoreCase))
-                return true;
-        }
-
-        return false;
     }
 }

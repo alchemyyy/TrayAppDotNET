@@ -172,7 +172,7 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
     private double _sortCaretRightMargin;
     private readonly long _totalPhysicalMemoryBytes;
     private readonly Action _refreshWarmDynamicDrawings;
-    private readonly ProcessSearchValueResolver _resolveSearchValue;
+    private readonly SearchValueResolver<int> _resolveSearchValue;
     private ProcessTableColumn[]? _liveResizeColumns;
     private TextUnderlineSegment[] _textUnderlineSegments;
     private List<ProcessColumnSetting> _columnSettings;
@@ -213,7 +213,8 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
     private int _warmRefreshEnd;
     private long _snapshotVersion = -1;
     private string _filterText = string.Empty;
-    private ProcessSearchQuery _filterQuery;
+    private SearchQuery _filterQuery;
+    private string? _publishedFilterError;
     private ProcessTableColumnKind _sortColumn = ProcessTableColumnKind.Name;
     private readonly HashSet<ProcessInstanceKey> _selectedProcesses = [];
     private ProcessInstanceKey? _selectedProcess;
@@ -308,8 +309,8 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         _axamlFontSize = resources.AxamlProcessTable.FontSize;
         _axamlRowSpacing = resources.AxamlProcessTable.RowSpacing;
 #endif
-        _filterQuery = ProcessSearchQuery.Parse(filterText: null, _columnSettings);
-        _resolveSearchValue = GetSearchColumnValue;
+        _filterQuery = ProcessSearchColumns.Parse(filterText: null, _columnSettings);
+        _resolveSearchValue = (rowIndex, column) => GetSearchColumnValue(rowIndex, (ProcessTableColumnKind)column);
         _columns = CreateColumns(_columnSettings);
         _hasDynamicColumns = ContainsLifetime(_columns, ProcessTableColumnLifetime.Dynamic);
         _enableLiveColumnResizing = enableLiveColumnResizing;
@@ -407,6 +408,9 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
     public event Action<ProcessEndTaskRequest>? EndTaskRequested;
     public event Action<ProcessRowContextMenuRequest>? RowContextMenuRequested;
     public event Action? HeaderHeightChanged;
+
+    /// <summary>Raised with the search's error message when it changes; <see langword="null"/> once valid.</summary>
+    public event Action<string?>? FilterErrorChanged;
 
     private ProcessTableColumn[] DisplayColumns =>
         _isLiveColumnResizeActive ? _liveResizeColumns! : _columns;
@@ -1331,7 +1335,7 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         _searchCollapsedProcesses.Clear();
         if (_pendingColumnLayout is { } pendingColumnLayout)
         {
-            ProcessSearchQuery pendingFilterQuery = ProcessSearchQuery.Parse(
+            SearchQuery pendingFilterQuery = ProcessSearchColumns.Parse(
                 nextFilter,
                 pendingColumnLayout.Settings);
             ProcessDataSchema pendingSchema = ProcessDataSchema.Create(
@@ -1355,7 +1359,8 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
             return;
         }
 
-        _filterQuery = ProcessSearchQuery.Parse(nextFilter, _columnSettings);
+        _filterQuery = ProcessSearchColumns.Parse(nextFilter, _columnSettings);
+        PublishFilterError();
         ProcessDataSchema nextSchema = ProcessDataSchema.Create(
             _columnSettings,
             _filterQuery.RequiredColumnMask);
@@ -2234,7 +2239,7 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
                 out List<ProcessColumnSetting> nextPendingSettings))
         {
             ProcessTableColumn[] nextPendingColumns = CreateColumns(nextPendingSettings);
-            ProcessSearchQuery nextPendingFilterQuery = ProcessSearchQuery.Parse(
+            SearchQuery nextPendingFilterQuery = ProcessSearchColumns.Parse(
                 _filterText,
                 nextPendingSettings);
             _pendingColumnLayout = pendingColumnLayout with
@@ -3616,7 +3621,7 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
             : GetDynamicDisplayValue(rowIndex, kind);
     }
 
-    private ProcessSearchColumnValue GetSearchColumnValue(
+    private SearchColumnValue GetSearchColumnValue(
         int rowIndex,
         ProcessTableColumnKind kind)
     {
@@ -3630,18 +3635,18 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
             {
                 ProcessTableColumnKind.ProcessID when
                     _membersBySyntheticKey.ContainsKey(row.InstanceKey) =>
-                    ProcessSearchColumnValue.TextOnly(displayText),
-                ProcessTableColumnKind.ProcessID => ProcessSearchColumnValue.Numeric(displayText, row.ProcessID),
+                    SearchColumnValue.TextOnly(displayText),
+                ProcessTableColumnKind.ProcessID => SearchColumnValue.Numeric(displayText, row.ProcessID),
                 ProcessTableColumnKind.SessionID => CreateSignedSearchValue(
                     displayText,
                     row.NumericValues[_schema.GetStaticNumericSlot(kind)],
                     allowsNegative: false),
-                _ => ProcessSearchColumnValue.TextOnly(displayText)
+                _ => SearchColumnValue.TextOnly(displayText)
             };
         }
 
         if (ProcessDataSchema.StoresText(kind))
-            return ProcessSearchColumnValue.TextOnly(displayText);
+            return SearchColumnValue.TextOnly(displayText);
 
         long numericValue = _snapshot.GetDynamicNumeric(rowIndex, kind);
         return kind switch
@@ -3650,7 +3655,7 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
                 or ProcessTableColumnKind.UACVirtualization
                 or ProcessTableColumnKind.IOPriority
                 or ProcessTableColumnKind.PowerThrottling
-                or ProcessTableColumnKind.DPIAwareness => ProcessSearchColumnValue.TextOnly(displayText),
+                or ProcessTableColumnKind.DPIAwareness => SearchColumnValue.TextOnly(displayText),
             ProcessTableColumnKind.CPU
                 or ProcessTableColumnKind.CPUSingle
                 or ProcessTableColumnKind.GPU
@@ -3683,7 +3688,7 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
                 or ProcessTableColumnKind.IOOther
                 or ProcessTableColumnKind.IOReadBytes
                 or ProcessTableColumnKind.IOWriteBytes
-                or ProcessTableColumnKind.IOOtherBytes => ProcessSearchColumnValue.Numeric(
+                or ProcessTableColumnKind.IOOtherBytes => SearchColumnValue.Numeric(
                     displayText,
                     unchecked((ulong)numericValue)),
             ProcessTableColumnKind.WorkingSetDelta
@@ -3696,34 +3701,34 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         };
     }
 
-    private static ProcessSearchColumnValue CreatePercentageSearchValue(string displayText, long value)
+    private static SearchColumnValue CreatePercentageSearchValue(string displayText, long value)
     {
         double percentage = BitConverter.Int64BitsToDouble(value);
         return double.IsFinite(percentage) && percentage >= 0
-            ? ProcessSearchColumnValue.Numeric(displayText, percentage)
-            : ProcessSearchColumnValue.TextOnly(displayText);
+            ? SearchColumnValue.Numeric(displayText, percentage)
+            : SearchColumnValue.TextOnly(displayText);
     }
 
-    private static ProcessSearchColumnValue CreateTransferRateSearchValue(
+    private static SearchColumnValue CreateTransferRateSearchValue(
         string displayText,
         long value,
         bool convertToBits)
     {
         double bytesPerSecond = BitConverter.Int64BitsToDouble(value);
         if (!double.IsFinite(bytesPerSecond) || bytesPerSecond < 0)
-            return ProcessSearchColumnValue.TextOnly(displayText);
+            return SearchColumnValue.TextOnly(displayText);
 
         double numericValue = convertToBits ? bytesPerSecond * 8 : bytesPerSecond;
-        return ProcessSearchColumnValue.Numeric(displayText, numericValue);
+        return SearchColumnValue.Numeric(displayText, numericValue);
     }
 
-    private static ProcessSearchColumnValue CreateSignedSearchValue(
+    private static SearchColumnValue CreateSignedSearchValue(
         string displayText,
         long value,
         bool allowsNegative) =>
         allowsNegative || value >= 0
-            ? ProcessSearchColumnValue.Numeric(displayText, value)
-            : ProcessSearchColumnValue.TextOnly(displayText);
+            ? SearchColumnValue.Numeric(displayText, value)
+            : SearchColumnValue.TextOnly(displayText);
 
     private string GetStaticDisplayValue(int rowIndex, ProcessTableColumnKind kind)
     {
@@ -4159,7 +4164,7 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
 
         bool sampleEveryProcess = ProcessTableColumnCatalog.Get(_sortColumn).Lifetime
                                   == ProcessTableColumnLifetime.Dynamic
-                                  || _filterQuery.RequiresAllProcessSamples
+                                  || ProcessSearchColumns.RequiresAllProcessSamples(_filterQuery)
                                   || _hasVisibleLiveTotals;
         if (sampleEveryProcess)
         {
@@ -4236,7 +4241,7 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         ProcessViewportAnchor? viewportAnchor = CaptureViewportAnchor();
         List<ProcessColumnSetting> normalized = ProcessColumnSettings.Normalize(settings);
         ProcessTableColumn[] columns = CreateColumns(normalized);
-        ProcessSearchQuery filterQuery = ProcessSearchQuery.Parse(_filterText, normalized);
+        SearchQuery filterQuery = ProcessSearchColumns.Parse(_filterText, normalized);
         ProcessDataSchema schema = ProcessDataSchema.Create(
             normalized,
             filterQuery.RequiredColumnMask);
@@ -4733,6 +4738,17 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         else
             ClearTreeLayout();
         PublishRowHoverGeometry();
+        // A regex can time out while matching, which invalidates a query that parsed
+        PublishFilterError();
+    }
+
+    private void PublishFilterError()
+    {
+        string? errorMessage = _filterQuery.ErrorMessage;
+        if (string.Equals(errorMessage, _publishedFilterError, StringComparison.Ordinal)) return;
+
+        _publishedFilterError = errorMessage;
+        FilterErrorChanged?.Invoke(errorMessage);
     }
 
     private bool MatchesFilter(int rowIndex)
@@ -5693,6 +5709,7 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
         EndTaskRequested = null;
         RowContextMenuRequested = null;
         HeaderHeightChanged = null;
+        FilterErrorChanged = null;
         _pendingColumnLayout = null;
         _pendingViewportAnchor = null;
         foreach (ProcessRowRenderCache cache in _renderCaches.Values)
@@ -5738,7 +5755,7 @@ internal sealed class ProcessTableCanvas : TaskManagerGridControl
     private sealed record PendingColumnLayout(
         List<ProcessColumnSetting> Settings,
         ProcessTableColumn[] Columns,
-        ProcessSearchQuery FilterQuery,
+        SearchQuery FilterQuery,
         ProcessDataSchema Schema);
 
     private sealed class ProcessTableRenderLayer : Control

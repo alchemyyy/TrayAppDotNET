@@ -1,25 +1,26 @@
 using TaskManagerTrayAppDotNET.Models;
+using TaskManagerTrayAppDotNET.UI;
 using TaskManagerTrayAppDotNET.UI.ProcessesPage;
 using Xunit;
 
 namespace TaskManagerTrayAppDotNET.Tests;
 
-public sealed class ProcessSearchAutocompleteTests
+public sealed class SearchAutocompleteTests
 {
     [Fact]
     public void FindsIncompleteAndClosedTokensAtTheCaret()
     {
-        Assert.True(ProcessSearchAutocompleteLogic.TryGetColumnToken(
+        Assert.True(SearchAutocompleteLogic.TryGetColumnToken(
             text: "{Comm",
             caretIndex: 5,
-            out ProcessSearchColumnToken incompleteToken));
+            out SearchColumnToken incompleteToken));
         Assert.Equal(expected: "Comm", incompleteToken.Fragment);
         Assert.Equal(expected: -1, incompleteToken.ClosingBraceIndex);
 
-        Assert.True(ProcessSearchAutocompleteLogic.TryGetColumnToken(
+        Assert.True(SearchAutocompleteLogic.TryGetColumnToken(
             text: "{Command line}=test",
             caretIndex: 5,
-            out ProcessSearchColumnToken closedToken));
+            out SearchColumnToken closedToken));
         Assert.Equal(expected: "Comm", closedToken.Fragment);
         Assert.Equal(expected: 13, closedToken.ClosingBraceIndex);
     }
@@ -27,8 +28,8 @@ public sealed class ProcessSearchAutocompleteTests
     [Fact]
     public void DoesNotOfferColumnsOutsideBracesOrInsideQuotedRegex()
     {
-        Assert.False(ProcessSearchAutocompleteLogic.TryGetColumnToken(text: "{Name}=test", caretIndex: 6, out _));
-        Assert.False(ProcessSearchAutocompleteLogic.TryGetColumnToken(
+        Assert.False(SearchAutocompleteLogic.TryGetColumnToken(text: "{Name}=test", caretIndex: 6, out _));
+        Assert.False(SearchAutocompleteLogic.TryGetColumnToken(
             text: "{Name}=~\"foo{bar\"",
             caretIndex: 15,
             out _));
@@ -41,26 +42,27 @@ public sealed class ProcessSearchAutocompleteTests
         ProcessColumnSetting commandLine =
             settings.Single(static setting => setting.Column == ProcessTableColumnKind.CommandLine);
         commandLine.Nickname = "Arguments";
+        SearchColumnCatalog catalog = ProcessSearchColumns.CreateCatalog(settings);
 
-        ProcessSearchColumnSuggestion[] canonical =
-            ProcessSearchAutocompleteLogic.RankSuggestions(fragment: "command", settings, maximumSuggestionCount: 8);
-        ProcessSearchColumnSuggestion[] nickname =
-            ProcessSearchAutocompleteLogic.RankSuggestions(fragment: "args", settings, maximumSuggestionCount: 8);
+        SearchColumnSuggestion[] canonical =
+            SearchAutocompleteLogic.RankSuggestions(fragment: "command", catalog, maximumSuggestionCount: 8);
+        SearchColumnSuggestion[] nickname =
+            SearchAutocompleteLogic.RankSuggestions(fragment: "args", catalog, maximumSuggestionCount: 8);
 
-        Assert.Equal(ProcessTableColumnKind.CommandLine, canonical[0].Column);
-        Assert.Equal(ProcessTableColumnKind.CommandLine, nickname[0].Column);
+        Assert.Equal((int)ProcessTableColumnKind.CommandLine, canonical[0].Column);
+        Assert.Equal((int)ProcessTableColumnKind.CommandLine, nickname[0].Column);
         Assert.Contains(expectedSubstring: "Arguments", nickname[0].DisplayText, StringComparison.Ordinal);
     }
 
     [Fact]
     public void CompletesIncompleteTokenAndAddsClosingBrace()
     {
-        ProcessSearchColumnSuggestion suggestion = new(
-            ProcessTableColumnKind.CommandLine,
+        SearchColumnSuggestion suggestion = new(
+            (int)ProcessTableColumnKind.CommandLine,
             ColumnName: "Command line",
             DisplayText: "Command line");
 
-        bool completed = ProcessSearchAutocompleteLogic.TryComplete(
+        bool completed = SearchAutocompleteLogic.TryComplete(
             text: "{Comm",
             caretIndex: 5,
             suggestion,
@@ -75,12 +77,12 @@ public sealed class ProcessSearchAutocompleteTests
     [Fact]
     public void ReplacesWholeClosedTokenWhenCaretMovesBackInside()
     {
-        ProcessSearchColumnSuggestion suggestion = new(
-            ProcessTableColumnKind.Lifetime,
+        SearchColumnSuggestion suggestion = new(
+            (int)ProcessTableColumnKind.Lifetime,
             ColumnName: "Lifetime",
             DisplayText: "Lifetime");
 
-        bool completed = ProcessSearchAutocompleteLogic.TryComplete(
+        bool completed = SearchAutocompleteLogic.TryComplete(
             text: "{Life typo}>=1h",
             caretIndex: 5,
             suggestion,

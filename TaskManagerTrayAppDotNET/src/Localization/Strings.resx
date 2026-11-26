@@ -1020,6 +1020,9 @@
   <data name="SavedSearch_Clear" xml:space="preserve">
     <value>Clear search</value>
   </data>
+  <data name="SavedSearch_ClearInvalidFormat" xml:space="preserve">
+    <value>This search isn't valid, so nothing matches it.&#10;{0}&#10;Click to clear the search.</value>
+  </data>
   <data name="SavedSearch_None" xml:space="preserve">
     <value>No saved searches</value>
   </data>
@@ -1148,6 +1151,9 @@
   </data>
   <data name="Processes_SearchHelp" xml:space="preserve">
     <value>Name/PID contains search is the default. Expressions support =, !=, &lt;, &lt;=, &gt;, &gt;=, &amp;&amp;, and ||.&#10;Regex uses =~ or !~. Example: {Name}=~"^(chrome|firefox)\.exe$".&#10;Lifetime example: {Lifetime}&gt;=1h&amp;&amp;{Lifetime}&lt;2h. Type { and press Tab to complete a column.</value>
+  </data>
+  <data name="Table_SearchHelp" xml:space="preserve">
+    <value>Plain text matches any column. Expressions support =, !=, &lt;, &lt;=, &gt;, &gt;=, &amp;&amp;, and ||.&#10;Regex uses =~ or !~. Example: {Name}=~"^win".&#10;Type { and press Tab to complete a column.</value>
   </data>
   <data name="Processes_Run_Placeholder" xml:space="preserve">
     <value>Executable, document, or URI</value>

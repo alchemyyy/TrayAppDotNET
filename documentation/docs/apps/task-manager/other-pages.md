@@ -6,13 +6,29 @@ App history, Startup apps, Users and Services: the rest of the Windows 11 Task M
 
 Each page has a search box at the top of the window, a header with the page's buttons, and a table.
 
-- **Search** filters as you type. It matches any row that contains the text in any column, ignoring case. No expressions here; those are only on the Processes page.
+- **Search** filters as you type. Plain text matches any row that contains it in any column, ignoring case. Expressions work exactly like on Processes: `{Column} operator value`, `&&`, `||`, parentheses, `=~` / `!~` regex and column autocomplete. See [Expressions](processes.md#expressions). Column names are the titles you see; the number columns take the units below.
+- **Clear search** (X) and **Save search** appear left of the box when it has text, and clicking into the empty box opens the page's saved list. They work like the [Processes saved searches](processes.md#saved-searches), including the confirmation before deleting a regex search. Each page keeps its own list, stored in `settings.xml` under `AppHistorySavedSearches`, `StartupAppsSavedSearches`, `UsersSavedSearches` or `ServicesSavedSearches`.
 - **Run new task** is on every page and works exactly like on Processes: type a program (with its arguments), document, folder or URI, then ++enter++ or **Run**. See [Run New Task](processes.md#run-new-task).
 - **More** (the **...** button) opens the page's menu. It always has **Refresh**, plus the page's actions.
 - Click a column header to sort by it, click again to reverse. The first column (name) is the default sort.
 - Drag a divider in the header to resize a column. The widths go back to their defaults when the app restarts.
 - When there's nothing to show, the table says **No items to display.**
 - [Zoom and stretch](processes.md#zoom-and-stretch) work in these tables too, with the same gestures, and share the same settings.
+
+Number columns compare their real values, with the same units as the matching Processes columns ([Values and Units](processes.md#values-and-units)). Every other column compares as text, and so does every column on Startup apps.
+
+| Page | Column | What you can type |
+| --- | --- | --- |
+| App history | **CPU time** | A duration, like `90s`, `1.5h` or `1:30:00` |
+| App history | **Network** | Bytes, in steps of 1024 (`500m`, `2g`) |
+| App history | **Notifications** | A plain number |
+| Users | **CPU** | A number with an optional `%` |
+| Users | **Memory** | Bytes, in steps of 1024 |
+| Users | **Disk** | Bytes per second, in steps of 1024, optionally followed by `/s` |
+| Users | **Network** | Bits per second, in steps of 1000 (`10Mbps`) |
+| Services | **PID** | A plain number |
+
+For example, `{Status}=Running&&{Name}=~"^win"` on Services, or `{CPU}>10%||{Memory}>2g` on Users.
 
 Unlike the Processes table, these tables have keyboard navigation:
 

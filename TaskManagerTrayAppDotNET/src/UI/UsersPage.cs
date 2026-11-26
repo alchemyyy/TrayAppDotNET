@@ -35,7 +35,8 @@ internal sealed class UsersPage : TaskManagerTablePage
         bool isLightTheme,
         Func<string, bool> startProcess,
         Func<ActionConfirmation, Task<bool>> confirmAction,
-        Action<string, string> reportMessage)
+        Action<string, string> reportMessage,
+        Func<SavedSearch, Task<bool>> confirmDeleteSavedSearch)
         : base(
             title: LocalizationManager.Instance[nameof(AppStrings.Page_Users)],
             ControlMap.Main.UsersPage.ID,
@@ -46,7 +47,10 @@ internal sealed class UsersPage : TaskManagerTablePage
             resources,
             isLightTheme,
             startProcess,
-            searchPlaceholder: LocalizationManager.Instance[nameof(AppStrings.Users_SearchPlaceholder)])
+            searchPlaceholder: LocalizationManager.Instance[nameof(AppStrings.Users_SearchPlaceholder)],
+            settings.UsersSavedSearches,
+            settings.UpdateUsersSavedSearches,
+            confirmDeleteSavedSearch)
     {
         _snapshotService = snapshotService;
         _sessionService = sessionService;
@@ -79,25 +83,29 @@ internal sealed class UsersPage : TaskManagerTablePage
                 Title: LocalizationManager.Instance[nameof(AppStrings.Users_Column_CPU)],
                 resources.AxamlTaskManagerTable.UsersCPUColumnWidth,
                 TaskManagerTableAlignment.Right,
-                SortDescendingByDefault: true),
+                SortDescendingByDefault: true,
+                SearchValueKind.Percentage),
             new TaskManagerTableColumn(
                 Key: "memory",
                 Title: LocalizationManager.Instance[nameof(AppStrings.Users_Column_Memory)],
                 resources.AxamlTaskManagerTable.UsersMemoryColumnWidth,
                 TaskManagerTableAlignment.Right,
-                SortDescendingByDefault: true),
+                SortDescendingByDefault: true,
+                SearchValueKind.Bytes),
             new TaskManagerTableColumn(
                 Key: "disk",
                 Title: LocalizationManager.Instance[nameof(AppStrings.Users_Column_Disk)],
                 resources.AxamlTaskManagerTable.UsersDiskColumnWidth,
                 TaskManagerTableAlignment.Right,
-                SortDescendingByDefault: true),
+                SortDescendingByDefault: true,
+                SearchValueKind.ByteRate),
             new TaskManagerTableColumn(
                 Key: "network",
                 Title: LocalizationManager.Instance[nameof(AppStrings.Users_Column_Network)],
                 resources.AxamlTaskManagerTable.UsersNetworkColumnWidth,
                 TaskManagerTableAlignment.Right,
-                SortDescendingByDefault: true)
+                SortDescendingByDefault: true,
+                SearchValueKind.BitRate)
         ], resources.AxamlTaskManagerTable.MinimumColumnWidth);
 
     protected override void HandleSelectedRowChanged(TaskManagerTableRow? row) =>

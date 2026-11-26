@@ -1127,6 +1127,37 @@ public sealed class AppSettingsTests
     }
 
     [Fact]
+    public void EachSearchPageKeepsItsOwnSavedSearchesThroughSettingsXml()
+    {
+        AppSettings settings = new() { Autosave = false };
+        settings.UpdateProcessSavedSearches([new SavedSearch { Name = "Browsers", Query = "chrome" }]);
+        settings.UpdateAppHistorySavedSearches([new SavedSearch { Name = "Edge", Query = "msedge" }]);
+        settings.UpdateStartupAppsSavedSearches([new SavedSearch { Name = "Teams", Query = "teams" }]);
+        settings.UpdateUsersSavedSearches([new SavedSearch { Name = "Admin", Query = "administrator" }]);
+        settings.UpdateServicesSavedSearches([new SavedSearch { Name = "Spooler", Query = "spool" }]);
+
+        string path = Path.Combine(Path.GetTempPath(), $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            TrayXmlSerializer.WriteFile(path, settings);
+
+            AppSettings loaded = AppSettings.LoadOrDefault(path);
+
+            Assert.Equal("chrome", Assert.Single(loaded.ProcessSavedSearches).Query);
+            Assert.Equal("msedge", Assert.Single(loaded.AppHistorySavedSearches).Query);
+            Assert.Equal("teams", Assert.Single(loaded.StartupAppsSavedSearches).Query);
+            Assert.Equal("administrator", Assert.Single(loaded.UsersSavedSearches).Query);
+            SavedSearch service = Assert.Single(loaded.ServicesSavedSearches);
+            Assert.Equal("Spooler", service.Name);
+            Assert.Equal("spool", service.Query);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void ExplorerRestartConfirmationDefaultsEnabledAndSkipPreferenceRoundTrips()
     {
         AppSettings settings = new() { Autosave = false };

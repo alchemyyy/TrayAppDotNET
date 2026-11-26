@@ -41,6 +41,8 @@ internal sealed class TaskManagerTableControl : TaskManagerGridControl
     private readonly Pen _expanderPen;
     private IPointer? _capturedResizePointer;
     private string _filterText = string.Empty;
+    private SearchQuery _filterQuery;
+    private string? _publishedFilterError;
     private string? _selectedRowKey;
     private int _sortColumnIndex;
     private int _hoveredRowIndex = -1;
@@ -76,6 +78,7 @@ internal sealed class TaskManagerTableControl : TaskManagerGridControl
         ArgumentNullException.ThrowIfNull(resources);
 
         _schema = schema;
+        _filterQuery = SearchQuery.Parse(filterText: null, schema.SearchCatalog);
         _processIconService = processIconService;
         _resources = resources;
         _baseFontWeight = settings.GridFontWeight;
@@ -136,6 +139,9 @@ internal sealed class TaskManagerTableControl : TaskManagerGridControl
     public event Action<TaskManagerTableRow>? RowActivated;
     public event Action<int, bool>? SortChanged;
 
+    /// <summary>Raised with the search's error message when it changes; <see langword="null"/> once valid.</summary>
+    public event Action<string?>? FilterErrorChanged;
+
     public IReadOnlyList<TaskManagerTableRow> VisibleRows => _visibleRows;
     public TaskManagerTableRow? SelectedRow => FindRowByKey(_selectedRowKey);
     public double RowHeight => _rowHeight;
@@ -189,7 +195,7 @@ internal sealed class TaskManagerTableControl : TaskManagerGridControl
         }
     }
 
-    /// <summary>Filters against all display cells while retaining matching parent groups.</summary>
+    /// <summary>Filters with a page search query while retaining matching parent groups.</summary>
     public void SetFilter(string? filterText)
     {
         ObjectDisposedException.ThrowIf(IsTaskManagerGridDisposed, this);
@@ -197,6 +203,7 @@ internal sealed class TaskManagerTableControl : TaskManagerGridControl
         if (string.Equals(_filterText, nextFilter, StringComparison.Ordinal)) return;
 
         _filterText = nextFilter;
+        _filterQuery = SearchQuery.Parse(nextFilter, _schema.SearchCatalog);
         RebuildProjection(false);
     }
 
@@ -551,6 +558,7 @@ internal sealed class TaskManagerTableControl : TaskManagerGridControl
         SelectedRowChanged = null;
         RowActivated = null;
         SortChanged = null;
+        FilterErrorChanged = null;
     }
 
     private void RebuildProjection(bool notifySelectionRemoval)
@@ -561,7 +569,16 @@ internal sealed class TaskManagerTableControl : TaskManagerGridControl
             _sortColumnIndex,
             _sortDescending,
             _collapsedGroupKeys,
-            _filterText);
+            _filterQuery,
+            _schema.ResolveSearchValue);
+
+        // Publish after matching, since a regex can time out while it runs
+        string? errorMessage = _filterQuery.ErrorMessage;
+        if (!string.Equals(errorMessage, _publishedFilterError, StringComparison.Ordinal))
+        {
+            _publishedFilterError = errorMessage;
+            FilterErrorChanged?.Invoke(errorMessage);
+        }
 
         TaskManagerTableRow? selectedSourceRow = FindSourceRowByKey(_selectedRowKey);
         if (_selectedRowKey != null && selectedSourceRow == null)

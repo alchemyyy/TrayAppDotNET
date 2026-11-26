@@ -25,7 +25,8 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
         TaskManagerWindowResources resources,
         bool isLightTheme,
         Func<string, bool> startProcess,
-        Action<string, string> reportMessage)
+        Action<string, string> reportMessage,
+        Func<SavedSearch, Task<bool>> confirmDeleteSavedSearch)
         : base(
             title: LocalizationManager.Instance[nameof(AppStrings.Page_StartupApps)],
             ControlMap.Main.StartupAppsPage.ID,
@@ -36,7 +37,10 @@ internal sealed class StartupAppsPage : TaskManagerTablePage
             resources,
             isLightTheme,
             startProcess,
-            searchPlaceholder: LocalizationManager.Instance[nameof(AppStrings.Startup_SearchPlaceholder)])
+            searchPlaceholder: LocalizationManager.Instance[nameof(AppStrings.Startup_SearchPlaceholder)],
+            settings.StartupAppsSavedSearches,
+            settings.UpdateStartupAppsSavedSearches,
+            confirmDeleteSavedSearch)
     {
         _startupAppsService = startupAppsService;
         _reportMessage = reportMessage;

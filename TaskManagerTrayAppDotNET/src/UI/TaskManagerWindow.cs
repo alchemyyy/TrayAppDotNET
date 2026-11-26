@@ -621,7 +621,8 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         Palette,
         _taskManagerResources,
         ResolveEffectiveIsLight(),
-        StartProcess));
+        StartProcess,
+        ConfirmDeleteSavedSearchAsync));
 
     private Control BuildStartupAppsPage() => RegisterPage(new StartupAppsPage(
         new StartupAppsService(),
@@ -631,7 +632,8 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         _taskManagerResources,
         ResolveEffectiveIsLight(),
         StartProcess,
-        ReportMessage));
+        ReportMessage,
+        ConfirmDeleteSavedSearchAsync));
 
     private Control BuildUsersPage() => RegisterPage(new UsersPage(
         _snapshotService,
@@ -643,7 +645,8 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         ResolveEffectiveIsLight(),
         StartProcess,
         ConfirmActionAsync,
-        ReportMessage));
+        ReportMessage,
+        ConfirmDeleteSavedSearchAsync));
 
     private Control BuildServicesPage() => RegisterPage(new ServicesPage(
         _windowsServiceManager,
@@ -654,7 +657,8 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         ResolveEffectiveIsLight(),
         StartProcess,
         ConfirmDisableServiceAsync,
-        ReportMessage));
+        ReportMessage,
+        ConfirmDeleteSavedSearchAsync));
 
     private Control RegisterPage<TPage>(TPage page)
         where TPage : TaskManagerPageLayout, IDisposable
@@ -1033,7 +1037,7 @@ internal sealed class TaskManagerWindow : SettingsWindowCommon<TaskManagerPage>
         }
     }
 
-    private Task<bool> ConfirmDeleteSavedSearchAsync(ProcessSavedSearch savedSearch)
+    private Task<bool> ConfirmDeleteSavedSearchAsync(SavedSearch savedSearch)
     {
         ArgumentNullException.ThrowIfNull(savedSearch);
         return ConfirmAsync(

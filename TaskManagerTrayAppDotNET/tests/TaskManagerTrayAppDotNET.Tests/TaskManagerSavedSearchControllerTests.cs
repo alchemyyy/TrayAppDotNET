@@ -6,19 +6,18 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using TaskManagerTrayAppDotNET.Models;
 using TaskManagerTrayAppDotNET.UI;
-using TaskManagerTrayAppDotNET.UI.ProcessesPage;
 using Xunit;
 
 namespace TaskManagerTrayAppDotNET.Tests;
 
 [CollectionDefinition(CollectionName, DisableParallelization = true)]
-public sealed class ProcessSavedSearchControllerTestCollection
+public sealed class TaskManagerSavedSearchControllerTestCollection
 {
-    public const string CollectionName = "Process saved-search controller tests";
+    public const string CollectionName = "Task Manager saved-search controller tests";
 }
 
-[Collection(ProcessSavedSearchControllerTestCollection.CollectionName)]
-public sealed class ProcessSavedSearchControllerTests
+[Collection(TaskManagerSavedSearchControllerTestCollection.CollectionName)]
+public sealed class TaskManagerSavedSearchControllerTests
 {
     private const double SearchBoxHeight = 32;
     private const double EnabledOpacity = 1;
@@ -31,8 +30,8 @@ public sealed class ProcessSavedSearchControllerTests
     {
         TaskManagerWindowResources resources = new();
         TextBox searchBox = new() { Height = SearchBoxHeight };
-        List<IReadOnlyList<ProcessSavedSearch>> published = [];
-        using ProcessSavedSearchController controller = CreateController(
+        List<IReadOnlyList<SavedSearch>> published = [];
+        using TaskManagerSavedSearchController controller = CreateController(
             searchBox,
             resources,
             published.Add);
@@ -57,7 +56,7 @@ public sealed class ProcessSavedSearchControllerTests
         PressEnter(saveButton);
 
         // Saving disables Save for the query it just stored
-        IReadOnlyList<ProcessSavedSearch> saved = Assert.Single(published);
+        IReadOnlyList<SavedSearch> saved = Assert.Single(published);
         Assert.Equal([SavedQuery, "firefox"], saved.Select(static search => search.Query));
         Assert.False(saveButton.IsEnabled);
 
@@ -67,20 +66,44 @@ public sealed class ProcessSavedSearchControllerTests
     });
 
     [Fact]
+    public void InvalidQueryTintsClearAndExplainsTheErrorInItsTooltip() => AvaloniaTestHost.RunWithFluentTheme(static () =>
+    {
+        TaskManagerWindowResources resources = new();
+        TextBox searchBox = new() { Height = SearchBoxHeight };
+        using TaskManagerSavedSearchController controller = CreateController(
+            searchBox,
+            resources,
+            static _ => { });
+        Control clearButton = ((Grid)controller.SearchControls).Children[0];
+        Border clearSurface = Assert.IsType<Border>(((Border)clearButton).Child);
+        const string errorMessage = "Invalid regular expression: Unterminated [] set.";
+
+        controller.SetQueryError(errorMessage);
+
+        Assert.Equal(
+            resources.AxamlTaskManagerDetails.SearchInvalidTintColor,
+            Assert.IsAssignableFrom<ISolidColorBrush>(clearSurface.Background).Color);
+        Assert.Contains(errorMessage, Assert.IsType<string>(ToolTip.GetTip(clearButton)), StringComparison.Ordinal);
+
+        controller.SetQueryError(errorMessage: null);
+
+        Assert.Equal(
+            Colors.Transparent,
+            Assert.IsAssignableFrom<ISolidColorBrush>(clearSurface.Background).Color);
+        Assert.Equal(expected: "Clear search", ToolTip.GetTip(clearButton));
+    });
+
+    [Fact]
     public void DisabledSaveButtonStillBlocksAHeaderWindowDrag() => AvaloniaTestHost.RunWithFluentTheme(static () =>
     {
         TextBox searchBox = new() { Height = SearchBoxHeight };
-        using ProcessSavedSearchController controller = CreateController(
+        using TaskManagerSavedSearchController controller = CreateController(
             searchBox,
             new TaskManagerWindowResources(),
             static _ => { });
         Control saveButton = controller.SaveButton;
-        StackPanel searchControls = new()
-        {
-            Orientation = Orientation.Horizontal,
-            VerticalAlignment = VerticalAlignment.Top,
-            Children = { saveButton, searchBox }
-        };
+        Control searchControls = controller.SearchControls;
+        searchControls.HorizontalAlignment = HorizontalAlignment.Center;
         Grid header = new() { Background = Brushes.Black, Children = { searchControls } };
         Window window = new() { Width = WindowWidth, Height = WindowHeight, Content = header };
 
@@ -107,15 +130,18 @@ public sealed class ProcessSavedSearchControllerTests
         }
     });
 
-    private static ProcessSavedSearchController CreateController(
+    private static TaskManagerSavedSearchController CreateController(
         TextBox searchBox,
         TaskManagerWindowResources resources,
-        Action<IReadOnlyList<ProcessSavedSearch>> savedSearchesChanged) =>
+        Action<IReadOnlyList<SavedSearch>> savedSearchesChanged) =>
         new(
             searchBox,
-            [new ProcessSavedSearch { Name = "Browsers", Query = SavedQuery }],
+            ControlMap.Main.ProcessesPage.Search.Clear,
+            ControlMap.Main.ProcessesPage.Search.Save,
+            [new SavedSearch { Name = "Browsers", Query = SavedQuery }],
             TestPalettes.Default(),
             resources,
+            leftAligned: false,
             enableRoundedCorners: false,
             new AppSettings { Autosave = false },
             savedSearchesChanged,

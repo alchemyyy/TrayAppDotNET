@@ -17,6 +17,8 @@ User documentation: [documentation/docs/apps/task-manager](../documentation/docs
   separate settings window.
 - A combined processes and details table with grouping, zoom and stretch, live column totals, multi-select, column
   customization, saved searches and a search with typed column expressions, boolean operators and regex.
+- The same search expressions, column autocomplete and per-page saved searches on App history, Startup apps, Users
+  and Services.
 - Native-first and managed-fallback `TerminateProcess` paths for End task and End process tree.
 - A preconstructed inline Run new task surface for executables, documents, and URIs.
 - Performance graphs for the CPU, memory, GPUs, network adapters and disks, recorded in the background.

@@ -59,6 +59,31 @@ public sealed class TaskManagerTableViewStateTests
     });
 
     [Fact]
+    public void FilterErrorIsPublishedWhenTheSearchTurnsInvalidAndAgainOnceValid() =>
+        AvaloniaTestHost.RunWithFluentTheme(static () =>
+        {
+            using ProcessIconService processIconService = new();
+            using TaskManagerTableControl table = new(
+                CreateSchema(nameWidth: 100, valueWidth: 120),
+                processIconService,
+                new AppSettings(),
+                TestPalettes.Default(),
+                new TaskManagerWindowResources(),
+                isLightTheme: false);
+            List<string?> errors = [];
+            table.FilterErrorChanged += errors.Add;
+
+            table.SetFilter("{Name}=~\"[\"");
+            table.SetFilter("{Missing}=1");
+            table.SetFilter("alpha");
+
+            Assert.Equal(expected: 3, errors.Count);
+            Assert.StartsWith(expectedStartString: "Invalid regular expression", errors[0], StringComparison.Ordinal);
+            Assert.Equal(expected: "Unknown column 'Missing'.", errors[1]);
+            Assert.Null(errors[2]);
+        });
+
+    [Fact]
     public void RestoreUsesNewAXAMLBaselinesButRetainsUserResizedWidths() => AvaloniaTestHost.RunWithFluentTheme(static () =>
     {
         using ProcessIconService processIconService = new();
@@ -305,7 +330,10 @@ public sealed class TaskManagerTableViewStateTests
             resources,
             isLightTheme,
             static _ => false,
-            searchPlaceholder: "Search")
+            searchPlaceholder: "Search",
+            settings.AppHistorySavedSearches,
+            settings.UpdateAppHistorySavedSearches,
+            static _ => Task.FromResult(true))
     {
         public void SupplyRows(IReadOnlyList<TaskManagerTableRow> rows) => SetRows(rows);
     }

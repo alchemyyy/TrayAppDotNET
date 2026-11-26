@@ -374,10 +374,42 @@ public sealed class AppSettings : AppSettingsCommon<HotkeyBinding, HotkeyAction>
 
     [XmlArray("ProcessSavedSearches")]
     [XmlArrayItem("Search")]
-    public List<ProcessSavedSearch> ProcessSavedSearches
+    public List<SavedSearch> ProcessSavedSearches
     {
         get;
-        set => SetField(ref field, ProcessSavedSearchCollection.Normalize(value));
+        set => SetField(ref field, SavedSearchCollection.Normalize(value));
+    } = [];
+
+    [XmlArray("AppHistorySavedSearches")]
+    [XmlArrayItem("Search")]
+    public List<SavedSearch> AppHistorySavedSearches
+    {
+        get;
+        set => SetField(ref field, SavedSearchCollection.Normalize(value));
+    } = [];
+
+    [XmlArray("StartupAppsSavedSearches")]
+    [XmlArrayItem("Search")]
+    public List<SavedSearch> StartupAppsSavedSearches
+    {
+        get;
+        set => SetField(ref field, SavedSearchCollection.Normalize(value));
+    } = [];
+
+    [XmlArray("UsersSavedSearches")]
+    [XmlArrayItem("Search")]
+    public List<SavedSearch> UsersSavedSearches
+    {
+        get;
+        set => SetField(ref field, SavedSearchCollection.Normalize(value));
+    } = [];
+
+    [XmlArray("ServicesSavedSearches")]
+    [XmlArrayItem("Search")]
+    public List<SavedSearch> ServicesSavedSearches
+    {
+        get;
+        set => SetField(ref field, SavedSearchCollection.Normalize(value));
     } = [];
 
     [XmlArray("PerformanceDevicePriority")]
@@ -431,7 +463,11 @@ public sealed class AppSettings : AppSettingsCommon<HotkeyBinding, HotkeyAction>
                 PerformanceSampleIntervalMilliseconds);
         ProcessHeaderButtonOrder = ProcessHeaderButtonSettings.Normalize(ProcessHeaderButtonOrder);
         DetailsColumns = ProcessColumnSettings.Normalize(DetailsColumns);
-        ProcessSavedSearches = ProcessSavedSearchCollection.Normalize(ProcessSavedSearches);
+        ProcessSavedSearches = SavedSearchCollection.Normalize(ProcessSavedSearches);
+        AppHistorySavedSearches = SavedSearchCollection.Normalize(AppHistorySavedSearches);
+        StartupAppsSavedSearches = SavedSearchCollection.Normalize(StartupAppsSavedSearches);
+        UsersSavedSearches = SavedSearchCollection.Normalize(UsersSavedSearches);
+        ServicesSavedSearches = SavedSearchCollection.Normalize(ServicesSavedSearches);
         PerformanceDevicePriority = PerformanceDeviceOrdering.NormalizePriority(PerformanceDevicePriority);
         PerformanceDeviceOrder = PerformanceDeviceOrdering.NormalizeExplicitOrder(PerformanceDeviceOrder);
         PerformanceHardwareNameReplacementRules =
@@ -493,14 +529,36 @@ public sealed class AppSettings : AppSettingsCommon<HotkeyBinding, HotkeyAction>
         UpdateWithoutShellRefresh(() => PerformanceDeviceOrder = deviceIDs);
     }
 
-    /// <summary>Persists live saved-search edits without rebuilding the application shell.</summary>
-    internal void UpdateProcessSavedSearches(IReadOnlyList<ProcessSavedSearch> searches)
+    /// <summary>Persists live Processes saved-search edits without rebuilding the application shell.</summary>
+    internal void UpdateProcessSavedSearches(IReadOnlyList<SavedSearch> searches) =>
+        UpdateSavedSearches(searches, ProcessSavedSearches, normalized => ProcessSavedSearches = normalized);
+
+    /// <summary>Persists live App history saved-search edits without rebuilding the application shell.</summary>
+    internal void UpdateAppHistorySavedSearches(IReadOnlyList<SavedSearch> searches) =>
+        UpdateSavedSearches(searches, AppHistorySavedSearches, normalized => AppHistorySavedSearches = normalized);
+
+    /// <summary>Persists live Startup apps saved-search edits without rebuilding the application shell.</summary>
+    internal void UpdateStartupAppsSavedSearches(IReadOnlyList<SavedSearch> searches) =>
+        UpdateSavedSearches(searches, StartupAppsSavedSearches, normalized => StartupAppsSavedSearches = normalized);
+
+    /// <summary>Persists live Users saved-search edits without rebuilding the application shell.</summary>
+    internal void UpdateUsersSavedSearches(IReadOnlyList<SavedSearch> searches) =>
+        UpdateSavedSearches(searches, UsersSavedSearches, normalized => UsersSavedSearches = normalized);
+
+    /// <summary>Persists live Services saved-search edits without rebuilding the application shell.</summary>
+    internal void UpdateServicesSavedSearches(IReadOnlyList<SavedSearch> searches) =>
+        UpdateSavedSearches(searches, ServicesSavedSearches, normalized => ServicesSavedSearches = normalized);
+
+    private void UpdateSavedSearches(
+        IReadOnlyList<SavedSearch> searches,
+        IReadOnlyList<SavedSearch> current,
+        Action<List<SavedSearch>> assign)
     {
         ArgumentNullException.ThrowIfNull(searches);
-        List<ProcessSavedSearch> normalized = ProcessSavedSearchCollection.Normalize(searches);
-        if (ProcessSavedSearchCollection.AreEquivalent(ProcessSavedSearches, normalized)) return;
+        List<SavedSearch> normalized = SavedSearchCollection.Normalize(searches);
+        if (SavedSearchCollection.AreEquivalent(current, normalized)) return;
 
-        UpdateWithoutShellRefresh(() => ProcessSavedSearches = normalized);
+        UpdateWithoutShellRefresh(() => assign(normalized));
     }
 
     /// <summary>Persists the live CPU graph view without rebuilding the application shell.</summary>

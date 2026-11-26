@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using TaskManagerTrayAppDotNET.Models;
 using TaskManagerTrayAppDotNET.Services;
+using TaskManagerTrayAppDotNET.UI;
 using TaskManagerTrayAppDotNET.UI.ProcessesPage;
 using Xunit;
 
@@ -19,10 +20,10 @@ public sealed class ProcessLifetimeSearchIntegrationTests
             Setting(ProcessTableColumnKind.Lifetime),
             Setting(ProcessTableColumnKind.CommandLine, visible: false)
         ];
-        ProcessSearchQuery lifetimeQuery = ProcessSearchQuery.Parse(
+        SearchQuery lifetimeQuery = ProcessSearchColumns.Parse(
             filterText: "{Lifetime}>=0s&&{Lifetime}<7d",
             settings);
-        ProcessSearchQuery commandLineQuery = ProcessSearchQuery.Parse(
+        SearchQuery commandLineQuery = ProcessSearchColumns.Parse(
             filterText: "{Command line}=~\"\\S+\"",
             settings);
         ProcessDataSchema schema = ProcessDataSchema.Create(
@@ -45,17 +46,17 @@ public sealed class ProcessLifetimeSearchIntegrationTests
 
         Assert.InRange(lifetimeTicks, low: 0, TimeSpan.FromDays(7).Ticks);
         Assert.NotEmpty(commandLine);
-        Assert.True(lifetimeQuery.Matches(rowIndex: 0, ResolveValue));
-        Assert.True(commandLineQuery.Matches(rowIndex: 0, ResolveValue));
+        Assert.True(lifetimeQuery.Matches(0, ResolveValue));
+        Assert.True(commandLineQuery.Matches(0, ResolveValue));
         return;
 
-        ProcessSearchColumnValue ResolveValue(int ignoredRowIndex, ProcessTableColumnKind column) => column switch
+        SearchColumnValue ResolveValue(int ignoredRowIndex, int column) => (ProcessTableColumnKind)column switch
         {
-            ProcessTableColumnKind.Lifetime => ProcessSearchColumnValue.Numeric(
+            ProcessTableColumnKind.Lifetime => SearchColumnValue.Numeric(
                 formattedLifetime,
                 lifetimeTicks),
-            ProcessTableColumnKind.CommandLine => ProcessSearchColumnValue.TextOnly(commandLine),
-            _ => ProcessSearchColumnValue.TextOnly(string.Empty)
+            ProcessTableColumnKind.CommandLine => SearchColumnValue.TextOnly(commandLine),
+            _ => SearchColumnValue.TextOnly(string.Empty)
         };
     }
 

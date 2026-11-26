@@ -27,8 +27,22 @@
     <!-- App history, Startup apps, Users and Services; one TaskManagerTablePage builds every node here -->
     <Template ID="TaskManagerTablePage" Source="TaskManagerTablePage.TaskManagerTablePage"
               Description="The Slot takes the page's header actions; Information takes content above the table">
-        <Leaf ID="Search" Kind="Text" Event="TextChanged" Source="TaskManagerTablePage.OnSearchTextChanged"
-              Description="Filters the table; the shell hosts its overlay outside the page, tagged with the page id" />
+        <Scope ID="Search" Source="TaskManagerTablePage.PageOverlay"
+               Description="Shell title-bar overlay, tagged with the page id; Clear and Save sit left of the box">
+            <Leaf ID="Clear" Kind="Button" Event="Click" Source="TaskManagerSavedSearchController.OnClearClick"
+                  Description="Visible with a query; clears it and reopens saved searches" />
+            <Leaf ID="Save" Kind="Button" Event="Click" Source="TaskManagerSavedSearchController.OnSaveClick"
+                  Description="Visible with a query; disabled while it is already saved" />
+            <Leaf ID="SearchText" Kind="Text" FocusKeys="Down;Up;Tab;Escape" Event="TextChanged"
+                  Source="TaskManagerTablePage.OnSearchTextChanged"
+                  Description="Filters rows; arrows, Enter and Tab drive autocomplete, Escape closes popups" />
+            <Leaf ID="OpenSavedSearches" Kind="Command" Pointer="Click" Event="PointerPressed"
+                  Source="TaskManagerSavedSearchController.OnPointerPressed"
+                  Description="Left press in the empty box opens SavedSearchMenu with the page's own searches" />
+            <Leaf ID="Suggestion" Kind="ListItem" IsRepeated="True" IsTabStop="False" Pointer="Click"
+                  Event="PointerPressed" Source="SearchAutocompleteController.OnSuggestionPointerPressed"
+                  Description="Autocomplete popup row; completes the column token at the caret" />
+        </Scope>
         <Scope ID="Actions" Tab="Once" Arrows="Horizontal" Source="TaskManagerTablePage.AddHeaderAction">
             <Leaf ID="RunNewTask" Kind="Button" Event="Click" Source="TaskManagerTablePage.OnRunTaskClick" />
             <Slot />
@@ -146,19 +160,19 @@
         <Scope ID="ProcessesPage" Source="TaskManagerWindow.BuildProcessesPage">
             <Scope ID="Search" Source="ProcessDetailsPage.PageOverlay"
                    Description="Shell title-bar overlay; Clear and Save sit left of the box">
-                <Leaf ID="Clear" Kind="Button" Event="Click" Source="ProcessSavedSearchController.OnClearClick"
+                <Leaf ID="Clear" Kind="Button" Event="Click" Source="TaskManagerSavedSearchController.OnClearClick"
                       Description="Visible with a query; clears it and reopens saved searches" />
-                <Leaf ID="Save" Kind="Button" Event="Click" Source="ProcessSavedSearchController.OnSaveClick"
+                <Leaf ID="Save" Kind="Button" Event="Click" Source="TaskManagerSavedSearchController.OnSaveClick"
                       Description="Visible with a query; disabled while it is already saved" />
                 <Leaf ID="SearchText" Kind="Text" FocusKeys="Down;Up;Tab;Escape" Event="TextChanged"
                       Source="ProcessDetailsPage.OnSearchTextChanged"
                       Description="Filters rows; arrows, Enter and Tab drive autocomplete, Escape closes popups" />
                 <Leaf ID="OpenSavedSearches" Kind="Command" Pointer="Click" Event="PointerPressed"
-                      Source="ProcessSavedSearchController.OnPointerPressed"
-                      Description="Left press in the empty box opens ProcessSavedSearchMenu" />
+                      Source="TaskManagerSavedSearchController.OnPointerPressed"
+                      Description="Left press in the empty box opens SavedSearchMenu" />
                 <Leaf ID="Suggestion" Kind="ListItem" IsRepeated="True" IsTabStop="False" Pointer="Click"
                       Event="PointerPressed"
-                      Source="ProcessSearchAutocompleteController.OnSuggestionPointerPressed"
+                      Source="SearchAutocompleteController.OnSuggestionPointerPressed"
                       Description="Autocomplete popup row; completes the column token at the caret" />
             </Scope>
             <Scope ID="CommandBar" Tab="Once" Arrows="Horizontal" IsArranged="True"
@@ -304,11 +318,11 @@
              Source="TaskManagerSettingsWindow.BuildAboutPage"
              Description="Install and backdate prompts the Settings About page opens" />
 
-    <Surface ID="ProcessSavedSearchMenu" Kind="Popup" Template="EditableContextMenu"
-             Source="ProcessSavedSearchController.Open"
+    <Surface ID="SavedSearchMenu" Kind="Popup" Template="EditableContextMenu"
+             Source="TaskManagerSavedSearchController.Open"
              Description="Shown without activation; only an inline rename activates it">
         <Scope ID="SavedSearch" Template="EditableMenuEntry" IsRepeated="True"
-               Source="ProcessSavedSearchController.BuildEntries"
+               Source="TaskManagerSavedSearchController.BuildEntries"
                Description="LeadingButton renames, Item runs the query, TrailingButton deletes (regex confirms)" />
     </Surface>
 

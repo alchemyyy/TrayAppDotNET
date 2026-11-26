@@ -2,26 +2,27 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace TaskManagerTrayAppDotNET.UI.ProcessesPage;
+namespace TaskManagerTrayAppDotNET.UI;
 
-/// <summary>Provides one formatted and, when applicable, numeric process-column value.</summary>
-internal readonly record struct ProcessSearchColumnValue(
+/// <summary>Provides one formatted and, when applicable, numeric column value in its query units.</summary>
+internal readonly record struct SearchColumnValue(
     string Text,
     double NumericValue,
     bool HasNumericValue)
 {
-    public static ProcessSearchColumnValue TextOnly(string text) => new(text, NumericValue: 0, HasNumericValue: false);
+    public static SearchColumnValue TextOnly(string text) => new(text, NumericValue: 0, HasNumericValue: false);
 
-    public static ProcessSearchColumnValue Numeric(string text, double numericValue) =>
+    public static SearchColumnValue Numeric(string text, double numericValue) =>
         new(text, numericValue, HasNumericValue: true);
 }
 
-internal delegate ProcessSearchColumnValue ProcessSearchValueResolver(
-    int rowIndex,
-    ProcessTableColumnKind column);
+/// <summary>Reads one column of the row a query is evaluating; <paramref name="column"/> is a catalog column ID.</summary>
+internal delegate SearchColumnValue SearchValueResolver<in TRow>(
+    TRow row,
+    int column);
 
-/// <summary>Parses and evaluates process search expressions without executing arbitrary code.</summary>
-internal sealed class ProcessSearchQuery
+/// <summary>Parses and evaluates page search expressions without executing arbitrary code.</summary>
+internal sealed class SearchQuery
 {
     private enum InstructionKind : byte
     {
@@ -70,16 +71,12 @@ internal sealed class ProcessSearchQuery
 
     private static readonly TimeSpan MatchTimeout = TimeSpan.FromMilliseconds(MatchTimeoutMilliseconds);
 
-    private static readonly ulong DefaultSearchMask =
-        ProcessTableColumnCatalog.GetMask(ProcessTableColumnKind.Name)
-        | ProcessTableColumnCatalog.GetMask(ProcessTableColumnKind.ProcessID);
-
     private readonly Instruction[] _instructions;
     private readonly bool[] _evaluationStack;
     private readonly string? _parseError;
     private bool _hasTimedOut;
 
-    private ProcessSearchQuery(
+    private SearchQuery(
         Instruction[] instructions,
         int predicateCount,
         ulong requiredColumnMask,
@@ -96,13 +93,8 @@ internal sealed class ProcessSearchQuery
     public bool IsValid => _parseError == null && !_hasTimedOut;
     public string? ErrorMessage => _hasTimedOut ? "A regular expression timed out." : _parseError;
 
-    public bool RequiresAllProcessSamples =>
-        !IsEmpty
-        && IsValid
-        && (RequiredColumnMask & ProcessTableColumnCatalog.DynamicMask) != 0;
-
-    /// <summary>Evaluates the parsed expression against one process row.</summary>
-    public bool Matches(int rowIndex, ProcessSearchValueResolver resolveValue)
+    /// <summary>Evaluates the parsed expression against one row.</summary>
+    public bool Matches<TRow>(TRow row, SearchValueResolver<TRow> resolveValue)
     {
         ArgumentNullException.ThrowIfNull(resolveValue);
         if (!IsValid) return false;
@@ -119,7 +111,7 @@ internal sealed class ProcessSearchQuery
                 switch (instruction.Kind)
                 {
                     case InstructionKind.Predicate:
-                        _evaluationStack[stackDepth] = instruction.Predicate!.Matches(rowIndex, resolveValue);
+                        _evaluationStack[stackDepth] = instruction.Predicate!.Matches(row, resolveValue);
                         stackDepth++;
                         break;
                     case InstructionKind.And:
@@ -147,23 +139,23 @@ internal sealed class ProcessSearchQuery
     }
 
     /// <summary>Parses boolean predicates, comparisons, units, and bounded regular expressions.</summary>
-    public static ProcessSearchQuery Parse(
+    public static SearchQuery Parse(
         string? filterText,
-        IReadOnlyList<ProcessColumnSetting> columnSettings)
+        SearchColumnCatalog catalog)
     {
-        ArgumentNullException.ThrowIfNull(columnSettings);
+        ArgumentNullException.ThrowIfNull(catalog);
 
         string queryText = filterText?.Trim() ?? string.Empty;
         if (queryText.Length == 0)
-            return new ProcessSearchQuery([], predicateCount: 0, requiredColumnMask: 0, parseError: null);
+            return new SearchQuery([], predicateCount: 0, requiredColumnMask: 0, parseError: null);
 
         if (!LooksLikeExpression(queryText))
         {
-            Predicate defaultPredicate = Predicate.DefaultContains(queryText);
-            return new ProcessSearchQuery(
+            Predicate defaultPredicate = Predicate.DefaultContains(queryText, catalog);
+            return new SearchQuery(
                 [Instruction.ForPredicate(defaultPredicate)],
                 predicateCount: 1,
-                DefaultSearchMask,
+                catalog.DefaultMask,
                 parseError: null);
         }
 
@@ -194,7 +186,7 @@ internal sealed class ProcessSearchQuery
                 if (!TryParsePredicate(
                         queryText,
                         ref textIndex,
-                        columnSettings,
+                        catalog,
                         out Predicate? predicate,
                         out string? parseError))
                     return Invalid(parseError ?? "The predicate is invalid.");
@@ -259,7 +251,7 @@ internal sealed class ProcessSearchQuery
             output.Add(Instruction.ForOperator(top));
         }
 
-        return new ProcessSearchQuery(output.ToArray(), predicateCount, requiredColumnMask, parseError: null);
+        return new SearchQuery(output.ToArray(), predicateCount, requiredColumnMask, parseError: null);
     }
 
     private static bool LooksLikeExpression(string queryText) =>
@@ -270,7 +262,7 @@ internal sealed class ProcessSearchQuery
     private static bool TryParsePredicate(
         string queryText,
         ref int textIndex,
-        IReadOnlyList<ProcessColumnSetting> columnSettings,
+        SearchColumnCatalog catalog,
         out Predicate? predicate,
         out string? parseError)
     {
@@ -286,11 +278,11 @@ internal sealed class ProcessSearchQuery
             if (defaultText.Length == 0)
             {
                 predicate = null;
-                parseError = "A default Name/PID predicate cannot be empty.";
+                parseError = "A plain search term cannot be empty.";
                 return false;
             }
 
-            predicate = Predicate.DefaultContains(defaultText);
+            predicate = Predicate.DefaultContains(defaultText, catalog);
             parseError = null;
             return true;
         }
@@ -312,10 +304,10 @@ internal sealed class ProcessSearchQuery
             return false;
         }
 
-        if (!TryResolveColumn(columnName, columnSettings, out ProcessTableColumnKind column))
+        if (!catalog.TryResolve(columnName, out SearchColumn column))
         {
             predicate = null;
-            parseError = $"Unknown process column '{columnName}'.";
+            parseError = $"Unknown column '{columnName}'.";
             return false;
         }
 
@@ -339,7 +331,7 @@ internal sealed class ProcessSearchQuery
     }
 
     private static bool TryCreateColumnPredicate(
-        ProcessTableColumnKind column,
+        SearchColumn column,
         ComparisonKind comparison,
         string literal,
         out Predicate? predicate,
@@ -365,8 +357,9 @@ internal sealed class ProcessSearchQuery
             }
         }
 
-        if (IsNumericColumn(column)
-            && TryParseNumericLiteral(column, literal, out double numericValue))
+        bool isNumericColumn = column.ValueKind != SearchValueKind.Text;
+        if (isNumericColumn
+            && TryParseNumericLiteral(column.ValueKind, literal, out double numericValue))
         {
             predicate = Predicate.Numeric(column, comparison, numericValue);
             parseError = null;
@@ -377,10 +370,10 @@ internal sealed class ProcessSearchQuery
                 or ComparisonKind.GreaterOrEqual
                 or ComparisonKind.Less
                 or ComparisonKind.LessOrEqual
-            && IsNumericColumn(column))
+            && isNumericColumn)
         {
             predicate = null;
-            parseError = $"'{literal}' is not a valid numeric value for {ProcessTableColumnCatalog.Get(column).Title}.";
+            parseError = $"'{literal}' is not a valid numeric value for {column.Title}.";
             return false;
         }
 
@@ -535,104 +528,18 @@ internal sealed class ProcessSearchQuery
             textIndex++;
     }
 
-    private static bool TryResolveColumn(
-        string columnName,
-        IReadOnlyList<ProcessColumnSetting> columnSettings,
-        out ProcessTableColumnKind column)
-    {
-        for (int definitionIndex = 0;
-             definitionIndex < ProcessTableColumnCatalog.Definitions.Length;
-             definitionIndex++)
-        {
-            ProcessTableColumnDefinition definition = ProcessTableColumnCatalog.Definitions[definitionIndex];
-            if (!string.Equals(definition.Title, columnName, StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(definition.Kind.ToString(), columnName, StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            column = definition.Kind;
-            return true;
-        }
-
-        for (int settingIndex = 0; settingIndex < columnSettings.Count; settingIndex++)
-        {
-            ProcessColumnSetting setting = columnSettings[settingIndex];
-            if (string.IsNullOrWhiteSpace(setting.Nickname)
-                || !string.Equals(setting.Nickname.Trim(), columnName, StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            column = setting.Column;
-            return true;
-        }
-
-        column = ProcessTableColumnKind.Name;
-        return false;
-    }
-
-    private static bool IsNumericColumn(ProcessTableColumnKind column) => column switch
-    {
-        ProcessTableColumnKind.Name
-            or ProcessTableColumnKind.Status
-            or ProcessTableColumnKind.UserName
-            or ProcessTableColumnKind.ImagePath
-            or ProcessTableColumnKind.CommandLine
-            or ProcessTableColumnKind.OperatingSystemContext
-            or ProcessTableColumnKind.Platform
-            or ProcessTableColumnKind.Elevated
-            or ProcessTableColumnKind.UACVirtualization
-            or ProcessTableColumnKind.Description
-            or ProcessTableColumnKind.DataExecutionPrevention
-            or ProcessTableColumnKind.IOPriority
-            or ProcessTableColumnKind.PackageName
-            or ProcessTableColumnKind.EnterpriseContext
-            or ProcessTableColumnKind.PowerThrottling
-            or ProcessTableColumnKind.GPUEngine
-            or ProcessTableColumnKind.DPIAwareness
-            or ProcessTableColumnKind.Architecture
-            or ProcessTableColumnKind.HardwareStackProtection
-            or ProcessTableColumnKind.ExtendedControlFlowGuard
-            or ProcessTableColumnKind.Isolation
-            or ProcessTableColumnKind.NPUEngine => false,
-        _ => true
-    };
-
     private static bool TryParseNumericLiteral(
-        ProcessTableColumnKind column,
+        SearchValueKind valueKind,
         string literal,
-        out double numericValue)
+        out double numericValue) => valueKind switch
     {
-        if (IsTimeColumn(column))
-            return TryParseDuration(literal, out numericValue);
-        if (IsPercentageColumn(column))
-            return TryParsePercentage(literal, out numericValue);
-        if (column is ProcessTableColumnKind.Disk
-            or ProcessTableColumnKind.DiskRead
-            or ProcessTableColumnKind.DiskWrite)
-            return TryParseRate(literal, useBinaryUnits: true, out numericValue);
-        if (column == ProcessTableColumnKind.Network)
-            return TryParseRate(literal, useBinaryUnits: false, out numericValue);
-        if (IsByteColumn(column))
-            return TryParseScaledNumber(literal, useBinaryUnits: true, out numericValue);
-        return TryParseScaledNumber(literal, useBinaryUnits: false, out numericValue);
-    }
-
-    private static bool IsTimeColumn(ProcessTableColumnKind column) =>
-        column is ProcessTableColumnKind.CPUTime or ProcessTableColumnKind.Lifetime;
-
-    private static bool IsPercentageColumn(ProcessTableColumnKind column) => column switch
-    {
-        ProcessTableColumnKind.CPU
-            or ProcessTableColumnKind.CPUSingle
-            or ProcessTableColumnKind.GPU
-            or ProcessTableColumnKind.NPU
-            or ProcessTableColumnKind.CPUUtility => true,
-        _ => false
+        SearchValueKind.Duration => TryParseDuration(literal, out numericValue),
+        SearchValueKind.Percentage => TryParsePercentage(literal, out numericValue),
+        SearchValueKind.ByteRate => TryParseRate(literal, useBinaryUnits: true, out numericValue),
+        SearchValueKind.BitRate => TryParseRate(literal, useBinaryUnits: false, out numericValue),
+        SearchValueKind.Bytes => TryParseScaledNumber(literal, useBinaryUnits: true, out numericValue),
+        _ => TryParseScaledNumber(literal, useBinaryUnits: false, out numericValue)
     };
-
-    private static bool IsByteColumn(ProcessTableColumnKind column) =>
-        ProcessColumnSettings.IsMemoryColumn(column)
-        || column is ProcessTableColumnKind.IOReadBytes
-            or ProcessTableColumnKind.IOWriteBytes
-            or ProcessTableColumnKind.IOOtherBytes;
 
     private static bool TryParsePercentage(string literal, out double numericValue)
     {
@@ -784,7 +691,7 @@ internal sealed class ProcessSearchQuery
             out value)
         && double.IsFinite(value);
 
-    private static ProcessSearchQuery Invalid(string errorMessage) =>
+    private static SearchQuery Invalid(string errorMessage) =>
         new([], predicateCount: 0, requiredColumnMask: 0, errorMessage);
 
     private readonly record struct Instruction(InstructionKind Kind, Predicate? Predicate)
@@ -804,7 +711,8 @@ internal sealed class ProcessSearchQuery
     {
         private readonly PredicateKind _kind;
         private readonly ComparisonKind _comparison;
-        private readonly ProcessTableColumnKind _column;
+        private readonly int _column;
+        private readonly int[] _defaultColumns;
         private readonly string _text;
         private readonly double _numericValue;
         private readonly Regex? _regex;
@@ -812,7 +720,8 @@ internal sealed class ProcessSearchQuery
         private Predicate(
             PredicateKind kind,
             ComparisonKind comparison,
-            ProcessTableColumnKind column,
+            int column,
+            int[] defaultColumns,
             string text,
             double numericValue,
             Regex? regex,
@@ -821,6 +730,7 @@ internal sealed class ProcessSearchQuery
             _kind = kind;
             _comparison = comparison;
             _column = column;
+            _defaultColumns = defaultColumns;
             _text = text;
             _numericValue = numericValue;
             _regex = regex;
@@ -829,66 +739,74 @@ internal sealed class ProcessSearchQuery
 
         public ulong RequiredColumnMask { get; }
 
-        public static Predicate DefaultContains(string text) =>
+        public static Predicate DefaultContains(string text, SearchColumnCatalog catalog) =>
             new(
                 PredicateKind.DefaultContains,
                 ComparisonKind.Equal,
-                ProcessTableColumnKind.Name,
+                column: -1,
+                catalog.DefaultColumnIDs,
                 text,
                 numericValue: 0,
                 regex: null,
-                DefaultSearchMask);
+                catalog.DefaultMask);
 
         public static Predicate Text(
-            ProcessTableColumnKind column,
+            SearchColumn column,
             ComparisonKind comparison,
             string text) =>
             new(
                 PredicateKind.Text,
                 comparison,
-                column,
+                column.ID,
+                defaultColumns: [],
                 text,
                 numericValue: 0,
                 regex: null,
-                ProcessTableColumnCatalog.GetMask(column));
+                column.RequiredMask);
 
         public static Predicate Numeric(
-            ProcessTableColumnKind column,
+            SearchColumn column,
             ComparisonKind comparison,
             double numericValue) =>
             new(
                 PredicateKind.Numeric,
                 comparison,
-                column,
+                column.ID,
+                defaultColumns: [],
                 string.Empty,
                 numericValue,
                 regex: null,
-                ProcessTableColumnCatalog.GetMask(column));
+                column.RequiredMask);
 
         public static Predicate Regex(
-            ProcessTableColumnKind column,
+            SearchColumn column,
             ComparisonKind comparison,
             Regex regex) =>
             new(
                 PredicateKind.Regex,
                 comparison,
-                column,
+                column.ID,
+                defaultColumns: [],
                 string.Empty,
                 numericValue: 0,
                 regex,
-                ProcessTableColumnCatalog.GetMask(column));
+                column.RequiredMask);
 
-        public bool Matches(int rowIndex, ProcessSearchValueResolver resolveValue)
+        public bool Matches<TRow>(TRow row, SearchValueResolver<TRow> resolveValue)
         {
             if (_kind == PredicateKind.DefaultContains)
             {
-                ProcessSearchColumnValue name = resolveValue(rowIndex, ProcessTableColumnKind.Name);
-                ProcessSearchColumnValue processID = resolveValue(rowIndex, ProcessTableColumnKind.ProcessID);
-                return name.Text.Contains(_text, StringComparison.OrdinalIgnoreCase)
-                       || processID.Text.Contains(_text, StringComparison.OrdinalIgnoreCase);
+                for (int columnIndex = 0; columnIndex < _defaultColumns.Length; columnIndex++)
+                {
+                    if (resolveValue(row, _defaultColumns[columnIndex]).Text
+                        .Contains(_text, StringComparison.OrdinalIgnoreCase))
+                        return true;
+                }
+
+                return false;
             }
 
-            ProcessSearchColumnValue value = resolveValue(rowIndex, _column);
+            SearchColumnValue value = resolveValue(row, _column);
             return _kind switch
             {
                 PredicateKind.Text => CompareText(value.Text),
@@ -913,7 +831,7 @@ internal sealed class ProcessSearchQuery
             };
         }
 
-        private bool CompareNumeric(ProcessSearchColumnValue value)
+        private bool CompareNumeric(SearchColumnValue value)
         {
             if (!value.HasNumericValue) return false;
 
