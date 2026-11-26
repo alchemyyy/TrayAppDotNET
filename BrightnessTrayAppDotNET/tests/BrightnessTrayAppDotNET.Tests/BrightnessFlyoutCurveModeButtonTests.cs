@@ -62,4 +62,89 @@ public sealed class BrightnessFlyoutCurveModeButtonTests
         Assert.Equal(state, row.SliderState);
         Assert.Equal(manualRevision, row.ManualBrightnessRevision);
     }
+
+    [Theory]
+    [InlineData(SliderState.CurveActive)]
+    [InlineData(SliderState.CurveReleased)]
+    public void AnyManualDisplayPutsMasterInManualMode(SliderState masterState)
+    {
+        MonitorInfo curve = new() { SliderState = SliderState.CurveActive };
+        MonitorInfo manual = new() { SliderState = SliderState.CurveReleased };
+
+        SliderState next = BrightnessFlyoutWindow.ResolveMasterCurveModeFromIndividuals(
+            masterState,
+            [curve, manual],
+            inDisabledPeriod: false);
+
+        Assert.Equal(SliderState.CurveReleased, next);
+    }
+
+    [Fact]
+    public void UnreachableDisplayCarryingManualOverrideKeepsMasterManual()
+    {
+        MonitorInfo curve = new() { SliderState = SliderState.CurveActive };
+        MonitorInfo away = new() { SliderState = SliderState.CurveReleased };
+        away.SliderState = SliderState.Failed;
+
+        SliderState next = BrightnessFlyoutWindow.ResolveMasterCurveModeFromIndividuals(
+            SliderState.CurveReleased,
+            [curve, away],
+            inDisabledPeriod: false);
+
+        Assert.Equal(SliderState.CurveReleased, next);
+    }
+
+    [Theory]
+    [InlineData(false, SliderState.CurveActive)]
+    [InlineData(true, SliderState.CurveSleeping)]
+    public void ManualMasterReturnsToCurveOnceEveryDisplayHas(bool inDisabledPeriod, SliderState expected)
+    {
+        MonitorInfo curve = new() { SliderState = SliderState.CurveActive };
+        MonitorInfo excluded = new() { SliderState = SliderState.Disabled };
+
+        SliderState next = BrightnessFlyoutWindow.ResolveMasterCurveModeFromIndividuals(
+            SliderState.CurveReleased,
+            [curve, excluded],
+            inDisabledPeriod);
+
+        Assert.Equal(expected, next);
+    }
+
+    [Theory]
+    [InlineData(SliderState.Enabled)]
+    [InlineData(SliderState.CurveReleased)]
+    public void MasterCurveModeStaysWithoutCurveControlledDisplays(SliderState masterState)
+    {
+        MonitorInfo excluded = new() { SliderState = SliderState.Disabled };
+        MonitorInfo enabled = new() { SliderState = SliderState.Enabled };
+
+        SliderState next = BrightnessFlyoutWindow.ResolveMasterCurveModeFromIndividuals(
+            masterState,
+            [excluded, enabled],
+            inDisabledPeriod: false);
+
+        Assert.Equal(masterState, next);
+    }
+
+    [Theory]
+    [InlineData(true, true, SliderState.CurveReleased, SliderState.CurveActive, true)]
+    [InlineData(true, true, SliderState.CurveReleased, SliderState.CurveSleeping, false)]
+    [InlineData(true, true, SliderState.CurveReleased, SliderState.CurveReleased, false)]
+    [InlineData(true, true, SliderState.CurveActive, SliderState.CurveActive, false)]
+    [InlineData(true, false, SliderState.CurveReleased, SliderState.CurveActive, false)]
+    [InlineData(false, true, SliderState.CurveReleased, SliderState.CurveActive, false)]
+    public void ManualMasterLeavesOnlyCurveActiveDisplaysAtTheirCurveValue(
+        bool isCurveEnabled,
+        bool isAbsoluteMode,
+        SliderState masterState,
+        SliderState rowState,
+        bool expected)
+    {
+        MonitorInfo master = new() { IsMaster = true, SliderState = masterState };
+        MonitorInfo row = new() { SliderState = rowState };
+
+        bool held = BrightnessFlyoutWindow.IsCurveHeldUnderManualMaster(isCurveEnabled, isAbsoluteMode, master, row);
+
+        Assert.Equal(expected, held);
+    }
 }

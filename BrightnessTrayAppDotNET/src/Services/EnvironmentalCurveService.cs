@@ -476,12 +476,13 @@ public sealed class EnvironmentalCurveService : IDisposable
     /// into CurveActive / CurveSleeping, and walks the disabled-period sleep transitions on rows
     /// already under curve control. Crucially does NOT touch CurveReleased rows - release info has
     /// to survive sleep transitions until the user explicitly re-engages or the curve toggles off.
+    /// Each individual walks on its own state alone: one handed back to the curve while the master is in manual mode
+    /// follows the curve, because the master's manual mode only reflects the rows that are themselves manual.
     /// </summary>
     private void HarmonizeBrightnessCurveStates(bool inDisabled)
     {
         HarmonizeRow(_masterMonitor, inDisabled);
-        bool holdIndividuals = inDisabled || _masterMonitor.SliderState == SliderState.CurveReleased;
-        foreach (MonitorInfo monitor in _monitors) HarmonizeRow(monitor, holdIndividuals);
+        foreach (MonitorInfo monitor in _monitors) HarmonizeRow(monitor, inDisabled);
     }
 
     /// <summary>

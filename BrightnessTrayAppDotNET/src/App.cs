@@ -482,7 +482,9 @@ internal sealed class BrightnessAvaloniaApp : Application
         BrightnessFlyoutWindow? flyout = _brightnessFlyout;
         if (flyout == null || flyout.Monitors.Count == 0) return;
 
-        List<MonitorInfo> monitors = [.. flyout.Monitors.Where(m => m.IsParticipatingInMaster)];
+        // Like a master drag, the wheel leaves displays the curve drives under a manual master at their curve value
+        List<MonitorInfo> monitors =
+            [.. flyout.Monitors.Where(m => m.IsParticipatingInMaster && !flyout.IsCurveHeldUnderManualMaster(m))];
         if (monitors.Count == 0) return;
 
         Dictionary<MonitorInfo, int>? curveReleaseTargets = seedManualFromCurveOnRelease

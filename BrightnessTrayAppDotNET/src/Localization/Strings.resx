@@ -67,6 +67,9 @@
   <data name="Flyout_CurveMode_ManualTooltip" xml:space="preserve">
     <value>Manual override</value>
   </data>
+  <data name="Flyout_CurveMode_MixedTooltip" xml:space="preserve">
+    <value>Manual override on some displays</value>
+  </data>
   <data name="Flyout_HardPowerOff_Abort" xml:space="preserve">
     <value>Abort</value>
   </data>

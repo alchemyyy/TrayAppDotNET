@@ -91,6 +91,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private DispatcherTimer? _curveStopwatchTimer;
     private bool _suppressPropagation;
     private bool _masterSliderGesturePrepared;
+    private bool _suspendMasterCurveModeSync;
     private bool _hasUnsavedChanges;
     private bool _isUpdateButtonVisible;
     private EnvironmentalCurve? _previewSweepCurveOverride;
@@ -1563,7 +1564,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         {
             foreach (MonitorInfo monitor in Monitors)
             {
-                if (!monitor.IsParticipatingInMaster) continue;
+                if (!monitor.IsParticipatingInMaster || IsCurveHeldUnderManualMaster(monitor)) continue;
 
                 double source = preserve ? monitor.VirtualBrightness : monitor.LastUserBrightness;
                 double roundedSource = BrightnessSliderMath.RoundManualPercent(source);
@@ -1635,12 +1636,17 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         if (e.PropertyName == nameof(MonitorInfo.SliderState)
             && sender is MonitorInfo stateChanged)
         {
-            if (!ReferenceEquals(sender, MasterMonitor) && !_suppressPropagation)
+            if (!ReferenceEquals(sender, MasterMonitor))
             {
-                _suppressPropagation = true;
-                // Only a row failing or recovering changes the master value here, which is availability not intent
-                try { UpdateMasterFromEnabledIndividuals(isUserIntent: false); }
-                finally { _suppressPropagation = false; }
+                if (!_suppressPropagation)
+                {
+                    _suppressPropagation = true;
+                    // A row failing, recovering, or changing curve mode changes which rows the master shows, not intent
+                    try { UpdateMasterFromEnabledIndividuals(isUserIntent: false); }
+                    finally { _suppressPropagation = false; }
+                }
+
+                SyncMasterCurveModeFromIndividuals();
             }
 
             UpdateCurveStopwatchVisibility(stateChanged);
@@ -2124,7 +2130,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         {
             foreach (MonitorInfo monitor in Monitors)
             {
-                if (!monitor.IsParticipatingInMaster) continue;
+                if (!monitor.IsParticipatingInMaster || IsCurveHeldUnderManualMaster(monitor)) continue;
                 double unclamped = masterBrightness + monitor.Offset;
                 double clamped = BrightnessSliderMath.ClampPercent(unclamped);
                 monitor.Brightness = clamped;
@@ -2174,8 +2180,15 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         }
     }
 
+    /// <summary>
+    /// Aggregates the rows the master moves. While the master is in manual mode, rows the curve still drives are left
+    /// out, so the master shows the manual rows it controls rather than the curve rows' parked slider values.
+    /// </summary>
     private double ComputeMasterFromEnabledIndividuals() =>
-        BrightnessSliderMath.ComputeMasterPercent(Monitors, CurrentMasterSliderMode, MasterMonitor.Brightness);
+        BrightnessSliderMath.ComputeMasterPercent(
+            Monitors.Where(monitor => !IsCurveHeldUnderManualMaster(monitor)),
+            CurrentMasterSliderMode,
+            MasterMonitor.Brightness);
 
     private void RebaseInitialMonitorEnrollment()
     {
@@ -2194,6 +2207,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         foreach (MonitorInfo monitor in Monitors)
         {
             if (skipManualOverrides && monitor.IsCurveReleased) continue;
+            // A curve-driven row keeps the offset it follows the curve by; the manual master does not move it
+            if (IsCurveHeldUnderManualMaster(monitor)) continue;
             double source = preserve ? monitor.VirtualBrightness : monitor.LastUserBrightness;
             monitor.Offset = source - MasterMonitor.LastUserBrightness;
         }
@@ -2470,8 +2485,8 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     /// <summary>
     /// Puts every curve-driven display row under the master's manual override, as its own manual click would, so
     /// each row shows the manual state even when its slider already matches the curve value and nothing visibly moves.
-    /// Rows joining later are held in CurveSleeping by the curve service. Re-engaging the master reverses this through
-    /// <see cref="ReengageIndividualBrightnessCurveOverridesFromMaster"/>.
+    /// A row handed back to the curve afterwards follows the curve while the others stay manual. Re-engaging the master
+    /// reverses this through <see cref="ReengageIndividualBrightnessCurveOverridesFromMaster"/>.
     /// </summary>
     private void ReleaseIndividualBrightnessCurveOverridesWithMaster()
     {
@@ -2541,7 +2556,10 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
         if (IsBrightnessCurveEnabled && !preserveManualOverrides) ReengageFailedCurveReleases();
         if (!preserveManualOverrides) SynchronizePersistedCurveReleaseStates();
         if (IsBrightnessCurveEnabled)
+        {
             CaptureOffsetsFromMaster(preserveManualOverrides);
+            SyncMasterCurveModeFromIndividuals();
+        }
         UpdateAllCurveStopwatchVisibility(true);
         if (_previewDateHardwareActive)
         {
@@ -2565,7 +2583,7 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     {
         foreach (MonitorInfo monitor in Monitors)
         {
-            if (!monitor.IsParticipatingInMaster) continue;
+            if (!monitor.IsParticipatingInMaster || IsCurveHeldUnderManualMaster(monitor)) continue;
 
             if (userAdjustment)
                 _monitorService.EnqueueUserBrightness(monitor, monitor.RoundedBrightness);
@@ -3066,15 +3084,90 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private void ReengageIndividualBrightnessCurveOverridesFromMaster()
     {
         CaptureOffsetsFromMaster();
-        foreach (MonitorInfo monitor in Monitors)
+        // The master has already re-engaged; rows still manual mid-loop must not pull it back into manual mode
+        _suspendMasterCurveModeSync = true;
+        try
         {
-            if (monitor.SliderState != SliderState.CurveReleased) continue;
-            ReengageCurveReleasedMonitor(monitor);
-            UpdateCurveStopwatchVisibility(monitor);
+            foreach (MonitorInfo monitor in Monitors)
+            {
+                if (monitor.SliderState != SliderState.CurveReleased) continue;
+                ReengageCurveReleasedMonitor(monitor);
+                UpdateCurveStopwatchVisibility(monitor);
+            }
+
+            ReengageFailedCurveReleases();
+        }
+        finally
+        {
+            _suspendMasterCurveModeSync = false;
+        }
+    }
+
+    /// <summary>
+    /// Keeps the master's curve mode a reflection of the individual displays instead of a state it imposes on them.
+    /// Any display in manual override puts the master in manual mode, where a master drag moves only the manual
+    /// displays; the master returns to curve control once every display has.
+    /// </summary>
+    private void SyncMasterCurveModeFromIndividuals()
+    {
+        if (_suspendMasterCurveModeSync || !IsBrightnessCurveEnabled || !IsCurveAbsoluteMode) return;
+
+        SliderState previous = MasterMonitor.SliderState;
+        SliderState next = ResolveMasterCurveModeFromIndividuals(previous, Monitors, _isInCurveDisabledPeriod);
+        if (next == previous) return;
+
+        if (next == SliderState.CurveReleased)
+        {
+            MasterMonitor.SliderState = next;
+            PersistCurveReleaseState(MasterMonitor, released: true);
+            // A bulk operation in progress owns the master value; otherwise the master now shows the manual rows
+            if (!_suppressPropagation) UpdateMasterFromEnabledIndividuals();
+        }
+        else
+            ReengageCurveReleasedMonitor(MasterMonitor);
+
+        UpdateCurveStopwatchVisibility(MasterMonitor);
+    }
+
+    /// <summary>
+    /// Resolves the master's curve state from the displays. Any display in manual override, including one that is
+    /// unreachable while it carries the override, makes the master manual; a manual master with at least one display
+    /// left, all of them curve-driven, returns to the curve. Other master states are not curve modes and stay put.
+    /// </summary>
+    internal static SliderState ResolveMasterCurveModeFromIndividuals(
+        SliderState masterState,
+        IEnumerable<MonitorInfo> monitors,
+        bool inDisabledPeriod)
+    {
+        if (masterState is not (SliderState.CurveActive or SliderState.CurveSleeping or SliderState.CurveReleased))
+            return masterState;
+
+        bool anyCurveDriven = false;
+        foreach (MonitorInfo monitor in monitors)
+        {
+            if (monitor.IsCurveReleased || monitor.IsFailedWhileCurveReleased) return SliderState.CurveReleased;
+            anyCurveDriven |= monitor.IsCurveDriven;
         }
 
-        ReengageFailedCurveReleases();
+        return anyCurveDriven ? SliderStateMachine.OnUserReengage(masterState, inDisabledPeriod) : masterState;
     }
+
+    /// <summary>
+    /// True for a display the brightness curve keeps driving while the master is in manual mode. Master drags,
+    /// master recomputes, and slider replays leave it at its curve value.
+    /// </summary>
+    internal bool IsCurveHeldUnderManualMaster(MonitorInfo monitor) =>
+        IsCurveHeldUnderManualMaster(IsBrightnessCurveEnabled, IsCurveAbsoluteMode, MasterMonitor, monitor);
+
+    internal static bool IsCurveHeldUnderManualMaster(
+        bool isCurveEnabled,
+        bool isAbsoluteMode,
+        MonitorInfo master,
+        MonitorInfo monitor) =>
+        isCurveEnabled
+        && isAbsoluteMode
+        && master.IsCurveReleased
+        && monitor is { IsMaster: false, SliderState: SliderState.CurveActive };
 
     /// <summary>
     /// Extends a curve re-engage to displays that are powered off, unreachable, or disconnected right now.
@@ -3305,10 +3398,13 @@ public sealed partial class BrightnessFlyoutWindow : FlyoutWindowCommon, INotify
     private static Glyph CurveModeGlyph(MonitorInfo monitor) =>
         monitor.IsCurveReleased ? GlyphCatalog.LOCK : GlyphCatalog.UNLOCK;
 
-    private static string CurveModeTooltip(MonitorInfo monitor) =>
-        monitor.IsCurveReleased
-            ? L(nameof(AppStrings.Flyout_CurveMode_ManualTooltip))
-            : L(nameof(AppStrings.Flyout_CurveMode_CurveTooltip));
+    private string CurveModeTooltip(MonitorInfo monitor)
+    {
+        if (!monitor.IsCurveReleased) return L(nameof(AppStrings.Flyout_CurveMode_CurveTooltip));
+        return monitor.IsMaster && Monitors.Any(row => row.IsCurveDriven)
+            ? L(nameof(AppStrings.Flyout_CurveMode_MixedTooltip))
+            : L(nameof(AppStrings.Flyout_CurveMode_ManualTooltip));
+    }
 
     private void ApplyCurveModeButtonVisual(MonitorInfo monitor, Border? button)
     {

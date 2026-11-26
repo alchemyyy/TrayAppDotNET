@@ -49,7 +49,7 @@ In the default (absolute) mode, touching brightness yourself puts that row into 
 
 The rules differ a bit by row:
 
-- An individual display only releases itself. The master and the other displays keep following the curve.
+- An individual display only releases itself. The other displays keep following the curve.
 - The master (**All displays**) releases itself ***and every display the curve was driving***, so all rows show the same manual state.
 - **Night Light** only releases itself.
 
@@ -62,6 +62,15 @@ Two cases don't disengage anything:
 - Inside a [disabled period](#disabled-period). The curve is asleep, so the sliders are yours anyway.
 - [Offset mode](#offset-mode). The sliders set the base the curve adds to, so moving them is expected.
 
+### Mixing Curve and Manual Displays
+
+Each display can be on the curve or in manual override independently, and the master reflects that mix instead of forcing its own state on the displays:
+
+- While any display is in manual override, the master shows manual override too (tooltip **Manual override on some displays** when some displays still follow the curve). Its value comes from the manual displays only.
+- Dragging the master, or scrolling the tray icon, moves only the displays in manual override. Displays on the curve stay at their curve value.
+- Handing a display back to the curve (lock button, double-click, or its timer) puts it on the curve right away, even while the master is in manual override.
+- Once every display is back on the curve, the master is too.
+
 ### Ending a Manual Override
 
 Any of these hands the row back to the curve:
@@ -72,7 +81,7 @@ Any of these hands the row back to the curve:
 - Let auto re-engage catch it (below, master only).
 - Turn the curve off and back on. Turning a curve off clears every manual override for it.
 
-Re-engaging the master also re-engages every display that was in manual override.
+Re-engaging the master also re-engages every display that was in manual override. Re-engaging displays one at a time returns the master to the curve with the last one.
 
 When you turn the brightness curve off entirely, your displays go back to their slider values.
 
@@ -99,7 +108,7 @@ The number box next to the toggle is a delay in seconds (default 60). After ever
 
 Gotchas:
 
-- It only watches the master. If you only moved one display, the master never left curve control, so nothing re-engages that display. Use the lock button, a double-click, or the disengage timer for those.
+- It watches the master, which is in manual override whenever any display is, with the manual displays' value. Moving one display therefore lets the curve take it back when the curve crosses that display's value (along with every other display in manual override).
 - It doesn't apply to Night Light, offset mode, or a disabled period.
 
 ## Environmental Page
