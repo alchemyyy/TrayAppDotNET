@@ -431,9 +431,7 @@ internal static class PerformanceDevicePresentationFactory
             new(
                 Label: L(nameof(AppStrings.Perf_Label_DeviceID)),
                 OrUnavailable(GPUVendorFormatting.FormatHardwareID(identity.HardwareID))),
-            new(
-                Label: L(nameof(AppStrings.Perf_Label_PCIeLink)),
-                OrUnavailable(GPUVendorFormatting.FormatPCIeLink(identity.Link))),
+            new(Label: L(nameof(AppStrings.Perf_Label_PCIeLink)), FormatGPUPCIeLink(identity.Link)),
             new(
                 Label: L(nameof(AppStrings.Perf_Label_PhysicalLocation)),
                 OrUnavailable(details?.PhysicalLocation)),
@@ -460,6 +458,17 @@ internal static class PerformanceDevicePresentationFactory
 
     private static string OrUnavailable(string? value) =>
         string.IsNullOrWhiteSpace(value) ? Unavailable : value;
+
+    /// <summary>Formats a GPU's PCIe link, marking a link that only reaches a switch on the GPU's own card.</summary>
+    internal static string FormatGPUPCIeLink(GPUPCIeLink link)
+    {
+        string formatted = GPUVendorFormatting.FormatPCIeLink(link);
+        if (formatted.Length == 0) return Unavailable;
+
+        return link.BehindOnCardSwitch
+            ? F(nameof(AppStrings.Perf_PCIeLink_OnCardSwitchFormat), formatted)
+            : formatted;
+    }
 
     private static PerformanceDevicePresentation CreateNetwork(
         NetworkPerformanceSnapshot sample,

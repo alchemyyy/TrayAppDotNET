@@ -19,7 +19,7 @@ internal static class GPUVendorFormatting
     /// Returns the driver version the vendor publishes, or an empty string when it cannot be derived. NVIDIA's comes
     /// from the last five digits of the Windows version's third and zero-padded fourth fields (32.0.16.1692 is 616.92).
     /// AMD's Adrenalin version is only in the registry, so <paramref name="amdSoftwareVersion"/> carries it. Intel
-    /// publishes the Windows version itself.
+    /// publishes the full Windows version, also quoted by its last two fields (32.0.101.6913 is 101.6913).
     /// </summary>
     public static string FormatPublicDriverVersion(
         ushort vendorID,
@@ -35,7 +35,9 @@ internal static class GPUVendorFormatting
             case AMDVendorID:
                 return amdSoftwareVersion.Trim();
             case IntelVendorID:
-                return windowsDriverVersion.Trim();
+                return TryFormatIntelDriverVersion(windowsDriverVersion, out string intelVersion)
+                    ? intelVersion
+                    : string.Empty;
             default:
                 return string.Empty;
         }
@@ -50,6 +52,16 @@ internal static class GPUVendorFormatting
             return publicDriverVersion;
 
         return string.Concat(publicDriverVersion, " (", windowsDriverVersion, ")");
+    }
+
+    private static bool TryFormatIntelDriverVersion(string windowsDriverVersion, out string version)
+    {
+        version = string.Empty;
+        string[] fields = windowsDriverVersion.Trim().Split('.');
+        if (fields.Length != 4 || !IsDigits(fields[2]) || !IsDigits(fields[3])) return false;
+
+        version = string.Concat(fields[2], ".", fields[3]);
+        return true;
     }
 
     private static bool TryFormatNVIDIADriverVersion(string windowsDriverVersion, out string version)

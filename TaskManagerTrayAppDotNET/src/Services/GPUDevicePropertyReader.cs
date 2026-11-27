@@ -15,7 +15,8 @@ internal static class GPUDevicePropertyReader
     private const uint DevpropTypeStringList = 0x00002012;
     private const int ConfigManagerSuccess = 0;
     private const int ConfigManagerBufferSmall = 0x1A;
-    private const int MaximumBridgeWalkDepth = 8;
+    private const uint PCIUpstreamSwitchPortType = 9;
+    private const uint PCIDownstreamSwitchPortType = 10;
     private const uint MaximumRegistryStringBytes = 4_096;
     private const uint RegString = 1;
     private const uint DicsFlagGlobal = 0x00000001;
@@ -57,6 +58,10 @@ internal static class GPUDevicePropertyReader
     private static readonly DEVPROPKEY InstanceIDProperty = new(
         new Guid("78c34fc8-104a-4aca-9ea4-524d52996e57"),
         propertyID: 256);
+
+    private static readonly DEVPROPKEY PCIDeviceTypeProperty = new(
+        new Guid("3ab22e31-8264-4b4e-9af5-a8d2d8e33e62"),
+        propertyID: 1);
 
     private static readonly DEVPROPKEY PCICurrentLinkSpeedProperty = new(
         new Guid("3ab22e31-8264-4b4e-9af5-a8d2d8e33e62"),
@@ -394,37 +399,45 @@ internal static class GPUDevicePropertyReader
     }
 
     /// <summary>
-    /// Reads the PCIe link of the slot a GPU sits in. AMD's discrete cards put a PCIe switch of their own between the
-    /// GPU and the slot, so the GPU's own link is the card-internal one. Walking up through parents from the GPU's
-    /// own vendor reaches the switch's upstream port, whose link is the slot's; GPUs without such a switch stop at
-    /// themselves because their parent is the platform's root port.
+    /// Reads the GPU's own PCIe link. Windows publishes link speed and width only for endpoints, not for root or
+    /// switch ports, so for a card with its own PCIe switch (AMD's discrete cards) this is the GPU's link to that
+    /// switch, not the slot's; such a link is flagged so it can be labelled.
     /// </summary>
     private static GPUPCIeLink ReadPCIeLink(uint deviceInstance, string hardwareID)
     {
-        uint linkDevice = deviceInstance;
-        if (GPUVendorFormatting.TryParseHardwareID(hardwareID, out GPUHardwareID parsed))
-        {
-            uint current = deviceInstance;
-            for (int depth = 0; depth < MaximumBridgeWalkDepth; depth++)
-            {
-                if (CM_Get_Parent(out uint parent, current, flags: 0) != ConfigManagerSuccess) break;
-                if (!GPUVendorFormatting.TryParseHardwareID(ReadFirstHardwareID(parent), out GPUHardwareID parentID)
-                    || parentID.VendorID != parsed.VendorID)
-                    break;
-
-                linkDevice = parent;
-                current = parent;
-            }
-        }
-
-        bool hasCurrentSpeed = TryReadDevNodeUInt32(linkDevice, PCICurrentLinkSpeedProperty, out uint currentSpeed);
-        bool hasCurrentWidth = TryReadDevNodeUInt32(linkDevice, PCICurrentLinkWidthProperty, out uint currentWidth);
-        _ = TryReadDevNodeUInt32(linkDevice, PCIMaximumLinkSpeedProperty, out uint maximumSpeed);
-        _ = TryReadDevNodeUInt32(linkDevice, PCIMaximumLinkWidthProperty, out uint maximumWidth);
+        bool hasCurrentSpeed = TryReadDevNodeUInt32(deviceInstance, PCICurrentLinkSpeedProperty, out uint currentSpeed);
+        bool hasCurrentWidth = TryReadDevNodeUInt32(deviceInstance, PCICurrentLinkWidthProperty, out uint currentWidth);
+        _ = TryReadDevNodeUInt32(deviceInstance, PCIMaximumLinkSpeedProperty, out uint maximumSpeed);
+        _ = TryReadDevNodeUInt32(deviceInstance, PCIMaximumLinkWidthProperty, out uint maximumWidth);
         return hasCurrentSpeed || hasCurrentWidth
-            ? new GPUPCIeLink(HasValue: true, currentSpeed, currentWidth, maximumSpeed, maximumWidth)
+            ? new GPUPCIeLink(
+                HasValue: true,
+                currentSpeed,
+                currentWidth,
+                maximumSpeed,
+                maximumWidth,
+                IsBehindOnCardSwitch(deviceInstance, hardwareID))
             : default;
     }
+
+    /// <summary>
+    /// An on-card switch is a downstream port directly above the GPU whose parent is an upstream port, both from the
+    /// GPU's own vendor. A motherboard or Thunderbolt switch has a different vendor and is not flagged.
+    /// </summary>
+    private static bool IsBehindOnCardSwitch(uint deviceInstance, string hardwareID)
+    {
+        if (!GPUVendorFormatting.TryParseHardwareID(hardwareID, out GPUHardwareID GPUID)) return false;
+
+        return IsSameVendorPort(deviceInstance, GPUID.VendorID, PCIDownstreamSwitchPortType, out uint downstreamPort)
+               && IsSameVendorPort(downstreamPort, GPUID.VendorID, PCIUpstreamSwitchPortType, out _);
+    }
+
+    private static bool IsSameVendorPort(uint childInstance, ushort vendorID, uint portType, out uint port) =>
+        CM_Get_Parent(out port, childInstance, flags: 0) == ConfigManagerSuccess
+        && TryReadDevNodeUInt32(port, PCIDeviceTypeProperty, out uint type)
+        && type == portType
+        && GPUVendorFormatting.TryParseHardwareID(ReadFirstHardwareID(port), out GPUHardwareID portID)
+        && portID.VendorID == vendorID;
 
     private static bool TryReadDevNodeUInt32(uint deviceInstance, DEVPROPKEY propertyKey, out uint value)
     {

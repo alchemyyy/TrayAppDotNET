@@ -142,10 +142,10 @@ Stats: **Utilization**, **Dedicated GPU memory**, **Shared GPU memory**, **Tempe
 
 - The clocks come from Windows (the driver's per-engine and adapter performance data), not from a vendor library, and matched `nvidia-smi` on an RTX 5080. **Max GPU clock** is the maximum the driver reports; GPU Boost can run above it (3,210 MHz against a reported 3,090 MHz on that card).
 
-- **Driver version** is the version the vendor publishes, followed by the Windows version when they differ: `616.92 (32.0.16.1692)`. NVIDIA's comes from the Windows version, AMD's Adrenalin release from the driver's registry key (`RadeonSoftwareVersion`, or `Catalyst_Version` on older packages), and Intel publishes the Windows version itself.
+- **Driver version** is the version the vendor publishes, followed by the Windows version when they differ: `616.92 (32.0.16.1692)`. NVIDIA's comes from the Windows version, AMD's Adrenalin release from the driver's registry key (`RadeonSoftwareVersion`, or `Catalyst_Version` on older packages), and Intel's is the last two fields of the Windows version: `101.6913 (32.0.101.6913)`.
 - **vBIOS version** comes from the driver's `HardwareInformation.BiosString`. NVIDIA's is shown the way its tools print it (`98.03.3B.C0.AB`); other vendors' strings are shown as written.
 - **Device ID** is the vendor and device, then the subsystem vendor and subsystem and the revision: `10DE:2C02 (1771:2096, rev A1)`.
-- **PCIe link** is the generation and lane count, with the maximum added when the link runs below it: `Gen 4 x8 (max Gen 5 x16)`. For a GPU that sits behind a PCIe switch on its own card, as AMD's discrete GPUs do, the link shown is the switch's link to the slot.
+- **PCIe link** is the generation and lane count, with the maximum added when the link runs below it: `Gen 4 x8 (max Gen 5 x16)`. Windows publishes the link only for the GPU itself, not for PCIe root or switch ports. A GPU behind a PCIe switch on its own card, as AMD's discrete GPUs are, therefore shows its link to that switch, not the slot's, marked `(to on-card switch)`.
 
 ### Power in Watts
 

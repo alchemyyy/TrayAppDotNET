@@ -352,8 +352,8 @@
 - Processes Status column, mirrored from Taskmgr.exe: `TaskManagerTrayAppDotNET/src/Models/ProcessStatus.cs`,
   `TaskManagerTrayAppDotNET/src/Services/ProcessHungWindowCollector.cs`; rules in
   `documentation/docs/task_manager_process_status.md`
-- GPU device metadata: `Services/GPUDevicePropertyReader.cs` (driver key, hardware ID, PCIe link, walking up
-  same-vendor bridges for AMD's on-card switch), `Services/GPUVendorFormatting.cs` (public driver version, vBIOS,
+- GPU device metadata: `Services/GPUDevicePropertyReader.cs` (driver key, hardware ID, the GPU's own PCIe link,
+  flagged when it only reaches a same-vendor on-card switch; Windows publishes no link for root or switch ports), `Services/GPUVendorFormatting.cs` (public driver version, vBIOS,
   device ID and link formatting), `Services/GPUAdapterNativeDetailsReader.cs` (`ReadPerformanceData`: WDDM
   temperature and power, power being a percentage of the default power limit)
 - GPU power in watts: `Services/GPUPowerLimitReader.cs` reads the default power limit once through NVML, ADLX or IGCL

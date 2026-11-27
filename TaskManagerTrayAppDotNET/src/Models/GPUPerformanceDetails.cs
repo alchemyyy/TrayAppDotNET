@@ -107,13 +107,17 @@ internal readonly record struct GPUHardwareID(
     ushort SubsystemID,
     byte Revision);
 
-/// <summary>Negotiated and maximum PCIe link generation and lane count.</summary>
+/// <summary>
+/// Negotiated and maximum PCIe link generation and lane count. <see cref="BehindOnCardSwitch"/> marks a GPU's link to
+/// a PCIe switch on its own card, which says nothing about the slot.
+/// </summary>
 internal readonly record struct GPUPCIeLink(
     bool HasValue,
     uint CurrentGeneration,
     uint CurrentWidth,
     uint MaximumGeneration,
-    uint MaximumWidth);
+    uint MaximumWidth,
+    bool BehindOnCardSwitch = false);
 
 /// <summary>PCI bus, device and function numbers the graphics kernel reports for an adapter.</summary>
 internal readonly record struct GPUPCIAddress(bool HasValue, uint Bus, uint Device, uint Function);

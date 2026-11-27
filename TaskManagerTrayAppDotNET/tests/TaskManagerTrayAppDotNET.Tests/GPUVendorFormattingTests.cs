@@ -26,7 +26,7 @@ public sealed class GPUVendorFormattingTests
                 amdSoftwareVersion: string.Empty));
 
     [Fact]
-    public void AMDUsesRegistryReleaseAndIntelPublishesTheWindowsVersion()
+    public void AMDUsesRegistryReleaseAndIntelQuotesTheLastTwoWindowsFields()
     {
         Assert.Equal(
             expected: "24.12.1",
@@ -35,8 +35,11 @@ public sealed class GPUVendorFormattingTests
             expected: string.Empty,
             GPUVendorFormatting.FormatPublicDriverVersion(GPUVendorFormatting.AMDVendorID, "32.0.12033.1030", string.Empty));
         Assert.Equal(
-            expected: "32.0.101.6913",
+            expected: "101.6913",
             GPUVendorFormatting.FormatPublicDriverVersion(GPUVendorFormatting.IntelVendorID, "32.0.101.6913", string.Empty));
+        Assert.Equal(
+            expected: string.Empty,
+            GPUVendorFormatting.FormatPublicDriverVersion(GPUVendorFormatting.IntelVendorID, "32.0.101", string.Empty));
         Assert.Equal(
             expected: string.Empty,
             GPUVendorFormatting.FormatPublicDriverVersion(0x1414, "10.0.26100.1", string.Empty));
@@ -44,7 +47,8 @@ public sealed class GPUVendorFormattingTests
 
     [Theory]
     [InlineData("616.92", "32.0.16.1692", "616.92 (32.0.16.1692)")]
-    [InlineData("32.0.101.6913", "32.0.101.6913", "32.0.101.6913")]
+    [InlineData("101.6913", "32.0.101.6913", "101.6913 (32.0.101.6913)")]
+    [InlineData("24.12.1", "24.12.1", "24.12.1")]
     [InlineData("", "10.0.26100.1", "10.0.26100.1")]
     public void DriverVersionDisplayKeepsTheWindowsVersionWhenItDiffers(
         string publicVersion,
@@ -98,6 +102,18 @@ public sealed class GPUVendorFormattingTests
             expected,
             GPUVendorFormatting.FormatPCIeLink(
                 new GPUPCIeLink(HasValue: true, currentGeneration, currentWidth, maximumGeneration, maximumWidth)));
+
+    [Fact]
+    public void MarksALinkThatOnlyReachesAnOnCardSwitch()
+    {
+        Assert.Equal(
+            expected: "Gen 4 x16 (to on-card switch)",
+            PerformanceDevicePresentationFactory.FormatGPUPCIeLink(
+                new GPUPCIeLink(HasValue: true, 4, 16, 4, 16, BehindOnCardSwitch: true)));
+        Assert.Equal(
+            expected: "Gen 4 x16",
+            PerformanceDevicePresentationFactory.FormatGPUPCIeLink(new GPUPCIeLink(HasValue: true, 4, 16, 4, 16)));
+    }
 
     [Theory]
     [InlineData(15.8, 360.0, "57 W")]
