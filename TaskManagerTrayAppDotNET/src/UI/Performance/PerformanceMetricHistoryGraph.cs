@@ -90,7 +90,7 @@ internal sealed class PerformanceMetricHistoryGraph : Control
             this,
             new PerformanceGraphHoverStyle(
                 new PerformanceGraphHoverMetrics(
-                    PerformanceGraphHoverLineMode.FollowPointer,
+                    PerformanceGraphHoverLineMode.RunsBehindLabel,
                     _hoverTextInset,
                     resources.AxamlTaskManagerPerformance.GraphHoverTextCursorGap,
                     LineClipPadding: 0,
@@ -302,6 +302,7 @@ internal sealed class PerformanceMetricHistoryGraph : Control
             graphSize,
             new Rect(graphSize),
             sampleFractions: [],
+            snapsToSample: false,
             hasIndicator: metric != null,
             metric,
             Math.Max(val1: 0, graphSize.Width - _hoverTextInset * 2),

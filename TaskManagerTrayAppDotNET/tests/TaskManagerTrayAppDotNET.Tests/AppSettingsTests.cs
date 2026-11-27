@@ -635,6 +635,30 @@ public sealed class AppSettingsTests
     }
 
     [Fact]
+    public void PerformanceGraphHoverMovesFreelyByDefaultAndRoundTripsThroughSettingsXml()
+    {
+        AppSettings settings = new() { Autosave = false };
+        Assert.True(settings.MovePerformanceGraphHoverFreely);
+
+        string path = Path.Combine(
+            Path.GetTempPath(),
+            $"TaskManagerTrayAppDotNET-{Guid.NewGuid():N}.xml");
+        try
+        {
+            settings.MovePerformanceGraphHoverFreely = false;
+            TrayXmlSerializer.WriteFile(path, settings);
+
+            AppSettings loaded = AppSettings.LoadOrDefault(path);
+
+            Assert.False(loaded.MovePerformanceGraphHoverFreely);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void CPUPerformanceGraphViewDefaultsToLogicalProcessorsAndRoundTripsThroughSettingsXml()
     {
         AppSettings settings = new() { Autosave = false };

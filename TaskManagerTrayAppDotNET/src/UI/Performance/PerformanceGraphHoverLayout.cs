@@ -2,22 +2,22 @@ using Avalonia;
 
 namespace TaskManagerTrayAppDotNET.UI.Performance;
 
-/// <summary>How a graph's hover line follows the pointer.</summary>
+/// <summary>How a graph's hover line meets its metric label.</summary>
 internal enum PerformanceGraphHoverLineMode : byte
 {
-    /// <summary>Snaps to the nearest sample, centers the label on it, and parts around the label.</summary>
-    SnapToSample,
+    /// <summary>Centers the label on the line, keeps it inset from the graph edges, and parts the line around it.</summary>
+    PartsAroundLabel,
 
-    /// <summary>Follows the pointer and runs behind the label.</summary>
-    FollowPointer
+    /// <summary>Runs the line behind a label clamped to the graph edges.</summary>
+    RunsBehindLabel
 }
 
 /// <summary>Numeric layout rules for one graph's hover line and metric label.</summary>
-/// <param name="LineMode">How the line follows the pointer.</param>
-/// <param name="TextInset">Edge inset a snapped label keeps when space permits.</param>
+/// <param name="LineMode">How the line meets the label.</param>
+/// <param name="TextInset">Edge inset a parting label keeps when space permits.</param>
 /// <param name="TextCursorGap">Gap between the label's bottom and the pointer.</param>
-/// <param name="LineClipPadding">Gap a snapped line leaves around the label's ink.</param>
-/// <param name="LineTerminalLength">Length of the solid segment that ends a snapped line above the label.</param>
+/// <param name="LineClipPadding">Gap a parted line leaves around the label's ink.</param>
+/// <param name="LineTerminalLength">Length of the solid segment that ends a parted line above the label.</param>
 internal readonly record struct PerformanceGraphHoverMetrics(
     PerformanceGraphHoverLineMode LineMode,
     double TextInset,
@@ -56,14 +56,16 @@ internal readonly record struct PerformanceGraphHoverPlacement(
 internal static class PerformanceGraphHoverLayout
 {
     /// <summary>
-    /// Resolves the hover for a graph-local pointer position. Returns false when the pointer is outside the hover
-    /// bounds or the graph has nothing to indicate.
+    /// Resolves the hover for a graph-local pointer position. The line sits on the sample nearest the pointer when
+    /// <paramref name="snapsToSample"/> is set, and on the pointer otherwise. Returns false when the pointer is outside
+    /// the hover bounds or the graph has nothing to indicate.
     /// </summary>
     public static bool TryPlace(
         in PerformanceGraphHoverMetrics metrics,
         Size graphSize,
         Rect hoverBounds,
         ReadOnlySpan<double> sampleFractions,
+        bool snapsToSample,
         bool hasIndicator,
         PerformanceGraphHoverLabelMetrics? label,
         Point pointerPosition,
@@ -80,7 +82,6 @@ internal static class PerformanceGraphHoverLayout
             || !IsInside(hoverBounds, pointerPosition))
             return false;
 
-        bool snapsToSample = metrics.LineMode == PerformanceGraphHoverLineMode.SnapToSample;
         double lineX;
         if (snapsToSample)
         {
@@ -93,7 +94,7 @@ internal static class PerformanceGraphHoverLayout
                 return false;
         }
         else
-            lineX = Math.Clamp(pointerPosition.X / width, min: 0, max: 1) * width;
+            lineX = Math.Clamp(pointerPosition.X, min: 0, width);
 
         placement = new PerformanceGraphHoverPlacement(
             lineX,
@@ -107,7 +108,7 @@ internal static class PerformanceGraphHoverLayout
         if (label is not { } labelMetrics) return true;
 
         double preferredTextTop = pointerPosition.Y - metrics.TextCursorGap - labelMetrics.Height;
-        if (!snapsToSample)
+        if (metrics.LineMode == PerformanceGraphHoverLineMode.RunsBehindLabel)
         {
             placement = placement with
             {

@@ -23,6 +23,7 @@ internal sealed class CPUPerformanceDetailedView : Grid
     private int _historyLengthMinutes;
     private int _sampleIntervalMilliseconds;
     private bool _showGraphUnderfill = true;
+    private bool _hoverSnapsToSamples;
 
     public CPUPerformanceDetailedView(
         SettingsPalette palette,
@@ -130,6 +131,14 @@ internal sealed class CPUPerformanceDetailedView : Grid
         _showGraphUnderfill = isVisible;
         for (int graphIndex = 0; graphIndex < _graphs.Count; graphIndex++)
             _graphs[graphIndex].SetUnderfillVisible(isVisible);
+    }
+
+    /// <summary>Locks every detailed CPU graph's hover line to samples, or lets it follow the pointer.</summary>
+    public void SetGraphHoverSnapsToSamples(bool snapsToSamples)
+    {
+        _hoverSnapsToSamples = snapsToSamples;
+        for (int graphIndex = 0; graphIndex < _graphs.Count; graphIndex++)
+            _graphs[graphIndex].SetHoverSnapsToSamples(snapsToSamples);
     }
 
     /// <summary>Releases retained graph and history references.</summary>
@@ -356,6 +365,7 @@ internal sealed class CPUPerformanceDetailedView : Grid
             HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch
         };
         graph.SetUnderfillVisible(_showGraphUnderfill);
+        graph.SetHoverSnapsToSamples(_hoverSnapsToSamples);
         Grid tile = new()
         {
             Background = Brushes.Transparent,

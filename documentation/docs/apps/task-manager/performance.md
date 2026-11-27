@@ -37,7 +37,7 @@ History is recorded from the moment the app starts, in the background, even whil
 
 ### Live Cursor
 
-Hover any graph, including the small preview graphs in the device list, and a dashed line snaps to the nearest sample with its value next to the cursor. What it shows depends on the graph:
+Hover any graph, including the small preview graphs in the device list, and a dashed line follows the cursor with the value of the nearest sample next to it. Turn off **Move graph hover line freely** (see [Settings](#settings)) to lock the line to that sample instead. What it shows depends on the graph:
 
 | Graph | Hover shows |
 | --- | --- |
@@ -189,6 +189,7 @@ All in **Settings** > **Performance**.
 | **History and sampling** | **History length** | 1 min | How many minutes every graph keeps, 1 to 60. |
 | **History and sampling** | **Sampling interval** | 1000 ms | Time between samples, 1 to 60,000 ms. |
 | **Graphs** | **Fill graph areas** | On | Shaded area under the graph lines. |
+| **Graphs** | **Move graph hover line freely** | On | The hover line follows the cursor instead of locking to the nearest sample. See [Live Cursor](#live-cursor). |
 | **CPU** | **Show highest core trace** | Off | See [CPU Graph Views](#cpu-graph-views). |
 | **Memory** | **Show memory module serial numbers** | Off | See [Physical Memory Layout](#physical-memory-layout). |
 | **Device column** | **Default device priority** | CPU, Memory, GPU, Network, Disk | See [Reordering Devices](#reordering-devices). |

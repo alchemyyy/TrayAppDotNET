@@ -39,6 +39,7 @@ internal sealed class PerformanceHistoryGraph : Control
     private Color? _secondaryLineColor;
     private IReadOnlyList<PerformanceGraphSeries> _additionalSeries = [];
     private bool _showUnderfill = true;
+    private bool _hoverSnapsToSamples;
 
     public PerformanceHistoryGraph(
         PerformanceHistory history,
@@ -88,7 +89,7 @@ internal sealed class PerformanceHistoryGraph : Control
             this,
             new PerformanceGraphHoverStyle(
                 new PerformanceGraphHoverMetrics(
-                    PerformanceGraphHoverLineMode.SnapToSample,
+                    PerformanceGraphHoverLineMode.PartsAroundLabel,
                     _hoverTextInset,
                     resources.AxamlTaskManagerPerformance.GraphHoverTextCursorGap,
                     resources.AxamlTaskManagerPerformance.GraphHoverLineClipPadding,
@@ -156,6 +157,18 @@ internal sealed class PerformanceHistoryGraph : Control
 
         _showUnderfill = isVisible;
         InvalidateVisual();
+    }
+
+    /// <summary>
+    /// Locks the hover line to the sample nearest the pointer, or lets it follow the pointer. The label reads the
+    /// nearest sample either way.
+    /// </summary>
+    public void SetHoverSnapsToSamples(bool snapsToSamples)
+    {
+        if (_hoverSnapsToSamples == snapsToSamples) return;
+
+        _hoverSnapsToSamples = snapsToSamples;
+        UpdateHover();
     }
 
     /// <summary>Draws further histories, each in its own color, on the primary history's scale and timeline.</summary>
@@ -275,6 +288,7 @@ internal sealed class PerformanceHistoryGraph : Control
                 graphSize.Width + _hoverTrailingExtent.Width,
                 graphSize.Height + _hoverTrailingExtent.Height),
             _hoverSampleFractions,
+            _hoverSnapsToSamples,
             hasSample,
             hasSample && maximumTextWidth > 0 ? FormatHoverMetric(sampleIndex) : null,
             maximumTextWidth,

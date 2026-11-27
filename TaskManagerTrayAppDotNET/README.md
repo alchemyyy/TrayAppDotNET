@@ -64,10 +64,12 @@ The implementation is in `src/UI/ProcessesPage/ProcessRowHoverVisual.cs`, with g
 Performance graphs draw their hover line and metric label the same way, through
 `src/UI/Performance/PerformanceGraphHoverPresenter.cs`. Each graph's sampling clock runs only after the UI thread sees
 the pointer enter its hover area, which includes a logical-processor graph's trailing hit-test spacing. Movement and
-exit are then handled on the render thread: the line snaps to the nearest sample (or follows the pointer on the disk
-and GPU memory graphs), and the label and the gap the line leaves around it move with every frame. Text cannot be
-shaped on the render thread, so the UI thread lays out the label for its own latest pointer sample and hands over its
-glyph runs; during fast movement the label's number can trail the line by the UI thread's latency.
+exit are then handled on the render thread: the line follows the pointer, and the label and the gap the line leaves
+around it move with every frame. The label always reads the recorded sample nearest the pointer. Turning off the
+Performance setting **Move graph hover line freely** locks the line to that sample instead; the disk and GPU power,
+clock and memory graphs always follow the pointer. Text cannot be shaped on the render thread, so the UI thread
+lays out the label for its own latest pointer sample and hands over its glyph runs; during fast movement the label's
+number can trail the line by the UI thread's latency.
 
 ## Termination path
 

@@ -48,6 +48,14 @@ public sealed partial class TaskManagerSettingsWindow
             palette,
             searchKeywords: [L(nameof(AppStrings.Settings_Performance_FillGraphAreas_SearchKeywords))],
             node: ControlMap.Settings.PerformancePage.FillGraphAreas));
+        stack.Children.Add(BoolCard(
+            L(nameof(AppStrings.Settings_Performance_MoveGraphHoverFreely_Title)),
+            L(nameof(AppStrings.Settings_Performance_MoveGraphHoverFreely_Description)),
+            _settings.MovePerformanceGraphHoverFreely,
+            value => _settings.MovePerformanceGraphHoverFreely = value,
+            palette,
+            searchKeywords: [L(nameof(AppStrings.Settings_Performance_MoveGraphHoverFreely_SearchKeywords))],
+            node: ControlMap.Settings.PerformancePage.MoveGraphHoverFreely));
         stack.Children.Add(TrayAppDotNETSettingsUI.SubsectionHeader(
             L(nameof(AppStrings.Settings_Performance_CPU_Header)),
             palette));

@@ -94,6 +94,9 @@ internal sealed class PageFileHistoryView : Grid
     /// <summary>Shows or hides the translucent areas beneath the page file traces.</summary>
     public void SetGraphUnderfillVisible(bool isVisible) => _graph.SetUnderfillVisible(isVisible);
 
+    /// <summary>Locks the page file graph's hover line to samples, or lets it follow the pointer.</summary>
+    public void SetGraphHoverSnapsToSamples(bool snapsToSamples) => _graph.SetHoverSnapsToSamples(snapsToSamples);
+
     /// <summary>Drops every history so the page can replay its snapshot archive with new sampling settings.</summary>
     public void Reset(int historyLengthMinutes, int sampleIntervalMilliseconds)
     {

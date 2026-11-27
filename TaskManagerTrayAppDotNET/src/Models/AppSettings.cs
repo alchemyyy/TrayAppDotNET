@@ -338,6 +338,16 @@ public sealed class AppSettings : AppSettingsCommon<HotkeyBinding, HotkeyAction>
         set => SetField(ref field, value);
     } = true;
 
+    /// <summary>
+    /// Gets whether a Performance graph's hover line follows the pointer instead of locking to recorded samples. Its
+    /// label reads the nearest recorded sample either way.
+    /// </summary>
+    public bool MovePerformanceGraphHoverFreely
+    {
+        get;
+        set => SetField(ref field, value);
+    } = true;
+
     public bool ShowCPUHighestCoreTrace
     {
         get;

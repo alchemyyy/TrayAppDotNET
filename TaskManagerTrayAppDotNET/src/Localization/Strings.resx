@@ -456,6 +456,15 @@
   <data name="Settings_Performance_FillGraphAreas_SearchKeywords" xml:space="preserve">
     <value>performance graph underfill shade translucent area</value>
   </data>
+  <data name="Settings_Performance_MoveGraphHoverFreely_Title" xml:space="preserve">
+    <value>Move graph hover line freely</value>
+  </data>
+  <data name="Settings_Performance_MoveGraphHoverFreely_Description" xml:space="preserve">
+    <value>Let the line shown while hovering a Performance graph follow the pointer instead of locking to recorded samples. Its value is always the nearest recorded sample.</value>
+  </data>
+  <data name="Settings_Performance_MoveGraphHoverFreely_SearchKeywords" xml:space="preserve">
+    <value>performance graph hover line pointer cursor snap lock sample data point free smooth</value>
+  </data>
   <data name="Settings_Performance_CPU_Header" xml:space="preserve">
     <value>CPU</value>
   </data>

@@ -211,6 +211,15 @@ internal sealed class GPUPerformanceDetailsView : Grid
         _memoryGraph.SetUnderfillVisible(isVisible);
     }
 
+    /// <summary>Locks every GPU engine graph's hover line to samples, or lets it follow the pointer.</summary>
+    public void SetGraphHoverSnapsToSamples(bool snapsToSamples)
+    {
+        for (int cellIndex = 0; cellIndex < SingleEngineCellCount; cellIndex++)
+            _singleEngineGraphs[cellIndex].SetHoverSnapsToSamples(snapsToSamples);
+
+        _pairedEngineGraph.SetHoverSnapsToSamples(snapsToSamples);
+    }
+
     /// <summary>
     /// Shows power in watts against the given default limit, or as a percentage of it when the limit is NaN. A status
     /// such as "Reading power limit…" replaces the value until it is cleared with null.

@@ -575,6 +575,8 @@
                   Source="TaskManagerSettingsWindow.BuildPerformancePage" />
             <Leaf ID="FillGraphAreas" Kind="Toggle" Event="Callback"
                   Source="TaskManagerSettingsWindow.BuildPerformancePage" />
+            <Leaf ID="MoveGraphHoverFreely" Kind="Toggle" Event="Callback"
+                  Source="TaskManagerSettingsWindow.BuildPerformancePage" />
             <Leaf ID="ShowHighestCoreTrace" Kind="Toggle" Event="Callback"
                   Source="TaskManagerSettingsWindow.BuildPerformancePage" />
             <Leaf ID="ShowMemorySerialNumbers" Kind="Toggle" Event="Callback"

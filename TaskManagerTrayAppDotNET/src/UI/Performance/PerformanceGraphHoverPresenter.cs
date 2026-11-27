@@ -100,6 +100,7 @@ internal sealed class PerformanceGraphHoverPresenter(Control host, PerformanceGr
     /// <param name="graphSize">Graph size the content was resolved for.</param>
     /// <param name="hoverBounds">Graph-local area where the pointer shows the hover.</param>
     /// <param name="sampleFractions">Timeline snapshot for snapping; never mutated after it is passed.</param>
+    /// <param name="snapsToSample">Whether the line sits on the nearest sample rather than on the pointer.</param>
     /// <param name="hasIndicator">Whether the graph has anything to indicate.</param>
     /// <param name="labelText">Label text, or null to draw only the line.</param>
     /// <param name="labelMaximumWidth">Width beyond which the label is trimmed.</param>
@@ -108,6 +109,7 @@ internal sealed class PerformanceGraphHoverPresenter(Control host, PerformanceGr
         Size graphSize,
         Rect hoverBounds,
         double[] sampleFractions,
+        bool snapsToSample,
         bool hasIndicator,
         string? labelText,
         double labelMaximumWidth,
@@ -127,6 +129,7 @@ internal sealed class PerformanceGraphHoverPresenter(Control host, PerformanceGr
             && sentContent.GraphSize == graphSize
             && sentContent.HoverBounds == hoverBounds
             && ReferenceEquals(sentContent.SampleFractions, sampleFractions)
+            && sentContent.SnapsToSample == snapsToSample
             && sentContent.HasIndicator == hasIndicator
             && sentContent.TextBrush.Color == textColor)
             return;
@@ -148,6 +151,7 @@ internal sealed class PerformanceGraphHoverPresenter(Control host, PerformanceGr
             graphSize,
             hoverBounds,
             sampleFractions,
+            snapsToSample,
             hasIndicator,
             label,
             textBrush);
@@ -230,6 +234,7 @@ internal sealed class PerformanceGraphHoverPresenter(Control host, PerformanceGr
         Size graphSize,
         Rect hoverBounds,
         double[] sampleFractions,
+        bool snapsToSample,
         bool hasIndicator,
         PerformanceGraphHoverLabel? label,
         ImmutableSolidColorBrush textBrush)
@@ -237,6 +242,7 @@ internal sealed class PerformanceGraphHoverPresenter(Control host, PerformanceGr
         public Size GraphSize { get; } = graphSize;
         public Rect HoverBounds { get; } = hoverBounds;
         public double[] SampleFractions { get; } = sampleFractions;
+        public bool SnapsToSample { get; } = snapsToSample;
         public bool HasIndicator { get; } = hasIndicator;
         public PerformanceGraphHoverLabel? Label { get; } = label;
         public ImmutableSolidColorBrush TextBrush { get; } = textBrush;
@@ -383,6 +389,7 @@ internal sealed class PerformanceGraphHoverPresenter(Control host, PerformanceGr
                        content.GraphSize,
                        content.HoverBounds,
                        content.SampleFractions,
+                       content.SnapsToSample,
                        content.HasIndicator,
                        content.Label?.Metrics,
                        pointerPosition,

@@ -402,6 +402,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         details.Children.Add(_memoryModuleDetailsPanel);
 
         UpdateGraphUnderfillVisibility();
+        UpdateGraphHoverSnapping();
 
         _settings.PropertyChanged += OnSettingsPropertyChanged;
         _snapshotService.SnapshotUpdated += OnSnapshotUpdated;
@@ -552,6 +553,12 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         if (eventArgs.PropertyName == nameof(AppSettings.ShowPerformanceGraphUnderfill))
         {
             UpdateGraphUnderfillVisibility();
+            return;
+        }
+
+        if (eventArgs.PropertyName == nameof(AppSettings.MovePerformanceGraphHoverFreely))
+        {
+            UpdateGraphHoverSnapping();
             return;
         }
 
@@ -867,6 +874,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                     ? _cpuHighestCoreHistory
                     : null);
             card.SetGraphUnderfillVisible(_settings.ShowPerformanceGraphUnderfill);
+            card.SetGraphHoverSnapsToSamples(!_settings.MovePerformanceGraphHoverFreely);
             rows.Add(new PerformanceDeviceColumnRow(orderItem.ID, card));
         }
 
@@ -1207,6 +1215,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                 HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch
             };
             graph.SetUnderfillVisible(_settings.ShowPerformanceGraphUnderfill);
+            graph.SetHoverSnapsToSamples(!_settings.MovePerformanceGraphHoverFreely);
             int graphColumn = processorIndex % columnCount;
             int graphRow = processorIndex / columnCount;
             double trailingHitTestWidth = graphColumn < columnCount - 1 ? graphSpacing : 0;
@@ -1694,6 +1703,21 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             card.SetGraphUnderfillVisible(isVisible);
     }
 
+    /// <summary>Applies the free hover toggle to every Performance graph whose hover line can lock to samples.</summary>
+    private void UpdateGraphHoverSnapping()
+    {
+        bool snapsToSamples = !_settings.MovePerformanceGraphHoverFreely;
+        _detailGraph.SetHoverSnapsToSamples(snapsToSamples);
+        for (int graphIndex = 0; graphIndex < _cpuLogicalProcessorGraphs.Count; graphIndex++)
+            _cpuLogicalProcessorGraphs[graphIndex].SetHoverSnapsToSamples(snapsToSamples);
+
+        _cpuDetailedView.SetGraphHoverSnapsToSamples(snapsToSamples);
+        _gpuPerformanceDetailsView.SetGraphHoverSnapsToSamples(snapsToSamples);
+        _pageFileView.SetGraphHoverSnapsToSamples(snapsToSamples);
+        foreach (PerformanceDeviceCard card in _deviceCards.Values)
+            card.SetGraphHoverSnapsToSamples(snapsToSamples);
+    }
+
     private void SetStatistics(
         PerformanceDeviceKind? deviceKind,
         ReadOnlySpan<PerformanceStatistic> statistics)
@@ -2083,6 +2107,10 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         /// <summary>Shows or hides the graph's translucent area fill.</summary>
         public void SetGraphUnderfillVisible(bool isVisible) =>
             _graph.SetUnderfillVisible(isVisible);
+
+        /// <summary>Locks the graph's hover line to samples, or lets it follow the pointer.</summary>
+        public void SetGraphHoverSnapsToSamples(bool snapsToSamples) =>
+            _graph.SetHoverSnapsToSamples(snapsToSamples);
 
         public void SetSelected(bool isSelected)
         {

@@ -10,8 +10,8 @@ public sealed class PerformanceGraphHoverLayoutTests
     private static readonly Rect GraphBounds = new(GraphSize);
     private static readonly double[] SampleFractions = [0.25, 0.50, 0.75];
 
-    private static readonly PerformanceGraphHoverMetrics SnappedMetrics = new(
-        PerformanceGraphHoverLineMode.SnapToSample,
+    private static readonly PerformanceGraphHoverMetrics PartingMetrics = new(
+        PerformanceGraphHoverLineMode.PartsAroundLabel,
         TextInset: 4,
         TextCursorGap: 6,
         LineClipPadding: 2,
@@ -27,10 +27,11 @@ public sealed class PerformanceGraphHoverLayoutTests
     public void SnappedHoverCentersTheLabelOnTheNearestSampleAndPartsTheLineAroundItsInk()
     {
         bool wasPlaced = PerformanceGraphHoverLayout.TryPlace(
-            SnappedMetrics,
+            PartingMetrics,
             GraphSize,
             GraphBounds,
             SampleFractions,
+            snapsToSample: true,
             hasIndicator: true,
             Label,
             new Point(x: 108, y: 60),
@@ -52,13 +53,60 @@ public sealed class PerformanceGraphHoverLayoutTests
     }
 
     [Fact]
+    public void FreeHoverPartsTheLineAroundALabelCenteredOnThePointer()
+    {
+        bool wasPlaced = PerformanceGraphHoverLayout.TryPlace(
+            PartingMetrics,
+            GraphSize,
+            GraphBounds,
+            SampleFractions,
+            snapsToSample: false,
+            hasIndicator: true,
+            Label,
+            new Point(x: 108, y: 60),
+            out PerformanceGraphHoverPlacement placement);
+
+        Assert.True(wasPlaced);
+        Assert.Equal(
+            new PerformanceGraphHoverPlacement(
+                LineX: 108,
+                Height: 100,
+                HasLineGap: true,
+                UpperLineEnd: 38,
+                LineTerminalStart: 35,
+                LowerLineStart: 53,
+                HasLabel: true,
+                LabelOrigin: new Point(x: 93, y: 38)),
+            placement);
+    }
+
+    [Fact]
+    public void FreeHoverClampsTheLineToTheGraphOverTrailingHitTestSpacing()
+    {
+        bool wasPlaced = PerformanceGraphHoverLayout.TryPlace(
+            PartingMetrics,
+            GraphSize,
+            new Rect(x: 0, y: 0, width: 210, height: 110),
+            SampleFractions,
+            snapsToSample: false,
+            hasIndicator: true,
+            label: null,
+            new Point(x: 205, y: 50),
+            out PerformanceGraphHoverPlacement placement);
+
+        Assert.True(wasPlaced);
+        Assert.Equal(expected: 200, placement.LineX);
+    }
+
+    [Fact]
     public void SnappedLabelKeepsItsInsetAtTheGraphCorner()
     {
         bool wasPlaced = PerformanceGraphHoverLayout.TryPlace(
-            SnappedMetrics,
+            PartingMetrics,
             GraphSize,
             GraphBounds,
             [0, 0.5, 1],
+            snapsToSample: true,
             hasIndicator: true,
             Label,
             new Point(x: 2, y: 5),
@@ -70,11 +118,11 @@ public sealed class PerformanceGraphHoverLayoutTests
     }
 
     [Fact]
-    public void FollowingHoverTracksThePointerAndClampsTheLabelToTheGraphEdges()
+    public void LineBehindLabelTracksThePointerAndClampsTheLabelToTheGraphEdges()
     {
-        PerformanceGraphHoverMetrics metrics = SnappedMetrics with
+        PerformanceGraphHoverMetrics metrics = PartingMetrics with
         {
-            LineMode = PerformanceGraphHoverLineMode.FollowPointer
+            LineMode = PerformanceGraphHoverLineMode.RunsBehindLabel
         };
 
         bool wasPlaced = PerformanceGraphHoverLayout.TryPlace(
@@ -82,6 +130,7 @@ public sealed class PerformanceGraphHoverLayoutTests
             GraphSize,
             GraphBounds,
             [],
+            snapsToSample: false,
             hasIndicator: true,
             Label,
             new Point(x: 195, y: 10),
@@ -102,10 +151,11 @@ public sealed class PerformanceGraphHoverLayoutTests
         Rect hoverBounds = new(x: 0, y: 0, width: 210, height: 110);
 
         bool wasPlaced = PerformanceGraphHoverLayout.TryPlace(
-            SnappedMetrics,
+            PartingMetrics,
             GraphSize,
             hoverBounds,
             SampleFractions,
+            snapsToSample: true,
             hasIndicator: true,
             label: null,
             new Point(pointerPositionX, y: 50),
