@@ -9,6 +9,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using TaskManagerTrayAppDotNET.Services;
 using TrayAppDotNETCommon.UI.ControlMapping;
+using TrayAppDotNETCommon.Visuals;
 using TaskManagerGlyphCatalog = TaskManagerTrayAppDotNET.Visuals.GlyphCatalog;
 
 namespace TaskManagerTrayAppDotNET.UI.Performance;
@@ -44,12 +45,23 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     private readonly List<string> _staleDeviceIDs = [];
     private readonly TextBlock _detailTitle;
     private readonly TextBlock _detailHardwareName;
+    private readonly StackPanel _memoryErrorPanel;
+    private readonly Border _memoryErrorLabelFrame;
+    private readonly TextBlock _memoryErrorLabel;
+    private readonly InkGlyphButton _memoryErrorInfoButton;
+    private readonly InkGlyphButton _memoryErrorResetButton;
+    private readonly IBrush _memoryErrorTint;
+    private readonly MemoryErrorLogMonitor _memoryErrorLogMonitor = new();
+    private MemoryErrorLogWindow? _memoryErrorLogWindow;
     private readonly TextBlock _detailGraphLabel;
     private readonly TextBlock _graphWindowLabel;
     private readonly Grid _genericGraphHeader;
     private readonly Grid _genericGraphFooter;
     private readonly Grid _graphSurface;
     private readonly PerformanceHistoryGraph _detailGraph;
+    private readonly PageFileHistoryView _pageFileView;
+    private readonly RowDefinition _detailGraphRow = new(GridLength.Star);
+    private readonly RowDefinition _pageFileGraphRow = new(new GridLength(0));
     private readonly MemoryCompositionView _memoryCompositionView;
     private readonly MemoryModuleDetailsPanel _memoryModuleDetailsPanel;
     private readonly DiskPerformanceDetailsView _diskPerformanceDetailsView;
@@ -175,6 +187,52 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         detailHeader.Children.Add(_detailTitle);
         SetColumn(_detailHardwareName, value: 1);
         detailHeader.Children.Add(_detailHardwareName);
+
+        // Memory shows its error count where other devices show their hardware name
+        _memoryErrorTint = TrayAppDotNETSettingsUI.Brush(resources.AxamlTaskManagerDetails.SearchInvalidTintColor);
+        _memoryErrorLabel = TrayAppDotNETSettingsUI.Text(
+            string.Empty,
+            palette,
+            resources.AxamlTaskManagerPerformance.DetailDeviceNameFontSize,
+            (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
+        _memoryErrorLabel.VerticalAlignment = VerticalAlignment.Center;
+        // Unpadded while the count is zero, so the label sits exactly where other devices show their hardware name
+        _memoryErrorLabelFrame = new Border
+        {
+            CornerRadius = resources.AxamlTaskManagerPerformance.MemoryErrorLabelCornerRadius,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = resources.AxamlTaskManagerPerformance.MemoryErrorLabelMargin,
+            Child = _memoryErrorLabel
+        };
+        _memoryErrorInfoButton = CreateMemoryErrorButton(TaskManagerGlyphCatalog.INFO, palette, resources);
+        _memoryErrorInfoButton.MapTo(ControlMap.Main.PerformancePage.Details.MemoryErrors.ShowLog);
+        _memoryErrorInfoButton.Click += OnMemoryErrorInfoClick;
+        TrayAppDotNETToolTip.SetTip(_memoryErrorInfoButton, L(nameof(AppStrings.Perf_MemoryErrors_ShowLogTip)));
+        _memoryErrorResetButton = CreateMemoryErrorButton(TaskManagerGlyphCatalog.RESET, palette, resources);
+        _memoryErrorResetButton.MapTo(ControlMap.Main.PerformancePage.Details.MemoryErrors.Reset);
+        _memoryErrorResetButton.Click += OnMemoryErrorResetClick;
+        TrayAppDotNETToolTip.SetTip(_memoryErrorResetButton, L(nameof(AppStrings.Perf_MemoryErrors_ResetTip)));
+
+        // The buttons center their glyphs' outlines, but text draws its ink off the center of its line box. The
+        // label keeps the hardware name's layout position, so the buttons move to the label's ink center
+        double labelInkOffset = InkCenterOffset(
+            text: "M",
+            _memoryErrorLabel.FontFamily,
+            _memoryErrorLabel.FontSize,
+            _memoryErrorLabel.FontWeight);
+        _memoryErrorInfoButton.RenderTransform = new TranslateTransform(x: 0, labelInkOffset);
+        _memoryErrorResetButton.RenderTransform = new TranslateTransform(x: 0, labelInkOffset);
+        // The buttons touch, so the pointer never falls in a gap between their hit targets
+        _memoryErrorPanel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            IsVisible = false,
+            Children = { _memoryErrorInfoButton, _memoryErrorResetButton, _memoryErrorLabelFrame }
+        }.MapTo(ControlMap.Main.PerformancePage.Details.MemoryErrors.ID);
+        SetColumn(_memoryErrorPanel, value: 1);
+        detailHeader.Children.Add(_memoryErrorPanel);
         details.Children.Add(detailHeader);
 
         _detailGraphLabel = TrayAppDotNETSettingsUI.Text(
@@ -241,8 +299,9 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             RowDefinitions =
             {
                 new RowDefinition(GridLength.Auto),
-                new RowDefinition(GridLength.Star),
-                new RowDefinition(GridLength.Auto)
+                _detailGraphRow,
+                new RowDefinition(GridLength.Auto),
+                _pageFileGraphRow
             }
         };
         graphArea.Children.Add(_genericGraphHeader);
@@ -269,6 +328,14 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         _genericGraphFooter.Children.Add(graphMinimumLabel);
         SetRow(_genericGraphFooter, value: 2);
         graphArea.Children.Add(_genericGraphFooter);
+        _pageFileView = new PageFileHistoryView(
+            palette,
+            resources,
+            isLightTheme,
+            _historyLengthMinutes,
+            _sampleIntervalMilliseconds);
+        SetRow(_pageFileView, value: 3);
+        graphArea.Children.Add(_pageFileView);
         SetRow(graphArea, value: 1);
         details.Children.Add(graphArea);
 
@@ -348,6 +415,10 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             _settings.PropertyChanged -= OnSettingsPropertyChanged;
             throw;
         }
+
+        _memoryErrorLogMonitor.Changed += UpdateMemoryErrorDisplay;
+        UpdateMemoryErrorDisplay();
+        _memoryErrorLogMonitor.Start();
 #if DEBUG
         TaskManagerContextMenuResources.ResourcesReloaded += OnContextMenuAXAMLResourcesReloaded;
         HeaderActions.MapTo(ControlMap.Main.PerformancePage.ArchitectureSimulations.ID);
@@ -584,6 +655,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         _histories.Clear();
         _cpuHighestCoreHistory = CreateHistory();
         _memoryUsedHistory = CreateMetricHistory();
+        _pageFileView.Reset(_historyLengthMinutes, _sampleIntervalMilliseconds);
         _networkTransferRateHistories.Clear();
         _diskTransferRateHistories.Clear();
         RebuildCPULogicalProcessorGraphs(logicalProcessorCount);
@@ -619,6 +691,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     private void AppendSnapshotHistories(PerformanceSnapshot snapshot)
     {
         _diskPerformanceDetailsView.Append(snapshot);
+        _pageFileView.Append(snapshot);
         _gpuPerformanceDetailsView.Append(snapshot);
         long capturedTimestamp = snapshot.CapturedTimestamp;
         AppendCPUOverallHistories(
@@ -802,6 +875,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         if (_selectedDeviceID == null || !_devices.ContainsKey(_selectedDeviceID))
             _selectedDeviceID = orderedItems.Count == 0 ? null : orderedItems[0].ID;
 
+        _pageFileView.UpdatePresentation(snapshot.Memory.PageFiles.Span);
         UpdateSelectionAndDetails();
         RefreshVisibleCPUGraphs();
     }
@@ -1460,6 +1534,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         {
             _detailTitle.Text = L(nameof(AppStrings.Perf_NoDevices));
             _detailHardwareName.Text = string.Empty;
+            _detailHardwareName.IsVisible = true;
+            _memoryErrorPanel.IsVisible = false;
             _detailGraphLabel.Text = string.Empty;
             _detailGraph.SetSecondaryHistory(null);
             _detailGraph.IsVisible = false;
@@ -1471,12 +1547,16 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             _memoryCompositionView.IsVisible = false;
             _memoryModuleDetailsPanel.IsVisible = false;
             _diskPerformanceDetailsView.Hide();
+            SetPageFileGraphVisible(false);
             SetStatistics(deviceKind: null, ReadOnlySpan<PerformanceStatistic>.Empty);
             return;
         }
 
         _detailTitle.Text = selectedDevice.Title;
+        bool isMemory = selectedDevice.Kind == PerformanceDeviceKind.Memory;
         _detailHardwareName.Text = selectedDevice.HardwareName;
+        _detailHardwareName.IsVisible = !isMemory;
+        _memoryErrorPanel.IsVisible = isMemory;
         _detailGraphLabel.Text = selectedDevice.GraphLabel;
         _detailGraph.SetAccent(selectedDevice.Accent);
         _detailGraph.SetHistory(_histories[selectedDevice.DeviceID]);
@@ -1501,7 +1581,9 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         _cpuLogicalProcessorGrid.IsVisible = showLogicalProcessors;
         _cpuDetailedView.IsVisible = showDetailedCPU;
         _genericGraphHeader.IsVisible = !showGPUDetails;
-        _genericGraphFooter.IsVisible = !showGPUDetails;
+        // The memory graph's time and zero labels only take room from the page file graph below it
+        _genericGraphFooter.IsVisible = !showGPUDetails && !isMemory;
+        SetPageFileGraphVisible(isMemory && _pageFileView.HasPageFiles);
         if (showGPUDetails)
         {
             if (!_gpuPerformanceDetailsView.IsShowing(
@@ -1554,6 +1636,22 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         SetStatistics(selectedDevice.Kind, selectedDevice.Statistics.Span);
     }
 
+    /// <summary>
+    /// Splits the graph area two thirds to the memory graph and one third to the page file graph, or gives it all
+    /// back to the device graph.
+    /// </summary>
+    private void SetPageFileGraphVisible(bool isVisible)
+    {
+        _pageFileView.IsVisible = isVisible;
+        _detailGraphRow.Height = new GridLength(isVisible ? 2 : 1, GridUnitType.Star);
+        _pageFileGraphRow.Height = isVisible ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        double minimumHeight = isVisible
+            ? _resources.AxamlTaskManagerPerformance.MemoryGraphMinimumHeight
+            : _resources.AxamlTaskManagerPerformance.DetailGraphMinimumHeight;
+        _graphSurface.MinHeight = minimumHeight;
+        _detailGraph.MinHeight = minimumHeight;
+    }
+
     /// <summary>Shows the highest-core overlay only on the aggregate CPU graph.</summary>
     private void UpdateDetailGraphSecondaryHistory()
     {
@@ -1591,6 +1689,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         _cpuDetailedView.SetGraphUnderfillVisible(isVisible);
         _diskPerformanceDetailsView.SetGraphUnderfillVisible(isVisible);
         _gpuPerformanceDetailsView.SetGraphUnderfillVisible(isVisible);
+        _pageFileView.SetGraphUnderfillVisible(isVisible);
         foreach (PerformanceDeviceCard card in _deviceCards.Values)
             card.SetGraphUnderfillVisible(isVisible);
     }
@@ -1693,6 +1792,129 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         return Math.Min(requestedCount, visibleCount);
     }
 
+    private static InkGlyphButton CreateMemoryErrorButton(
+        Glyph glyph,
+        SettingsPalette palette,
+        TaskManagerWindowResources resources) =>
+        new(
+            glyph,
+            palette,
+            resources.AxamlTaskManagerPerformance.MemoryErrorButtonWidth,
+            resources.AxamlTaskManagerPerformance.MemoryErrorButtonHeight,
+            resources.AxamlTaskManagerPerformance.MemoryErrorGlyphInkSize,
+            resources.AxamlTaskManagerPerformance.MemoryErrorGlyphHoverStrokeThickness,
+            resources.AxamlTaskManagerDetails.SearchActionDisabledOpacity)
+        {
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+    /// <summary>Returns how far below the center of its line box a font draws the ink of <paramref name="text"/>.</summary>
+    private static double InkCenterOffset(string text, FontFamily fontFamily, double fontSize, FontWeight fontWeight)
+    {
+        FormattedText formatted = new(
+            text,
+            CultureInfo.CurrentUICulture,
+            FlowDirection.LeftToRight,
+            new Typeface(fontFamily, FontStyle.Normal, fontWeight),
+            fontSize,
+            Brushes.Black);
+        Rect ink = formatted.BuildGeometry(default)?.Bounds ?? default;
+        return ink.Height > 0 ? ink.Center.Y - formatted.Height / 2 : 0;
+    }
+
+    /// <summary>Shows the unacknowledged memory error count, red when it is not zero.</summary>
+    private void UpdateMemoryErrorDisplay()
+    {
+        if (_disposed) return;
+
+        IReadOnlyList<MemoryErrorEntry> entries = _memoryErrorLogMonitor.Entries;
+        MemoryErrorAcknowledgement acknowledgement = _settings.MemoryErrorAcknowledgement;
+        int count = acknowledgement.CountUnacknowledged(entries);
+        string? error = _memoryErrorLogMonitor.Error;
+        _memoryErrorLabel.Text = !_memoryErrorLogMonitor.HasRead || (error != null && entries.Count == 0)
+            ? F(nameof(AppStrings.Perf_MemoryErrors_LabelFormat), Unavailable)
+            : F(nameof(AppStrings.Perf_MemoryErrors_LabelFormat), count.ToString(CultureInfo.CurrentCulture));
+        // The tint grows the label outward only while it shows, so a zero count keeps the hardware name's position
+        _memoryErrorLabelFrame.Background = count > 0 ? _memoryErrorTint : Brushes.Transparent;
+        _memoryErrorLabelFrame.Padding = count > 0
+            ? _resources.AxamlTaskManagerPerformance.MemoryErrorLabelPadding
+            : default;
+        _memoryErrorResetButton.IsEnabled = count > 0;
+        TrayAppDotNETToolTip.SetTip(
+            _memoryErrorLabelFrame,
+            _memoryErrorLogMonitor.HasRead
+                ? MemoryErrorLogWindow.BuildSummary(entries, acknowledgement, error)
+                : null);
+    }
+
+    private void OnMemoryErrorInfoClick(object? sender, EventArgs eventArgs)
+    {
+        if (_disposed) return;
+
+        if (_memoryErrorLogWindow != null)
+        {
+            _memoryErrorLogWindow.Activate();
+            return;
+        }
+
+        if (TopLevel.GetTopLevel(this) is not Window owner) return;
+
+        MemoryErrorLogWindow window = new(
+            _memoryErrorLogMonitor,
+            () => _settings.MemoryErrorAcknowledgement,
+            _palette);
+        window.Closed += OnMemoryErrorLogWindowClosed;
+        _memoryErrorLogWindow = window;
+        _ = window.ShowDialog(owner);
+    }
+
+    private void OnMemoryErrorLogWindowClosed(object? sender, EventArgs eventArgs)
+    {
+        if (sender is Window window) window.Closed -= OnMemoryErrorLogWindowClosed;
+        if (ReferenceEquals(sender, _memoryErrorLogWindow)) _memoryErrorLogWindow = null;
+    }
+
+    /// <summary>
+    /// Stops counting the errors recorded so far, after confirmation. Windows cannot delete single events, so the
+    /// System log keeps them and the log window still lists them.
+    /// </summary>
+    private async void OnMemoryErrorResetClick(object? sender, EventArgs eventArgs)
+    {
+        if (_disposed || TopLevel.GetTopLevel(this) is not Window owner) return;
+
+        IReadOnlyList<MemoryErrorEntry> entries = _memoryErrorLogMonitor.Entries;
+        int count = _settings.MemoryErrorAcknowledgement.CountUnacknowledged(entries);
+        if (count == 0) return;
+
+        TrayAppDotNETConfirmationResult result;
+        try
+        {
+            using TrayAppDotNETConfirmationWindow confirmation = new(
+                title: L(nameof(AppStrings.Perf_MemoryErrors_ResetTitle)),
+                description: F(nameof(AppStrings.Perf_MemoryErrors_ResetMessageFormat), count),
+                confirmText: L(nameof(AppStrings.Common_Reset)),
+                _palette,
+                _settings.EnableRoundedCorners,
+                cancelText: L(nameof(CommonStrings.Common_Cancel)))
+            {
+                WindowStartupLocation = WindowStartupLocation.CenterOwner
+            };
+            confirmation.MapTo(ControlMap.MemoryErrorResetConfirmation.ID);
+            result = await confirmation.ShowDialog<TrayAppDotNETConfirmationResult>(owner);
+        }
+        catch (Exception exception)
+        {
+            TADNLog.Log($"Memory error reset confirmation failed: {exception}");
+            return;
+        }
+
+        if (_disposed || result != TrayAppDotNETConfirmationResult.Confirmed) return;
+
+        // Acknowledge only what the prompt counted; an error logged while it was open stays counted
+        _settings.AcknowledgeMemoryErrors(MemoryErrorAcknowledgement.Through(entries));
+        UpdateMemoryErrorDisplay();
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
@@ -1705,6 +1927,13 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         _graphSurface.PointerPressed -= OnGraphSurfacePointerPressed;
         _settings.PropertyChanged -= OnSettingsPropertyChanged;
         _snapshotService.SnapshotUpdated -= OnSnapshotUpdated;
+        _memoryErrorLogMonitor.Changed -= UpdateMemoryErrorDisplay;
+        _memoryErrorLogMonitor.Dispose();
+        _memoryErrorLogWindow?.Close();
+        _memoryErrorInfoButton.Click -= OnMemoryErrorInfoClick;
+        _memoryErrorInfoButton.Dispose();
+        _memoryErrorResetButton.Click -= OnMemoryErrorResetClick;
+        _memoryErrorResetButton.Dispose();
 #if DEBUG
         TaskManagerContextMenuResources.ResourcesReloaded -= OnContextMenuAXAMLResourcesReloaded;
         for (int buttonIndex = 0; buttonIndex < _cpuArchitectureSimulationButtons.Count; buttonIndex++)

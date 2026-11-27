@@ -34,6 +34,8 @@ internal sealed class PerformanceSnapshotService : IDisposable
     private readonly CPUCoreClassTopology _cpuCoreClassTopology = CPUTopologyReader.ReadCoreClassTopology();
     private readonly MemoryCompositionSampler _memoryCompositionSampler = new();
     private readonly PhysicalMemoryMetadataReader _physicalMemoryMetadataReader = new();
+    private readonly MemoryFirmwarePerformance _memoryFirmwarePerformance = MemoryFirmwarePerformanceReader.Read();
+    private readonly PageFileReader _pageFileReader = new();
     private readonly NetworkPerformanceSampler _networkSampler = new();
     private readonly DiskPerformanceSampler _diskSampler = new();
     private readonly GPUPerformanceSampler _gpuSampler = new();
@@ -676,7 +678,11 @@ internal sealed class PerformanceSnapshotService : IDisposable
                 physicalMemory.UsedSlotCount,
                 physicalMemory.TotalSlotCount,
                 physicalMemory.FormFactor,
-                physicalMemory.Modules));
+                physicalMemory.Modules))
+        {
+            FirmwarePerformance = _memoryFirmwarePerformance,
+            PageFiles = _pageFileReader.Read()
+        };
     }
 
     private void Publish(PerformanceSnapshot snapshot)

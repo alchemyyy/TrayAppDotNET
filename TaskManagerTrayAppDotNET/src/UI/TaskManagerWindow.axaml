@@ -59,8 +59,9 @@
   <CornerRadius x:Key="TaskManagerDetails.SearchActionVisualCornerRadius">4</CornerRadius>
   <sys:Double x:Key="TaskManagerDetails.SearchActionSpacing">6</sys:Double>
   <Thickness x:Key="TaskManagerDetails.SearchActionButtonPadding">0</Thickness>
-  <!-- Translucent so the same red reads on the dark and light title bars -->
-  <Color x:Key="TaskManagerDetails.SearchInvalidTintColor">#66E81123</Color>
+  <!-- Translucent so the same red reads on dark and light surfaces. Tints Clear while a search is invalid, a
+       non-zero memory error count, and the unacknowledged uncorrected entries in the memory error log -->
+  <Color x:Key="TaskManagerDetails.SearchInvalidTintColor">#33E81123</Color>
   <sys:Double x:Key="TaskManagerDetails.RunInputWidth">430</sys:Double>
   <Thickness x:Key="TaskManagerDetails.RunPanelPadding">12</Thickness>
   <CornerRadius x:Key="TaskManagerDetails.PanelCornerRadius">6</CornerRadius>
@@ -177,6 +178,18 @@
   <sys:Double x:Key="TaskManagerPerformance.DetailDeviceNameFontSize">16</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.DetailGraphLabelFontSize">11.5</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.DetailGraphMinimumHeight">260</sys:Double>
+  <!-- The memory graph shares its area with the page file graph, so it may shrink below the usual minimum -->
+  <sys:Double x:Key="TaskManagerPerformance.MemoryGraphMinimumHeight">140</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.PageFileGraphMinimumHeight">60</sys:Double>
+  <!-- Page file lines lighten the memory accent toward white by this much per file, up to the maximum -->
+  <sys:Double x:Key="TaskManagerPerformance.PageFileShadeStep">0.3</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.PageFileMaximumLightening">0.75</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.PageFileSwatchWidth">12</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.PageFileSwatchHeight">3</sys:Double>
+  <Thickness x:Key="TaskManagerPerformance.PageFileGraphMargin">0,10,0,0</Thickness>
+  <Thickness x:Key="TaskManagerPerformance.PageFileLegendMargin">0,5,0,0</Thickness>
+  <Thickness x:Key="TaskManagerPerformance.PageFileLegendItemMargin">0,0,16,0</Thickness>
+  <Thickness x:Key="TaskManagerPerformance.PageFileSwatchMargin">0,0,6,0</Thickness>
   <sys:Double x:Key="TaskManagerPerformance.DetailPrimaryStatisticWidth">132</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.MemoryPrimaryStatisticWidth">225</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.DetailMetadataStatisticColumnSpacing">16</sys:Double>
@@ -195,6 +208,20 @@
   <sys:Double x:Key="TaskManagerPerformance.MemoryModuleLabelFontSize">10.5</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.MemoryModuleValueFontSize">11.5</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.MemoryModuleLabelWidth">72</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.MemoryCompositionSegmentLabelFontSize">11</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.MemoryCompositionSegmentLabelSpacing">10</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.MemoryCompositionTickGap">1</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.MemoryCompositionTickLength">5</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.MemoryCompositionTickThickness">1</sys:Double>
+  <!-- Each button is its glyph plus half the 12px gap to its neighbor on each side, so the hit targets touch -->
+  <sys:Double x:Key="TaskManagerPerformance.MemoryErrorButtonWidth">26</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.MemoryErrorButtonHeight">30.6</sys:Double>
+  <!-- With the reset button's 6px half gap, keeps 8px between its glyph and the label -->
+  <Thickness x:Key="TaskManagerPerformance.MemoryErrorLabelMargin">2,0,0,0</Thickness>
+  <!-- The larger side of each glyph's drawn outline, so different glyphs look the same size -->
+  <sys:Double x:Key="TaskManagerPerformance.MemoryErrorGlyphInkSize">14</sys:Double>
+  <!-- Hover emboldens the glyph by stroking its outline at this width -->
+  <sys:Double x:Key="TaskManagerPerformance.MemoryErrorGlyphHoverStrokeThickness">0.8</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.DiskTransferGraphHeight">92</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GPUDetailEngineGraphMinimumHeight">72</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.GPUDetailMemoryGraphHeight">96</sys:Double>
@@ -223,7 +250,7 @@
   <Thickness x:Key="TaskManagerPerformance.DetailPrimaryStatisticMargin">0,0,14,9</Thickness>
   <Thickness x:Key="TaskManagerPerformance.DetailMetadataStatisticMargin">0,0,0,3</Thickness>
   <Thickness x:Key="TaskManagerPerformance.MemoryCompositionMargin">0,0,0,10</Thickness>
-  <Thickness x:Key="TaskManagerPerformance.MemoryCompositionLabelMargin">0,0,0,5</Thickness>
+  <Thickness x:Key="TaskManagerPerformance.MemoryCompositionLabelMargin">0,0,0,2.5</Thickness>
   <Thickness x:Key="TaskManagerPerformance.MemoryCompositionFrameBorderThickness">1</Thickness>
   <Thickness x:Key="TaskManagerPerformance.MemoryCompositionSegmentBorderThickness">0,0,1,0</Thickness>
   <Thickness x:Key="TaskManagerPerformance.MemoryModulesMargin">0,5,0,0</Thickness>
@@ -241,6 +268,9 @@
   <CornerRadius x:Key="TaskManagerPerformance.DeviceCardCornerRadius">0</CornerRadius>
   <Thickness x:Key="TaskManagerPerformance.DeviceCardBorderThickness">0</Thickness>
   <Thickness x:Key="TaskManagerPerformance.DeviceColumnBorderThickness">0</Thickness>
+  <Thickness x:Key="TaskManagerPerformance.MemoryCompositionSegmentLabelsMargin">0,0,0,1</Thickness>
+  <Thickness x:Key="TaskManagerPerformance.MemoryErrorLabelPadding">6,1</Thickness>
+  <CornerRadius x:Key="TaskManagerPerformance.MemoryErrorLabelCornerRadius">4</CornerRadius>
 
   <!-- Painted process table -->
   <sys:Double x:Key="ProcessTable.HeaderHeight">32</sys:Double>
@@ -347,4 +377,23 @@
   <Thickness x:Key="ProcessAffinity.ContentMargin">16</Thickness>
   <Thickness x:Key="ProcessAffinity.ExplanationMargin">0,0,0,16</Thickness>
   <Thickness x:Key="ProcessAffinity.ActionsMargin">0,16,0,0</Thickness>
+
+  <!-- Memory error log -->
+  <sys:Double x:Key="MemoryErrorLog.WindowWidth">640</sys:Double>
+  <sys:Double x:Key="MemoryErrorLog.WindowHeight">480</sys:Double>
+  <sys:Double x:Key="MemoryErrorLog.WindowMinWidth">420</sys:Double>
+  <sys:Double x:Key="MemoryErrorLog.WindowMinHeight">280</sys:Double>
+  <sys:Double x:Key="MemoryErrorLog.SummaryFontSize">13</sys:Double>
+  <sys:Double x:Key="MemoryErrorLog.EntrySpacing">8</sys:Double>
+  <sys:Double x:Key="MemoryErrorLog.EntryHeadingFontSize">13</sys:Double>
+  <sys:Int32 x:Key="MemoryErrorLog.EntryHeadingFontWeight">600</sys:Int32>
+  <sys:Double x:Key="MemoryErrorLog.EntryMessageFontSize">12</sys:Double>
+  <sys:Double x:Key="MemoryErrorLog.AcknowledgedOpacity">0.6</sys:Double>
+  <Thickness x:Key="MemoryErrorLog.ContentMargin">16</Thickness>
+  <Thickness x:Key="MemoryErrorLog.SummaryMargin">0,0,0,12</Thickness>
+  <Thickness x:Key="MemoryErrorLog.EntryPadding">10,8</Thickness>
+  <Thickness x:Key="MemoryErrorLog.EntryBorderThickness">1</Thickness>
+  <Thickness x:Key="MemoryErrorLog.EntryMessageMargin">0,4,0,0</Thickness>
+  <Thickness x:Key="MemoryErrorLog.ActionsMargin">0,16,0,0</Thickness>
+  <CornerRadius x:Key="MemoryErrorLog.EntryCornerRadius">4</CornerRadius>
 </ResourceDictionary>

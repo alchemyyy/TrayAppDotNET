@@ -25,6 +25,11 @@ public sealed class PerformanceHardwareNameReplacementRule
         get;
         set => field = value ?? string.Empty;
     } = string.Empty;
+
+    /// <summary>Gets whether the Performance page shows a hardware name for <paramref name="kind"/>.</summary>
+    /// <remarks>Memory has none: its header shows the memory error count instead.</remarks>
+    public static bool SupportsDeviceKind(PerformanceDeviceKind kind) =>
+        Enum.IsDefined(kind) && kind != PerformanceDeviceKind.Memory;
 }
 
 /// <summary>Normalizes persisted Performance hardware-name replacement rules.</summary>
@@ -38,7 +43,7 @@ internal static class PerformanceHardwareNameReplacementRuleCollection
 
         foreach (PerformanceHardwareNameReplacementRule? rule in rules)
         {
-            if (rule == null || !Enum.IsDefined(rule.DeviceKind)) continue;
+            if (rule == null || !PerformanceHardwareNameReplacementRule.SupportsDeviceKind(rule.DeviceKind)) continue;
             normalized.Add(new PerformanceHardwareNameReplacementRule
             {
                 DeviceKind = rule.DeviceKind,
@@ -76,7 +81,7 @@ internal sealed class PerformanceHardwareNameResolver
         foreach (PerformanceHardwareNameReplacementRule? rule in rules)
         {
             if (rule == null
-                || !Enum.IsDefined(rule.DeviceKind)
+                || !PerformanceHardwareNameReplacementRule.SupportsDeviceKind(rule.DeviceKind)
                 || string.IsNullOrEmpty(rule.MatchPattern))
                 continue;
 

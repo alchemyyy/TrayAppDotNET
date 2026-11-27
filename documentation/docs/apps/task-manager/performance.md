@@ -95,11 +95,26 @@ Both come from what Windows itself reports about the processor layout. Nothing i
 
 ## Memory
 
-The graph shows `Memory use over 1 minute`. Below it:
+The header shows the memory error count where other devices show their name (see [Memory Errors](#memory-errors)). The graph shows `Memory use over 1 minute`.
 
-- **Memory composition**: a bar split into **In use**, **Modified**, **Standby** and **Free**. Hover a segment for its size in MB and what it means. The **In use** tooltip also shows how much is compressed and how much memory that saves.
+Under it, taking about a third of the graph area, `Page file use over 1 minute` draws one line per page file, each as a percentage of that file's current size. The first page file uses the memory blue and every further one a lighter shade. The row below the graph names them, e.g. `Pagefile H: 7.9 / 40.2GB` (drive, in use, current size on disk); hover an entry for the page file's path, or the graph for each file's use at that moment. Without a page file the memory graph takes the whole area.
+
+Below the graphs:
+
+- **Memory composition**: a bar split into **In use**, **Modified**, **Standby** and **Free**, each segment named above the bar with a tick pointing at it. Hover a segment for its size in MB and what it means. The **In use** tooltip also shows how much is compressed and how much memory that saves.
 - **In use (Compressed)**, **Available**, **Committed**, **Cached**, **Paged pool**, **Non-paged pool**
-- **Speed** (in MT/s), **Slots used**, **Form factor**, **Hardware reserved**
+- **Speed** (in MT/s), **Slots used**, **Form factor**, **Hardware reserved**, **Firmware latency**, **Firmware bandwidth**
+
+**Firmware latency** and **Firmware bandwidth** are the figures the firmware declares for the memory in its ACPI HMAT table. They're the board vendor's nominal numbers, not measurements, and they aren't memory timings. Many desktop boards don't publish the table, and then the two lines are left out. When the firmware gives separate read and write figures instead of one, both are shown; several NUMA nodes show a range.
+
+### Memory Errors
+
+**Memory errors: N** counts the memory errors Windows recorded in the System event log since your last reset: corrected and uncorrected errors reported by the hardware (WHEA events 22, 23 and 46 to 49), and failed Windows Memory Diagnostic runs (event 1102). An uncorrected error usually crashes the machine, so it's logged after the restart. The label turns red while the count isn't zero, and new errors show up as Windows logs them. No administrator rights are needed.
+
+The two buttons left of the label:
+
+- The info button opens the error log: every memory error in the System log, newest first, with its time, kind, event ID and the message Windows recorded.
+- The reset button (circular arrow) asks for confirmation, then sets the count back to zero. Windows can't delete single events, so the errors stay in the System log and in the error log, dimmed; only errors logged after the reset are counted. It's greyed out while the count is zero.
 
 ### Physical Memory Layout
 
@@ -189,13 +204,13 @@ Replacement rules rewrite the hardware names Windows reports, e.g. to shorten a 
 
 Click **+ Add replacement**, then fill in the row:
 
-- The device type the rule applies to: **CPU**, **Memory**, **GPU**, **Network** or **Disk**. New rules start as **Network**.
+- The device type the rule applies to: **CPU**, **GPU**, **Network** or **Disk**. New rules start as **Network**.
 - **Regex match**: a .NET regular expression, matched case-insensitively against the hardware name.
 - **Replacement**: the text to put in its place. `$1` or `${name}` inserts a capture group.
 
 Rules run top to bottom, and each one works on the result of the previous one. Changes show up on the Performance page as you type. Delete a rule with the X at the end of its row.
 
-What gets renamed is the hardware name: the processor name, `Physical memory` for memory, the GPU name, the adapter description for network, and the drive model for disks. The `CPU` / `GPU 0` / `Disk 0 (C:)` titles stay as they are.
+What gets renamed is the hardware name: the processor name, the GPU name, the adapter description for network, and the drive model for disks. Memory has no hardware name (its header shows the memory error count), so there are no memory rules. The `CPU` / `GPU 0` / `Disk 0 (C:)` titles stay as they are.
 
 **Note**: a rule with an invalid regex is ignored, and a rule that fails or times out while running is switched off until the rules change. Both are written to the Task Manager log.
 

@@ -7,6 +7,7 @@
     <!-- Task Manager commands -->
     <visuals:GlyphDefinition x:Key="GlyphCatalog.More" Text="&#xE712;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.Save" Text="&#xE74E;" Font="SegoeFluentIcons" />
+    <visuals:GlyphDefinition x:Key="GlyphCatalog.Reset" Text="&#xE777;" Font="SegoeFluentIcons" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.CaretLeft" Text="&#xE96E;" Font="SegoeFluentIconsThenMDL2Assets" TranslateY="-1" />
     <visuals:GlyphDefinition x:Key="GlyphCatalog.CaretRight" Text="&#xE96D;" Font="SegoeFluentIconsThenMDL2Assets" TranslateY="1" />
 

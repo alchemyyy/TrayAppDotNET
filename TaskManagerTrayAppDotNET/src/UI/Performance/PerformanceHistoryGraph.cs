@@ -37,6 +37,7 @@ internal sealed class PerformanceHistoryGraph : Control
     private int _hoverTimelineCount;
     private long _hoverTimelineTimestamp;
     private Color? _secondaryLineColor;
+    private IReadOnlyList<PerformanceGraphSeries> _additionalSeries = [];
     private bool _showUnderfill = true;
 
     public PerformanceHistoryGraph(
@@ -156,6 +157,18 @@ internal sealed class PerformanceHistoryGraph : Control
         _showUnderfill = isVisible;
         InvalidateVisual();
     }
+
+    /// <summary>Draws further histories, each in its own color, on the primary history's scale and timeline.</summary>
+    public void SetAdditionalSeries(IReadOnlyList<PerformanceGraphSeries> series)
+    {
+        ArgumentNullException.ThrowIfNull(series);
+        _additionalSeries = series;
+        InvalidateVisual();
+    }
+
+    /// <summary>Creates the line pen and underfill brush this graph would use for <paramref name="color"/>.</summary>
+    public PerformanceGraphSeries CreateSeries(PerformanceHistory history, Color color) =>
+        new(history, new Pen(new SolidColorBrush(color), _lineThickness), CreateUnderfillBrush(color));
 
     /// <summary>Changes the device accent used for the utilization trace.</summary>
     public void SetAccent(Color accent)
@@ -288,7 +301,16 @@ internal sealed class PerformanceHistoryGraph : Control
         Rect graphBounds = new(x: 0, y: 0, width, height);
         context.DrawRectangle(_backgroundBrush, _borderPen, graphBounds);
         if (_showUnderfill)
+        {
+            for (int seriesIndex = _additionalSeries.Count - 1; seriesIndex >= 0; seriesIndex--)
+            {
+                PerformanceGraphSeries series = _additionalSeries[seriesIndex];
+                DrawHistoryUnderfill(context, series.History, series.UnderfillBrush, width, height);
+            }
+
             DrawHistoryUnderfill(context, _history, _underfillBrush, width, height);
+        }
+
         for (int columnIndex = 1; columnIndex < _gridColumns; columnIndex++)
         {
             double positionX = width * columnIndex / _gridColumns;
@@ -303,6 +325,12 @@ internal sealed class PerformanceHistoryGraph : Control
 
         if (_secondaryHistory != null)
             DrawHistoryTrace(context, _secondaryHistory, _secondaryLinePen, width, height);
+        for (int seriesIndex = _additionalSeries.Count - 1; seriesIndex >= 0; seriesIndex--)
+        {
+            PerformanceGraphSeries series = _additionalSeries[seriesIndex];
+            DrawHistoryTrace(context, series.History, series.LinePen, width, height);
+        }
+
         DrawHistoryTrace(context, _history, _linePen, width, height);
     }
 
@@ -418,3 +446,6 @@ internal sealed class PerformanceHistoryGraph : Control
             _underfillOpacity,
             _underfillDarkenAmount));
 }
+
+/// <summary>One extra history a <see cref="PerformanceHistoryGraph"/> draws in its own color.</summary>
+internal readonly record struct PerformanceGraphSeries(PerformanceHistory History, Pen LinePen, IBrush UnderfillBrush);

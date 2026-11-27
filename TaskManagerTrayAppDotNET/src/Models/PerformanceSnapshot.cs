@@ -104,6 +104,12 @@ internal sealed record MemoryPerformanceSnapshot(
 {
     public const string StableDeviceID = "memory";
 
+    /// <summary>Memory latency and bandwidth the firmware declares in the ACPI HMAT, read once per boot.</summary>
+    public MemoryFirmwarePerformance FirmwarePerformance { get; init; } = MemoryFirmwarePerformance.None;
+
+    /// <summary>Every page file's size and use at this sample, in kernel order.</summary>
+    public ReadOnlyMemory<PageFileSnapshot> PageFiles { get; init; } = ReadOnlyMemory<PageFileSnapshot>.Empty;
+
     public static MemoryPerformanceSnapshot Empty { get; } = new(
         StableDeviceID,
         PerformanceDeviceKind.Memory,
@@ -122,6 +128,49 @@ internal sealed record MemoryPerformanceSnapshot(
         HardwareReservedBytes: 0,
         MemoryCompositionSnapshot.Empty,
         PhysicalMemoryHardwareSnapshot.Empty);
+}
+
+/// <summary>One page file's size and use, in bytes.</summary>
+/// <param name="Path">The Win32 path, such as <c>H:\pagefile.sys</c>.</param>
+/// <param name="DriveName">The drive letter without a colon, or the whole path when it has none.</param>
+/// <param name="PeakInUseBytes">The most this page file held since boot.</param>
+internal sealed record PageFileSnapshot(
+    string Path,
+    string DriveName,
+    ulong InUseBytes,
+    ulong SizeBytes,
+    ulong PeakInUseBytes);
+
+/// <summary>The smallest and largest value of one HMAT metric across initiator and target domains; 0 when absent.</summary>
+internal readonly record struct MemoryFirmwareMetricRange(ulong Minimum, ulong Maximum)
+{
+    public bool HasValue => Maximum > 0;
+}
+
+/// <summary>Firmware-declared memory latency in picoseconds and bandwidth in MB/s, from the ACPI HMAT.</summary>
+internal sealed record MemoryFirmwarePerformance(
+    MemoryFirmwareMetricRange AccessLatencyPicoseconds,
+    MemoryFirmwareMetricRange ReadLatencyPicoseconds,
+    MemoryFirmwareMetricRange WriteLatencyPicoseconds,
+    MemoryFirmwareMetricRange AccessBandwidthMegabytesPerSecond,
+    MemoryFirmwareMetricRange ReadBandwidthMegabytesPerSecond,
+    MemoryFirmwareMetricRange WriteBandwidthMegabytesPerSecond)
+{
+    public static MemoryFirmwarePerformance None { get; } = new(
+        default,
+        default,
+        default,
+        default,
+        default,
+        default);
+
+    public bool HasLatency => AccessLatencyPicoseconds.HasValue
+                              || ReadLatencyPicoseconds.HasValue
+                              || WriteLatencyPicoseconds.HasValue;
+
+    public bool HasBandwidth => AccessBandwidthMegabytesPerSecond.HasValue
+                                || ReadBandwidthMegabytesPerSecond.HasValue
+                                || WriteBandwidthMegabytesPerSecond.HasValue;
 }
 
 /// <summary>Physical-memory list and compression-store values used by the composition bar.</summary>

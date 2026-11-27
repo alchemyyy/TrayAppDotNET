@@ -356,6 +356,23 @@ public sealed class AppSettings : AppSettingsCommon<HotkeyBinding, HotkeyAction>
         set => SetField(ref field, value);
     }
 
+    /// <summary>Creation time, as a UTC FILETIME, of the newest memory error the user reset the count past.</summary>
+    public long MemoryErrorsAcknowledgedFileTime
+    {
+        get;
+        set => SetField(ref field, Math.Max(0, value));
+    }
+
+    /// <summary>System log record ID of the newest memory error the user reset the count past.</summary>
+    public long MemoryErrorsAcknowledgedRecordID
+    {
+        get;
+        set => SetField(ref field, Math.Max(0, value));
+    }
+
+    internal MemoryErrorAcknowledgement MemoryErrorAcknowledgement =>
+        new(MemoryErrorsAcknowledgedFileTime, MemoryErrorsAcknowledgedRecordID);
+
     [XmlArray("ProcessHeaderButtonOrder")]
     [XmlArrayItem("Button")]
     public List<ProcessHeaderButtonKind> ProcessHeaderButtonOrder
@@ -536,6 +553,18 @@ public sealed class AppSettings : AppSettingsCommon<HotkeyBinding, HotkeyAction>
     {
         ArgumentNullException.ThrowIfNull(deviceIDs);
         UpdateWithoutShellRefresh(() => PerformanceDeviceOrder = deviceIDs);
+    }
+
+    /// <summary>Persists a memory error count reset without rebuilding the app shell.</summary>
+    internal void AcknowledgeMemoryErrors(MemoryErrorAcknowledgement acknowledgement)
+    {
+        if (acknowledgement == MemoryErrorAcknowledgement) return;
+
+        UpdateWithoutShellRefresh(() =>
+        {
+            MemoryErrorsAcknowledgedFileTime = acknowledgement.TimeCreatedFileTime;
+            MemoryErrorsAcknowledgedRecordID = acknowledgement.RecordID;
+        });
     }
 
     /// <summary>Persists live Processes saved-search edits without rebuilding the application shell.</summary>

@@ -76,7 +76,7 @@ internal static class PerformanceDevicePresentationFactory
         // ReSharper disable once UseObjectOrCollectionInitializer
         List<PerformanceDevicePresentation> devices = new(capacity);
         devices.Add(CreateCPU(snapshot.CPU, graphWindow, hardwareNameResolver));
-        devices.Add(CreateMemory(snapshot.Memory, graphWindow, hardwareNameResolver));
+        devices.Add(CreateMemory(snapshot.Memory, graphWindow));
 
         ReadOnlySpan<GPUPerformanceSnapshot> GPUs = snapshot.GPUs.Span;
         for (int GPUIndex = 0; GPUIndex < GPUs.Length; GPUIndex++)
@@ -234,10 +234,8 @@ internal static class PerformanceDevicePresentationFactory
 
     private static PerformanceDevicePresentation CreateMemory(
         MemoryPerformanceSnapshot sample,
-        string graphWindow,
-        PerformanceHardwareNameResolver hardwareNameResolver)
+        string graphWindow)
     {
-        string hardwareName = hardwareNameResolver.Resolve(sample.Kind, hardwareName: L(nameof(AppStrings.Perf_PhysicalMemory)));
         string used = sample.HasMemoryData ? FormatBytes(sample.UsedPhysicalBytes) : Unavailable;
         string total = sample.HasMemoryData ? FormatBytes(sample.TotalPhysicalBytes) : Unavailable;
         string inUse = sample.Composition.HasCompressionData
@@ -254,7 +252,7 @@ internal static class PerformanceDevicePresentationFactory
                 FormatBytes(sample.AvailablePhysicalBytes),
                 FormatPercent(isAvailable: true, sample.UtilizationPercent))
             : string.Empty;
-        PerformanceStatistic[] statistics =
+        List<PerformanceStatistic> statistics =
         [
             new(Label: L(nameof(AppStrings.Perf_Label_InUseCompressed)), inUse),
             new(
@@ -294,6 +292,29 @@ internal static class PerformanceDevicePresentationFactory
                     ? FormatBytes(sample.HardwareReservedBytes)
                     : Unavailable)
         ];
+        MemoryFirmwarePerformance firmware = sample.FirmwarePerformance;
+        if (firmware.HasLatency)
+        {
+            statistics.Add(new PerformanceStatistic(
+                Label: L(nameof(AppStrings.Perf_Label_FirmwareLatency)),
+                FormatFirmwareMetric(
+                    firmware.AccessLatencyPicoseconds,
+                    firmware.ReadLatencyPicoseconds,
+                    firmware.WriteLatencyPicoseconds,
+                    FormatLatencyRange)));
+        }
+
+        if (firmware.HasBandwidth)
+        {
+            statistics.Add(new PerformanceStatistic(
+                Label: L(nameof(AppStrings.Perf_Label_FirmwareBandwidth)),
+                FormatFirmwareMetric(
+                    firmware.AccessBandwidthMegabytesPerSecond,
+                    firmware.ReadBandwidthMegabytesPerSecond,
+                    firmware.WriteBandwidthMegabytesPerSecond,
+                    FormatBandwidthRange)));
+        }
+
         return new PerformanceDevicePresentation(
             sample.DeviceID,
             sample.Kind,
@@ -301,12 +322,45 @@ internal static class PerformanceDevicePresentationFactory
             Title: L(nameof(AppStrings.Perf_Title_Memory)),
             usedOfTotal,
             freeSummary,
-            hardwareName,
+            HardwareName: string.Empty,
             F(nameof(AppStrings.Perf_Graph_MemoryUseOverFormat), graphWindow),
             sample.HasMemoryData,
             sample.UtilizationPercent,
             GetAccent(PerformanceDeviceKind.Memory),
-            statistics);
+            statistics.ToArray());
+    }
+
+    /// <summary>Shows the combined access figure, or the read and write figures when only those are declared.</summary>
+    private static string FormatFirmwareMetric(
+        MemoryFirmwareMetricRange access,
+        MemoryFirmwareMetricRange read,
+        MemoryFirmwareMetricRange write,
+        Func<MemoryFirmwareMetricRange, string> formatRange)
+    {
+        if (access.HasValue) return formatRange(access);
+        if (!write.HasValue) return F(nameof(AppStrings.Perf_Memory_FirmwareReadFormat), formatRange(read));
+        if (!read.HasValue) return F(nameof(AppStrings.Perf_Memory_FirmwareWriteFormat), formatRange(write));
+        return F(nameof(AppStrings.Perf_Memory_FirmwareReadWriteFormat), formatRange(read), formatRange(write));
+    }
+
+    private static string FormatLatencyRange(MemoryFirmwareMetricRange picoseconds) =>
+        string.Concat(
+            FormatRange(picoseconds.Minimum / 1_000.0, picoseconds.Maximum / 1_000.0),
+            str1: " ns");
+
+    // HMAT bandwidth is in decimal megabytes per second
+    private static string FormatBandwidthRange(MemoryFirmwareMetricRange megabytesPerSecond) =>
+        string.Concat(
+            FormatRange(megabytesPerSecond.Minimum / 1_000.0, megabytesPerSecond.Maximum / 1_000.0),
+            str1: " GB/s");
+
+    private static string FormatRange(double minimum, double maximum)
+    {
+        string formattedMinimum = minimum.ToString(format: "0.#", CultureInfo.CurrentCulture);
+        string formattedMaximum = maximum.ToString(format: "0.#", CultureInfo.CurrentCulture);
+        return string.Equals(formattedMinimum, formattedMaximum, StringComparison.Ordinal)
+            ? formattedMinimum
+            : string.Concat(formattedMinimum, "\u2013", formattedMaximum);
     }
 
     private static PerformanceDevicePresentation CreateGPU(

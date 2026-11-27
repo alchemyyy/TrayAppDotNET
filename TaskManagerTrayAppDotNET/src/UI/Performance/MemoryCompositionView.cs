@@ -23,6 +23,7 @@ internal sealed class MemoryCompositionView : StackPanel
     private readonly TextBlock _modifiedTooltip;
     private readonly TextBlock _standbyTooltip;
     private readonly TextBlock _freeTooltip;
+    private readonly MemoryCompositionLabels _segmentLabels;
 
     public MemoryCompositionView(
         SettingsPalette palette,
@@ -50,6 +51,11 @@ internal sealed class MemoryCompositionView : StackPanel
         {
             Opacity = resources.AxamlTaskManagerPerformance.MemoryCompositionModifiedOpacity
         };
+        _segmentLabels = new MemoryCompositionLabels(palette, resources, accent)
+        {
+            Margin = resources.AxamlTaskManagerPerformance.MemoryCompositionSegmentLabelsMargin
+        };
+        Children.Add(_segmentLabels);
         Border inUseSegment = CreateSegment(
             inUseBrush,
             accentBrush,
@@ -115,6 +121,14 @@ internal sealed class MemoryCompositionView : StackPanel
         _modifiedSegment.IsVisible = modifiedBytes > 0;
         _standbySegment.IsVisible = standbyBytes > 0;
         _freeSegment.IsVisible = freeBytes > 0;
+        _segmentLabels.SetLabels(
+            L(nameof(AppStrings.Perf_Memory_SegmentInUse)),
+            L(nameof(AppStrings.Perf_Memory_SegmentModified)),
+            composition.HasCompositionData
+                ? L(nameof(AppStrings.Perf_Memory_SegmentStandby))
+                : L(nameof(AppStrings.Perf_Memory_SegmentAvailable)),
+            L(nameof(AppStrings.Perf_Memory_SegmentFree)));
+        _segmentLabels.SetSegments(inUseBytes, modifiedBytes, standbyBytes, freeBytes);
 
         _inUseTooltip.Text = BuildInUseTooltip(memory);
         _modifiedTooltip.Text = F(nameof(AppStrings.Perf_Memory_ModifiedTooltipFormat), FormatMebibytes(modifiedBytes));

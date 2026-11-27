@@ -263,6 +263,13 @@
                       Description="Shows the device's details; dragging or Ctrl+Up/Down moves it" />
             </Scope>
             <Scope ID="Details" Source="PerformancePage.PerformancePage">
+                <Scope ID="MemoryErrors" Tab="Once" Arrows="Horizontal" Source="PerformancePage.PerformancePage"
+                       Description="Memory only: the error count in the details header, where other devices show their name">
+                    <Leaf ID="ShowLog" Kind="Button" Event="Click" Source="PerformancePage.OnMemoryErrorInfoClick"
+                          Description="Opens MemoryErrorLog" />
+                    <Leaf ID="Reset" Kind="Button" Event="Click" Source="PerformancePage.OnMemoryErrorResetClick"
+                          Description="Confirms in MemoryErrorResetConfirmation, then stops counting the errors recorded so far; enabled while the count is not zero" />
+                </Scope>
                 <Leaf ID="OpenGraphMenu" Kind="Region" IsTabStop="False" Pointer="RightClick" Event="PointerPressed"
                       Source="PerformancePage.OnGraphSurfacePointerPressed"
                       Description="Graph area while CPU or a GPU is selected; opens CPUGraphMenu or GPUGraphMenu" />
@@ -465,6 +472,20 @@
             <Leaf ID="Apply" Kind="Button" Event="Click" Source="ProcessAffinityWindow.OnApplyClick"
                   Description="Closes on success; stays open on errors or declined elevation" />
         </Scope>
+    </Surface>
+
+    <Surface ID="MemoryErrorResetConfirmation" Template="Confirmation"
+             Source="PerformancePage.OnMemoryErrorResetClick"
+             Description="Reset memory error count prompt, modal over the main window" />
+
+    <Surface ID="MemoryErrorLog" Source="PerformancePage.OnMemoryErrorInfoClick"
+             Description="System-framed and modal over the main window; follows the System log while open">
+        <Leaf ID="Dismiss" Kind="Command" Keys="Escape" Event="MapCommand"
+              Source="MemoryErrorLogWindow.MemoryErrorLogWindow" Description="Closes the window, like Close" />
+        <Leaf ID="Entries" Kind="Handle" IsTabStop="False" Pointer="Wheel;Drag"
+              Source="MemoryErrorLogWindow.MemoryErrorLogWindow"
+              Description="Avalonia ScrollViewer over the error entries with no handler" />
+        <Leaf ID="Close" Kind="Button" Event="Click" Source="MemoryErrorLogWindow.OnCloseClick" />
     </Surface>
 
     <Surface ID="Settings" Template="SettingsShell" Source="TaskManagerSettingsWindow.TaskManagerSettingsWindow">

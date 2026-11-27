@@ -12,6 +12,8 @@ internal abstract class GlyphCatalog : CommonGlyphCatalog
 
     public static Glyph SAVE => Glyphs.Save;
 
+    public static Glyph RESET => Glyphs.Reset;
+
     public static Glyph CLOSE => CHROME_CLOSE;
 
     public static Glyph CARET_LEFT => Glyphs.CaretLeft;

@@ -137,6 +137,8 @@ public sealed partial class TaskManagerSettingsWindow
             .MapTo(ControlMap.Settings.PerformancePage.HardwareNameReplacements.Rule.DeviceCategory);
         foreach (PerformanceDeviceKind kind in Enum.GetValues<PerformanceDeviceKind>())
         {
+            if (!PerformanceHardwareNameReplacementRule.SupportsDeviceKind(kind)) continue;
+
             deviceKind.Items.Add(new SettingsComboBoxItem(
                 kind,
                 PerformanceDeviceLabel(kind),
