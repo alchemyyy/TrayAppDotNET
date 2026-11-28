@@ -680,6 +680,9 @@ internal sealed class BrightnessAvaloniaApp : Application
             case TrayClickAction.FullDim:
                 ApplyOrRestoreBrightness(action, target: 0);
                 break;
+            case TrayClickAction.SyncBrightness:
+                _brightnessFlyout?.SyncAllIndividualsToMaster();
+                break;
         }
     }
 

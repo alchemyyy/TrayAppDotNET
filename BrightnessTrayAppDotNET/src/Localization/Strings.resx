@@ -784,6 +784,9 @@
   <data name="Settings_TrayIcon_ClickAction_FullDim" xml:space="preserve">
     <value>Full dim</value>
   </data>
+  <data name="Settings_TrayIcon_ClickAction_SyncBrightness" xml:space="preserve">
+    <value>Sync brightness</value>
+  </data>
   <data name="Settings_TrayIcon_CtrlMouseWheel_Title" xml:space="preserve">
     <value>Ctrl + mouse wheel</value>
   </data>

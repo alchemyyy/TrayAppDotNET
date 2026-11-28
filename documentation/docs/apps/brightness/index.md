@@ -130,7 +130,7 @@ The switches live in **Settings** > **Tray icon**: **Mouse wheel** (on), **Mouse
 | **Mouse wheel** | Brightness | **Nothing**, **Brightness**, **Night Light** |
 | **Ctrl + mouse wheel** | Night Light | same |
 | **Alt + mouse wheel** | Nothing | same |
-| **Ctrl + left-click** | Nothing (toggles the flyout) | **Nothing**, **All displays OFF**, **All displays ON**, **Full bright**, **Full dim** |
+| **Ctrl + left-click** | Nothing (toggles the flyout) | **Nothing**, **All displays OFF**, **All displays ON**, **Full bright**, **Full dim**, **Sync brightness** |
 | **Alt + left-click** | Nothing | same |
 | **Ctrl + right-click** | Nothing (opens the menu) | same |
 | **Alt + right-click** | Nothing | same |
@@ -139,6 +139,8 @@ The switches live in **Settings** > **Tray icon**: **Mouse wheel** (on), **Mouse
 | **Alt + double-click** | Nothing (uses **Double-click**) | same |
 
 **Full bright** sets every included display to 100%, **Full dim** to 0%. Run the same action again while they're still there and they go back to where they were. A double-click starts with a normal click, so the flyout still toggles before the double-click action runs.
+
+**Sync brightness** sets every included display to the master slider's current value, the same as clicking the master row's icon in the flyout or the **Normalize brightnesses to master** hotkey.
 
 **All displays ON** sends the power-on command over DDC/CI to every display that supports power control. A display powered off with the hard power-off mode will most likely need its physical power button instead, see [Displays](displays.md).
 

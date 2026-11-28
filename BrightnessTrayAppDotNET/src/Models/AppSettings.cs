@@ -30,7 +30,8 @@ public enum TrayClickAction
     TurnOffAllDisplays,
     TurnOnAllDisplays,
     FullBright,
-    FullDim
+    FullDim,
+    SyncBrightness
 }
 
 public enum TrayWheelTarget

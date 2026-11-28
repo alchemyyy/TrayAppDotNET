@@ -218,7 +218,8 @@ public sealed partial class BrightnessSettingsWindow
             L(nameof(AppStrings.Settings_TrayIcon_ClickAction_AllDisplaysOff))),
         (TrayClickAction.TurnOnAllDisplays, L(nameof(AppStrings.Settings_TrayIcon_ClickAction_AllDisplaysOn))),
         (TrayClickAction.FullBright, L(nameof(AppStrings.Settings_TrayIcon_ClickAction_FullBright))),
-        (TrayClickAction.FullDim, L(nameof(AppStrings.Settings_TrayIcon_ClickAction_FullDim)))
+        (TrayClickAction.FullDim, L(nameof(AppStrings.Settings_TrayIcon_ClickAction_FullDim))),
+        (TrayClickAction.SyncBrightness, L(nameof(AppStrings.Settings_TrayIcon_ClickAction_SyncBrightness)))
     ];
 
     private static IReadOnlyList<(TrayWheelTarget Value, string Text)> TrayWheelOptions() =>
