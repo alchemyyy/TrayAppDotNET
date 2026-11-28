@@ -6,7 +6,7 @@ Every value is read straight from Windows. Nothing is copied from, or calibrated
 
 ## Device List
 
-The column on the left lists every device, each with a small preview graph, its name and a short summary (e.g. `1%  5.26 GHz` for the CPU, `S: 84 B/s  R: 195 B/s` for a network adapter). Click a device to show its details on the right.
+The column on the left lists every device, each with a small preview graph, its name and a short summary (e.g. `1%  5.26 GHz` for the CPU, `2%  37 °C` for a GPU whose driver reports its temperature, `S: 84 B/s  R: 195 B/s` for a network adapter). Click a device to show its details on the right.
 
 The device types:
 
@@ -34,6 +34,10 @@ Devices you haven't moved yourself, including newly detected ones, are placed by
 Every graph shows the last **History length** of data, 1 minute by default. The label above the graph says what it measures (e.g. `% Utilization over 1 minute`), with the scale on the right and the time span below.
 
 History is recorded from the moment the app starts, in the background, even while the window is hidden or another page is open. Opening the Performance page shows the full history right away instead of starting empty.
+
+### Small Windows
+
+In a narrow window, the large statistics under the graph wrap beside the list on the right and then use the full width below it; when not even one fits beside the list, the list moves below them. When the window gets so short that the graphs would be squeezed, the title and the statistics switch to smaller text to give the graphs their height back, and return to full size once there is room again. In a window too small even for that, the graphs shrink rather than overlap the text.
 
 ### Live Cursor
 

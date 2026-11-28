@@ -447,7 +447,8 @@ internal static class PerformanceDevicePresentationFactory
             sample.SortKey,
             F(nameof(AppStrings.Perf_Title_GPUFormat), sample.SortKey),
             hardwareName,
-            utilization,
+            // Temperature follows the load the way the CPU card follows it with the clock
+            details?.HasTemperatureData == true ? string.Concat(utilization, str1: "  ", temperature) : utilization,
             hardwareName,
             F(nameof(AppStrings.Perf_Graph_UtilizationOverFormat), graphWindow),
             sample.HasUtilizationSample,

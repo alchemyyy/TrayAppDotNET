@@ -175,12 +175,19 @@
   <sys:Double x:Key="TaskManagerPerformance.DeviceSubtitleFontSize">10.5</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.DeviceSummaryFontSize">10.5</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.DetailTitleFontSize">36</sys:Double>
+  <!-- Compact mode: the title and statistics shrink while the graph area is shorter than its minimum height -->
+  <sys:Double x:Key="TaskManagerPerformance.DetailTitleCompactFontSize">26</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.DetailPrimaryStatisticValueCompactFontSize">18</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.DetailStatisticValueCompactFontSize">12.5</sys:Double>
+  <Thickness x:Key="TaskManagerPerformance.DetailPrimaryStatisticCompactMargin">0,0,10,4</Thickness>
+  <!-- Compact mode ends only once full size would leave the graph area this much above its minimum -->
+  <sys:Double x:Key="TaskManagerPerformance.DetailCompactModeHysteresis">24</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.DetailDeviceNameFontSize">16</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.DetailGraphLabelFontSize">11.5</sys:Double>
+  <!-- Below this graph area height the page switches to compact mode. The graphs themselves have no minimum, so a
+       window too short even for compact mode shrinks them rather than letting them overlap the text -->
   <sys:Double x:Key="TaskManagerPerformance.DetailGraphMinimumHeight">260</sys:Double>
-  <!-- The memory graph shares its area with the page file graph, so it may shrink below the usual minimum -->
-  <sys:Double x:Key="TaskManagerPerformance.MemoryGraphMinimumHeight">140</sys:Double>
-  <sys:Double x:Key="TaskManagerPerformance.PageFileGraphMinimumHeight">60</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.PageFileGraphMinimumHeight">24</sys:Double>
   <!-- Page file lines lighten the memory accent toward white by this much per file, up to the maximum -->
   <sys:Double x:Key="TaskManagerPerformance.PageFileShadeStep">0.3</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.PageFileMaximumLightening">0.75</sys:Double>
@@ -190,10 +197,13 @@
   <Thickness x:Key="TaskManagerPerformance.PageFileLegendMargin">0,5,0,0</Thickness>
   <Thickness x:Key="TaskManagerPerformance.PageFileLegendItemMargin">0,0,16,0</Thickness>
   <Thickness x:Key="TaskManagerPerformance.PageFileSwatchMargin">0,0,6,0</Thickness>
+  <!-- Narrowest prominent statistic column; every column takes the widest statistic's width, rounded up to the step -->
   <sys:Double x:Key="TaskManagerPerformance.DetailPrimaryStatisticWidth">132</sys:Double>
-  <sys:Double x:Key="TaskManagerPerformance.MemoryPrimaryStatisticWidth">225</sys:Double>
+  <sys:Double x:Key="TaskManagerPerformance.DetailPrimaryStatisticWidthStep">8</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.DetailMetadataStatisticColumnSpacing">16</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.DetailStatisticsColumnSpacing">24</sys:Double>
+  <!-- Gap between the prominent statistics and the metadata when narrow windows stack them -->
+  <sys:Double x:Key="TaskManagerPerformance.DetailStatisticsRowSpacing">8</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.DetailStatisticLabelFontSize">11</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.DetailPrimaryStatisticValueFontSize">25</sys:Double>
   <sys:Double x:Key="TaskManagerPerformance.DetailStatisticValueFontSize">14</sys:Double>
@@ -250,7 +260,8 @@
   <Thickness x:Key="TaskManagerPerformance.DetailPrimaryStatisticMargin">0,0,14,9</Thickness>
   <Thickness x:Key="TaskManagerPerformance.DetailMetadataStatisticMargin">0,0,0,3</Thickness>
   <Thickness x:Key="TaskManagerPerformance.MemoryCompositionMargin">0,0,0,10</Thickness>
-  <Thickness x:Key="TaskManagerPerformance.MemoryCompositionLabelMargin">0,0,0,2.5</Thickness>
+  <!-- Negative: the title's descent and the segment labels' leading already leave a visible gap -->
+  <Thickness x:Key="TaskManagerPerformance.MemoryCompositionLabelMargin">0,0,0,-1.5</Thickness>
   <Thickness x:Key="TaskManagerPerformance.MemoryCompositionFrameBorderThickness">1</Thickness>
   <Thickness x:Key="TaskManagerPerformance.MemoryCompositionSegmentBorderThickness">0,0,1,0</Thickness>
   <Thickness x:Key="TaskManagerPerformance.MemoryModulesMargin">0,5,0,0</Thickness>

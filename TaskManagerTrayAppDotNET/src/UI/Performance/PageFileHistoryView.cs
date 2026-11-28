@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
 using TaskManagerTrayAppDotNET.Services;
 
 namespace TaskManagerTrayAppDotNET.UI.Performance;
@@ -26,12 +27,14 @@ internal sealed class PageFileHistoryView : Grid
     private readonly SettingsPalette _palette;
     private readonly TaskManagerWindowResources _resources;
     private readonly TextBlock _heading;
+    private readonly Grid _header;
     private readonly PerformanceHistoryGraph _graph;
     private readonly WrapPanel _legend;
     private readonly PerformanceHistory _emptyHistory;
     private int _historyLengthMinutes;
     private int _sampleIntervalMilliseconds;
     private long _lastTimestamp;
+    private double _minimumHeight = -1;
 
     public PageFileHistoryView(
         SettingsPalette palette,
@@ -54,14 +57,14 @@ internal sealed class PageFileHistoryView : Grid
         _heading = CreateLabel(string.Empty);
         TextBlock maximumLabel = CreateLabel("100%");
         maximumLabel.HorizontalAlignment = HorizontalAlignment.Right;
-        Grid header = new()
+        _header = new Grid
         {
             Margin = resources.AxamlTaskManagerPerformance.DetailGraphLabelMargin,
             ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) },
             Children = { _heading, maximumLabel }
         };
         SetColumn(maximumLabel, value: 1);
-        Children.Add(header);
+        Children.Add(_header);
 
         _graph = new PerformanceHistoryGraph(
             _emptyHistory,
@@ -86,6 +89,33 @@ internal sealed class PageFileHistoryView : Grid
         SetRow(_legend, value: 2);
         Children.Add(_legend);
         UpdateHeading();
+    }
+
+    /// <summary>
+    /// Raised after a layout pass when the height this view needs for its heading, its graph's minimum height and its
+    /// legend changes. The legend wraps, so the height depends on the width it was given.
+    /// </summary>
+    public event Action<double>? MinimumHeightChanged;
+
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        Size desiredSize = base.MeasureOverride(availableSize);
+
+        // Desired sizes include the children's margins; the view's own margin sits outside this measure
+        double minimumHeight = Margin.Top
+                               + Margin.Bottom
+                               + _header.DesiredSize.Height
+                               + _graph.MinHeight
+                               + _legend.DesiredSize.Height;
+        if (minimumHeight != _minimumHeight)
+        {
+            _minimumHeight = minimumHeight;
+
+            // The owner reacts by resizing this view's row, so let the current layout pass finish first
+            Dispatcher.UIThread.Post(() => MinimumHeightChanged?.Invoke(minimumHeight));
+        }
+
+        return desiredSize;
     }
 
     /// <summary>Gets whether the latest snapshot listed any page file.</summary>

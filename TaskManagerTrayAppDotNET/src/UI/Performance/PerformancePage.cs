@@ -45,6 +45,9 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     private readonly List<string> _staleDeviceIDs = [];
     private readonly TextBlock _detailTitle;
     private readonly TextBlock _detailHardwareName;
+    private readonly Grid _detailHeader;
+    private readonly Grid _graphArea;
+    private readonly PerformanceStatisticsPanel _statisticsPanel;
     private readonly StackPanel _memoryErrorPanel;
     private readonly Border _memoryErrorLabelFrame;
     private readonly TextBlock _memoryErrorLabel;
@@ -62,6 +65,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     private readonly PageFileHistoryView _pageFileView;
     private readonly RowDefinition _detailGraphRow = new(GridLength.Star);
     private readonly RowDefinition _pageFileGraphRow = new(new GridLength(0));
+    private double _pageFileMinimumHeight;
     private readonly MemoryCompositionView _memoryCompositionView;
     private readonly MemoryModuleDetailsPanel _memoryModuleDetailsPanel;
     private readonly DiskPerformanceDetailsView _diskPerformanceDetailsView;
@@ -70,7 +74,6 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     private readonly CPUPerformanceDetailedView _cpuDetailedView;
     private readonly List<PerformanceHistory> _cpuLogicalProcessorHistories = [];
     private readonly List<PerformanceHistoryGraph> _cpuLogicalProcessorGraphs = [];
-    private readonly WrapPanel _primaryStatistics;
     private readonly Grid _metadataStatistics;
     private readonly StackPanel[] _statisticContainers = new StackPanel[MaximumDetailStatistics];
     private readonly TextBlock[] _statisticLabels = new TextBlock[MaximumDetailStatistics];
@@ -96,6 +99,12 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     private int _configuredStatisticCount = -1;
     private int _configuredPrimaryStatisticCount = -1;
     private PerformanceDeviceKind? _configuredStatisticDeviceKind;
+    private bool _configuredStatisticCompact;
+
+    // Compact mode shrinks the title and the statistics when full size would leave the graphs less than their
+    // minimum height
+    private bool _isCompact;
+    private bool _compactEvaluationPending;
     private bool _hasProcessedSnapshot;
     private bool _isPageActive;
     private bool _disposed;
@@ -179,14 +188,14 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         _detailHardwareName.HorizontalAlignment = HorizontalAlignment.Right;
         _detailHardwareName.VerticalAlignment = VerticalAlignment.Center;
         _detailHardwareName.TextTrimming = TextTrimming.CharacterEllipsis;
-        Grid detailHeader = new()
+        _detailHeader = new Grid
         {
             Margin = resources.AxamlTaskManagerPerformance.DetailHeaderMargin,
             ColumnDefinitions = { new ColumnDefinition(GridLength.Auto), new ColumnDefinition(GridLength.Star) }
         };
-        detailHeader.Children.Add(_detailTitle);
+        _detailHeader.Children.Add(_detailTitle);
         SetColumn(_detailHardwareName, value: 1);
-        detailHeader.Children.Add(_detailHardwareName);
+        _detailHeader.Children.Add(_detailHardwareName);
 
         // Memory shows its error count where other devices show their hardware name
         _memoryErrorTint = TrayAppDotNETSettingsUI.Brush(resources.AxamlTaskManagerDetails.SearchInvalidTintColor);
@@ -232,8 +241,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             Children = { _memoryErrorInfoButton, _memoryErrorResetButton, _memoryErrorLabelFrame }
         }.MapTo(ControlMap.Main.PerformancePage.Details.MemoryErrors.ID);
         SetColumn(_memoryErrorPanel, value: 1);
-        detailHeader.Children.Add(_memoryErrorPanel);
-        details.Children.Add(detailHeader);
+        _detailHeader.Children.Add(_memoryErrorPanel);
+        details.Children.Add(_detailHeader);
 
         _detailGraphLabel = TrayAppDotNETSettingsUI.Text(
             F(
@@ -265,7 +274,6 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             isLightTheme,
             FormatDetailGraphHoverMetric)
         {
-            MinHeight = resources.AxamlTaskManagerPerformance.DetailGraphMinimumHeight,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch
         };
@@ -283,19 +291,21 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             isLightTheme,
             _historyLengthMinutes,
             _sampleIntervalMilliseconds);
+        // No minimum height: a short window shrinks the graphs instead of letting them spill over the title and the
+        // statistics. Compact mode gives them height back first (see EvaluateCompactMode)
         _graphSurface = new Grid
         {
-            MinHeight = resources.AxamlTaskManagerPerformance.DetailGraphMinimumHeight,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch,
             Children = { _detailGraph, _cpuLogicalProcessorGrid, _cpuDetailedView, _gpuPerformanceDetailsView }
         };
         _graphSurface.PointerPressed += OnGraphSurfacePointerPressed;
-        Grid graphArea = new()
+        _graphArea = new Grid
         {
             Margin = resources.AxamlTaskManagerPerformance.DetailGraphMargin,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch,
+            ClipToBounds = true,
             RowDefinitions =
             {
                 new RowDefinition(GridLength.Auto),
@@ -304,9 +314,9 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                 _pageFileGraphRow
             }
         };
-        graphArea.Children.Add(_genericGraphHeader);
+        _graphArea.Children.Add(_genericGraphHeader);
         SetRow(_graphSurface, value: 1);
-        graphArea.Children.Add(_graphSurface);
+        _graphArea.Children.Add(_graphSurface);
         _graphWindowLabel = TrayAppDotNETSettingsUI.Text(
             PerformanceDevicePresentationFactory.FormatHistoryWindow(_historyLengthMinutes),
             palette,
@@ -327,7 +337,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         SetColumn(graphMinimumLabel, value: 1);
         _genericGraphFooter.Children.Add(graphMinimumLabel);
         SetRow(_genericGraphFooter, value: 2);
-        graphArea.Children.Add(_genericGraphFooter);
+        _graphArea.Children.Add(_genericGraphFooter);
         _pageFileView = new PageFileHistoryView(
             palette,
             resources,
@@ -335,9 +345,11 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             _historyLengthMinutes,
             _sampleIntervalMilliseconds);
         SetRow(_pageFileView, value: 3);
-        graphArea.Children.Add(_pageFileView);
-        SetRow(graphArea, value: 1);
-        details.Children.Add(graphArea);
+        _graphArea.Children.Add(_pageFileView);
+        _pageFileView.MinimumHeightChanged += OnPageFileMinimumHeightChanged;
+        SetRow(_graphArea, value: 1);
+        details.Children.Add(_graphArea);
+        _graphArea.SizeChanged += OnCompactLayoutInputSizeChanged;
 
         _memoryCompositionView = new MemoryCompositionView(palette, resources);
         SetRow(_memoryCompositionView, value: 2);
@@ -352,10 +364,6 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         SetRow(_diskPerformanceDetailsView, value: 2);
         details.Children.Add(_diskPerformanceDetailsView);
 
-        _primaryStatistics = new WrapPanel
-        {
-            HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Top
-        };
         // Metadata labels share one auto-sized column, so the longest label sets where every value starts
         _metadataStatistics = new Grid
         {
@@ -384,18 +392,14 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             _statisticValues[statisticIndex] = value;
         }
 
-        // The metadata column takes the width its longest label and value need, so nothing in it is cut off; the
-        // primary statistics wrap within whatever is left
-        Grid statistics = new()
-        {
-            ColumnSpacing = resources.AxamlTaskManagerPerformance.DetailStatisticsColumnSpacing,
-            ColumnDefinitions = { new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto) }
-        };
-        statistics.Children.Add(_primaryStatistics);
-        SetColumn(_metadataStatistics, value: 1);
-        statistics.Children.Add(_metadataStatistics);
-        SetRow(statistics, value: 3);
-        details.Children.Add(statistics);
+        _statisticsPanel = new PerformanceStatisticsPanel(
+            _metadataStatistics,
+            resources.AxamlTaskManagerPerformance.DetailStatisticsColumnSpacing,
+            resources.AxamlTaskManagerPerformance.DetailStatisticsRowSpacing,
+            resources.AxamlTaskManagerPerformance.DetailPrimaryStatisticWidthStep);
+        _statisticsPanel.SizeChanged += OnCompactLayoutInputSizeChanged;
+        SetRow(_statisticsPanel, value: 3);
+        details.Children.Add(_statisticsPanel);
 
         _memoryModuleDetailsPanel = new MemoryModuleDetailsPanel(palette, resources);
         SetRow(_memoryModuleDetailsPanel, value: 4);
@@ -1647,18 +1651,88 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
 
     /// <summary>
     /// Splits the graph area two thirds to the memory graph and one third to the page file graph, or gives it all
-    /// back to the device graph.
+    /// back to the device graph. The page file row never shrinks below what its heading, graph and legend need, so
+    /// a short window takes the height from the memory graph instead of overlapping them.
     /// </summary>
     private void SetPageFileGraphVisible(bool isVisible)
     {
         _pageFileView.IsVisible = isVisible;
         _detailGraphRow.Height = new GridLength(isVisible ? 2 : 1, GridUnitType.Star);
         _pageFileGraphRow.Height = isVisible ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
-        double minimumHeight = isVisible
-            ? _resources.AxamlTaskManagerPerformance.MemoryGraphMinimumHeight
-            : _resources.AxamlTaskManagerPerformance.DetailGraphMinimumHeight;
-        _graphSurface.MinHeight = minimumHeight;
-        _detailGraph.MinHeight = minimumHeight;
+        _pageFileGraphRow.MinHeight = isVisible ? _pageFileMinimumHeight : 0;
+    }
+
+    private void OnCompactLayoutInputSizeChanged(object? sender, SizeChangedEventArgs eventArgs)
+    {
+        if (_disposed || _compactEvaluationPending) return;
+
+        // Evaluate after the layout pass so the header, graph area and statistics all hold their new bounds
+        _compactEvaluationPending = true;
+        Dispatcher.UIThread.Post(EvaluateCompactMode, DispatcherPriority.Background);
+    }
+
+    /// <summary>
+    /// Uses compact sizes while full-size title and statistics would leave the graph area shorter than its minimum
+    /// height. Both sizes are measured at the current width, since the statistics wrap and stack differently.
+    /// </summary>
+    private void EvaluateCompactMode()
+    {
+        _compactEvaluationPending = false;
+        double width = _statisticsPanel.Bounds.Width;
+        if (_disposed || width <= 0) return;
+
+        bool wasCompact = _isCompact;
+        double currentChromeHeight = MeasureChromeHeight(wasCompact, width);
+        double fullSizeChromeHeight = wasCompact ? MeasureChromeHeight(isCompact: false, width) : currentChromeHeight;
+        double fullSizeGraphAreaHeight = _graphArea.Bounds.Height + currentChromeHeight - fullSizeChromeHeight;
+        ApplyCompactMode(ShouldUseCompactMode(
+            wasCompact,
+            fullSizeGraphAreaHeight,
+            _resources.AxamlTaskManagerPerformance.DetailGraphMinimumHeight,
+            _resources.AxamlTaskManagerPerformance.DetailCompactModeHysteresis));
+    }
+
+    /// <summary>
+    /// Decides compact mode from the graph area height full-size text would leave. Leaving compact mode takes some
+    /// height to spare, so a size right at the threshold does not flip back and forth.
+    /// </summary>
+    internal static bool ShouldUseCompactMode(
+        bool isCompact,
+        double fullSizeGraphAreaHeight,
+        double minimumGraphAreaHeight,
+        double hysteresis) =>
+        fullSizeGraphAreaHeight < (isCompact ? minimumGraphAreaHeight + hysteresis : minimumGraphAreaHeight);
+
+    /// <summary>Measures the header and statistics at one size; the caller applies the size it settles on.</summary>
+    private double MeasureChromeHeight(bool isCompact, double width)
+    {
+        ApplyCompactMode(isCompact);
+        Size available = new(width, double.PositiveInfinity);
+        _detailHeader.Measure(available);
+        _statisticsPanel.Measure(available);
+        return _detailHeader.DesiredSize.Height + _statisticsPanel.DesiredSize.Height;
+    }
+
+    private void ApplyCompactMode(bool isCompact)
+    {
+        _isCompact = isCompact;
+        var metrics = _resources.AxamlTaskManagerPerformance;
+        _detailTitle.FontSize = isCompact ? metrics.DetailTitleCompactFontSize : metrics.DetailTitleFontSize;
+        if (_configuredStatisticCount >= 0)
+        {
+            ConfigureStatisticsLayout(
+                _configuredStatisticDeviceKind,
+                _configuredStatisticCount,
+                _configuredPrimaryStatisticCount);
+        }
+    }
+
+    private void OnPageFileMinimumHeightChanged(double minimumHeight)
+    {
+        if (_disposed) return;
+
+        _pageFileMinimumHeight = minimumHeight;
+        if (_pageFileView.IsVisible) _pageFileGraphRow.MinHeight = minimumHeight;
     }
 
     /// <summary>Shows the highest-core overlay only on the aggregate CPU graph.</summary>
@@ -1745,13 +1819,16 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     {
         if (_configuredStatisticCount == visibleCount
             && _configuredPrimaryStatisticCount == primaryStatisticCount
-            && _configuredStatisticDeviceKind == deviceKind)
+            && _configuredStatisticDeviceKind == deviceKind
+            && _configuredStatisticCompact == _isCompact)
             return;
 
         _configuredStatisticCount = visibleCount;
         _configuredPrimaryStatisticCount = primaryStatisticCount;
         _configuredStatisticDeviceKind = deviceKind;
-        _primaryStatistics.Children.Clear();
+        _configuredStatisticCompact = _isCompact;
+        var metrics = _resources.AxamlTaskManagerPerformance;
+        _statisticsPanel.ClearPrimary();
         _metadataStatistics.Children.Clear();
         _metadataStatistics.RowDefinitions.Clear();
         for (int statisticIndex = 0; statisticIndex < MaximumDetailStatistics; statisticIndex++)
@@ -1767,17 +1844,21 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             statistic.Children.Clear();
             if (isPrimary)
             {
-                statistic.Width = deviceKind == PerformanceDeviceKind.Memory
-                    ? _resources.AxamlTaskManagerPerformance.MemoryPrimaryStatisticWidth
-                    : _resources.AxamlTaskManagerPerformance.DetailPrimaryStatisticWidth;
-                statistic.Margin = _resources.AxamlTaskManagerPerformance.DetailPrimaryStatisticMargin;
+                // The statistics panel widens every one to the widest, so this is only the narrowest column
+                statistic.Width = double.NaN;
+                statistic.MinWidth = metrics.DetailPrimaryStatisticWidth;
+                statistic.Margin = _isCompact
+                    ? metrics.DetailPrimaryStatisticCompactMargin
+                    : metrics.DetailPrimaryStatisticMargin;
                 label.Margin = default;
                 value.Margin = default;
                 value.TextTrimming = TextTrimming.None;
-                value.FontSize = _resources.AxamlTaskManagerPerformance.DetailPrimaryStatisticValueFontSize;
+                value.FontSize = _isCompact
+                    ? metrics.DetailPrimaryStatisticValueCompactFontSize
+                    : metrics.DetailPrimaryStatisticValueFontSize;
                 statistic.Children.Add(label);
                 statistic.Children.Add(value);
-                _primaryStatistics.Children.Add(statistic);
+                _statisticsPanel.AddPrimary(statistic);
                 continue;
             }
 
@@ -1789,7 +1870,9 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             label.VerticalAlignment = VerticalAlignment.Center;
             value.VerticalAlignment = VerticalAlignment.Center;
             value.TextTrimming = TextTrimming.CharacterEllipsis;
-            value.FontSize = _resources.AxamlTaskManagerPerformance.DetailStatisticValueFontSize;
+            value.FontSize = _isCompact
+                ? metrics.DetailStatisticValueCompactFontSize
+                : metrics.DetailStatisticValueFontSize;
             Grid.SetRow(label, row);
             Grid.SetColumn(label, value: 0);
             Grid.SetRow(value, row);
@@ -1951,6 +2034,9 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         _graphSurface.PointerPressed -= OnGraphSurfacePointerPressed;
         _settings.PropertyChanged -= OnSettingsPropertyChanged;
         _snapshotService.SnapshotUpdated -= OnSnapshotUpdated;
+        _pageFileView.MinimumHeightChanged -= OnPageFileMinimumHeightChanged;
+        _graphArea.SizeChanged -= OnCompactLayoutInputSizeChanged;
+        _statisticsPanel.SizeChanged -= OnCompactLayoutInputSizeChanged;
         _memoryErrorLogMonitor.Changed -= UpdateMemoryErrorDisplay;
         _memoryErrorLogMonitor.Dispose();
         _memoryErrorLogWindow?.Close();
