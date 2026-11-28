@@ -13,6 +13,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
     // Every provider runs on one thread, so a capture this slow visibly freezes all Performance values
     private const int SlowCaptureLogThresholdMilliseconds = 1_000;
     private const int SlowCaptureLogIntervalSeconds = 60;
+    private const int MinimumPowerSpanMilliseconds = 5_000;
     private const int SamplingProviderCount = (int)SamplingProvider.Disk + 1;
 
     private static readonly long DiskMetadataRefreshIntervalTicks =
@@ -40,6 +41,7 @@ internal sealed class PerformanceSnapshotService : IDisposable
     private readonly DiskPerformanceSampler _diskSampler = new();
     private readonly GPUPerformanceSampler _gpuSampler = new();
     private readonly GPUPerformanceDetailsReader _gpuDetailsReader = new();
+    private readonly CPUPowerSampler _cpuPowerSampler = new();
     private readonly Thread _samplingThread;
     private readonly Action _notifySnapshotUpdated;
     private readonly IRecentProcessTotals? _sharedProcessTotals;
@@ -598,6 +600,11 @@ internal sealed class PerformanceSnapshotService : IDisposable
                 metadata.CurrentSpeedHertz);
         }
 
+        // A gap of several intervals means sleep or a stalled sampler; averaging over it would understate power
+        TimeSpan maximumPowerSpan = TimeSpan.FromMilliseconds(
+            Math.Max(4L * Volatile.Read(ref _sampleIntervalMilliseconds), MinimumPowerSpanMilliseconds));
+        bool hasPowerData = _cpuPowerSampler.TrySample(maximumPowerSpan, out double powerWatts);
+
         return new CPUPerformanceSnapshot(
             CPUPerformanceSnapshot.StableDeviceID,
             PerformanceDeviceKind.CPU,
@@ -622,7 +629,13 @@ internal sealed class PerformanceSnapshotService : IDisposable
             processTotals.ProcessCount,
             processTotals.ThreadCount,
             processTotals.HandleCount,
-            metadata.Uptime) { CCDTopology = _cpuCCDTopology, CoreClassTopology = _cpuCoreClassTopology };
+            metadata.Uptime)
+        {
+            CCDTopology = _cpuCCDTopology,
+            CoreClassTopology = _cpuCoreClassTopology,
+            HasPowerData = hasPowerData,
+            PowerWatts = powerWatts
+        };
     }
 
     private MemoryPerformanceSnapshot CreateMemorySnapshot(
@@ -842,6 +855,15 @@ internal sealed class PerformanceSnapshotService : IDisposable
 
         lock (_samplingGate)
         {
+            try
+            {
+                _cpuPowerSampler.Dispose();
+            }
+            catch (Exception exception)
+            {
+                TADNLog.Log($"PerformanceSnapshotService CPU power disposal: {exception}");
+            }
+
             try
             {
                 _gpuSampler.Dispose();

@@ -127,6 +127,10 @@ I kept running into DDC failures with [Twinkle Tray](https://github.com/xanderfr
 
 Not to be confused with the very popular "Fan Control" project. I find that app cumbersome, and I find it odd its not open source. Like Fan Control, this project is essentially a UX wrapper around LibreHardwareMonitor, and nothing more.
 
+<p align="center">
+  <img src="./documentation/readme_images/flyout_fctadn.png" alt="Preview" width="80%" align="center">
+</p>
+
 </td>
 <td width="50%" valign="top">
 
@@ -222,15 +226,15 @@ User documentation for every app and the shared features is in [`documentation/d
 
 ## Development
 
-I use Visual Studio 2026 with this project. Here are the necessary tools to compile it yourself.
+Project management is built around Visual Studio 2026. Here are the necessary tools to compile it yourself.
 
-* The .NET SDK pinned in `global.json` (.NET 10)
+* .NET 10 SDK
 * Visual Studio Build Tools 17 with:
   * Desktop C++ environment
   * MSVC v143
   * Windows 11 SDK 10
 
-This mono-repo is set up such that every app also has its own slnx file, if opening only one app is desired. Fan Control vendors LibreHardwareMonitor and its other dependencies as git submodules, so clone with `--recurse-submodules` (or run `git submodule update --init --recursive`).
+This mono-repo is set up such that every app also has its own slnx file, so its possible to open only one thing at a time in Visual Studio. Fan Control vendors LibreHardwareMonitor and its other dependencies as git submodules, so clone with `--recurse-submodules` (or run `git submodule update --init --recursive`).
 
 ```powershell
 # Everything, Debug (apps, Common, generators, installer factory, tests)
@@ -290,7 +294,7 @@ The installer elevated-worker tests in `TrayAppDotNETInstaller.Tests` and Task M
 
 I make use of frontier LLM's *heavily* in this project. For what it's worth, I am actually a software engineer; I do actually read and review what gets written, as well as use my own fingers to write code myself sometimes - not just prompts. 
 
-I am not about to spend 6 months slogging through a thousand Windows API's and ABI's just for one feature to barely work, or another 2 months refactoring the entire codebase for any number of reasons. However, the architecture and design choices are all done by me. I keep stylesheets around to somewhat enforce my own standards upon LLMs.
+I am not about to spend 6 months slogging through a thousand Windows API's and ABI's just for one feature to barely work, or another 2 months refactoring the entire codebase for any number of reasons. However, the architecture and design choices are all done by me. I also keep stylesheets around to somewhat enforce my own standards and preferences upon LLMs.
 
 I allow LLMs complete reign over spamming test code. I do not write test-driven code, and any broken tests will inevitably be cleaned by an LLM. The more "coverage", the merrier.
 

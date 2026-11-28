@@ -55,6 +55,12 @@ internal sealed record CPUPerformanceSnapshot(
     /// <summary>Gets the core efficiency classes Windows reports for every active physical core.</summary>
     public CPUCoreClassTopology CoreClassTopology { get; init; } = CPUCoreClassTopology.Empty;
 
+    /// <summary>Gets whether <see cref="PowerWatts"/> holds a package power reading for this sample.</summary>
+    public bool HasPowerData { get; init; }
+
+    /// <summary>Gets the CPU package power over the last sampling interval, from Windows' energy meters.</summary>
+    public double PowerWatts { get; init; }
+
     public static CPUPerformanceSnapshot Empty { get; } = new(
         StableDeviceID,
         PerformanceDeviceKind.CPU,

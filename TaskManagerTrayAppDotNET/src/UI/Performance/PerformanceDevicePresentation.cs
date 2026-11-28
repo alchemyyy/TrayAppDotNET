@@ -150,11 +150,13 @@ internal static class PerformanceDevicePresentationFactory
         if (!double.IsFinite(percentOfDefaultLimit) || percentOfDefaultLimit < 0) return Unavailable;
 
         return double.IsFinite(limitWatts) && limitWatts > 0
-            ? string.Concat(
-                (percentOfDefaultLimit / 100 * limitWatts).ToString(format: "N0", CultureInfo.CurrentCulture),
-                " W")
+            ? FormatWatts(percentOfDefaultLimit / 100 * limitWatts)
             : string.Concat(percentOfDefaultLimit.ToString(format: "N0", CultureInfo.CurrentCulture), "%");
     }
+
+    /// <summary>Formats a power reading in whole watts.</summary>
+    internal static string FormatWatts(double watts) =>
+        string.Concat(watts.ToString(format: "N0", CultureInfo.CurrentCulture), " W");
 
     /// <summary>Calculates the normalized network value used by cards and history graphs.</summary>
     public static bool TryGetNetworkUtilization(
@@ -192,6 +194,11 @@ internal static class PerformanceDevicePresentationFactory
         [
             new(Label: L(nameof(AppStrings.Perf_Label_Utilization)), utilization),
             new(Label: L(nameof(AppStrings.Perf_Label_Speed)), speed),
+            new(
+                Label: L(nameof(AppStrings.Perf_Label_Power)),
+                sample.HasPowerData && double.IsFinite(sample.PowerWatts) && sample.PowerWatts >= 0
+                    ? FormatWatts(sample.PowerWatts)
+                    : Unavailable),
             new(
                 Label: L(nameof(AppStrings.Perf_Label_HighestLogicalProcessor)),
                 FormatPercent(sample.HasUtilizationSample, sample.HighestLogicalProcessorPercent)),

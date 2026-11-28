@@ -55,7 +55,7 @@ Hover any graph, including the small preview graphs in the device list, and a da
 
 The header shows the processor name. Below the graph:
 
-- **Utilization**, **Speed**, **Highest logical processor**, **Processes**, **Threads**, **Handles**, **Up time**, **Highest recorded speed**
+- **Utilization**, **Speed**, **Power**, **Highest logical processor**, **Processes**, **Threads**, **Handles**, **Up time**, **Highest recorded speed**
 - **Sockets**, **Physical cores**, **Logical processors**, **Virtualization**, **L1 cache**, **L2 cache**, **L3 cache**, **Base speed**
 
 **Highest logical processor** is the busiest single logical processor right now. The average **Utilization** hides a single-threaded app pegging one core on a CPU with a lot of them; this doesn't.
@@ -69,6 +69,10 @@ The header shows the processor name. Below the graph:
 - **Base speed** is read directly from Windows.
 
 When the CPU is nearly idle, **Speed** waits until enough busy time has piled up to give a meaningful number, and keeps showing the previous value until then. It can be a bit stale on an idle machine, but it's never made up.
+
+### Power
+
+**Power** is the CPU package power over the last sample, the figure HWiNFO shows as "CPU Package Power". It comes from the energy counters Windows' processor power driver publishes through its Energy Meter Interface (the `RAPL_Package0_PKG` channel, or the socket channel on AMD APUs), read the way Chromium reads them, so it needs neither administrator rights nor an extra driver. It is the processor's own estimate, not a measurement at the wall. After sleep, or a gap of more than four sample intervals (at least five seconds), the next sample only restarts the measurement. It reads `Unavailable` where Windows publishes no package channel, such as in most virtual machines.
 
 ### CPU Graph Views
 

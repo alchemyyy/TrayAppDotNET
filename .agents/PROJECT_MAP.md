@@ -360,6 +360,9 @@
   in a child process (`TaskManagerTrayAppDotNET.exe --read-gpu-power-limit`, checked in `Program.Main` before every
   mode but the elevated task start); the result is `AppSettings.GPUPowerLimits` (`Models/GPUPowerLimitRecord.cs`),
   keyed by device instance ID and invalidated by a vBIOS change. Only the NVML path is verified on hardware
+- CPU package power: `Services/CPUPowerSampler.cs` reads Windows' Energy Meter Interface (EMI) IOCTLs, as Chromium's
+  `energy_metrics_provider_win.cc` does: one EMI device per core, the package channel (`RAPL_PackageN_PKG`, or an AMD
+  APU's socket channel) on one of them; picowatt-hours over 100 ns timestamps, no elevation or driver needed
 - Always run as administrator (Task Manager as a setting, Fan Control always): Common's
   `TrayAppDotNETCommon/src/Services/Install/ElevatedStartTask.cs` (`TrayAppDotNETElevatedStartTask`, one instance per
   app in its `AppServices.ElevatedStart`: per-account highest-privileges scheduled task, hand-off, Fan Control's

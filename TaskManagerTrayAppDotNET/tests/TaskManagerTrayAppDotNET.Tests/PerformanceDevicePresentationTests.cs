@@ -65,7 +65,9 @@ public sealed class PerformanceDevicePresentationTests
             BaseSpeedHertz = 4_200_000_000,
             HighestRecordedSpeedHertz = 5_700_000_000,
             CoreCount = 16,
-            LogicalProcessorCount = 32
+            LogicalProcessorCount = 32,
+            HasPowerData = true,
+            PowerWatts = 157.6
         };
         PerformanceSnapshot snapshot = PerformanceSnapshot.Empty with { CPU = CPU };
 
@@ -83,10 +85,12 @@ public sealed class PerformanceDevicePresentationTests
         Assert.Equal(expected: "73%", valuesByLabel[L(nameof(AppStrings.Perf_Label_HighestLogicalProcessor))]);
         Assert.Equal(expected: "16", valuesByLabel[L(nameof(AppStrings.Perf_Label_PhysicalCores))]);
         Assert.Equal(expected: "32", valuesByLabel[L(nameof(AppStrings.Perf_Label_LogicalProcessors))]);
+        Assert.Equal(expected: "158 W", valuesByLabel[L(nameof(AppStrings.Perf_Label_Power))]);
         Assert.Equal(
             [
                 L(nameof(AppStrings.Perf_Label_Utilization)),
                 L(nameof(AppStrings.Perf_Label_Speed)),
+                L(nameof(AppStrings.Perf_Label_Power)),
                 L(nameof(AppStrings.Perf_Label_HighestLogicalProcessor)),
                 L(nameof(AppStrings.Perf_Label_Processes)),
                 L(nameof(AppStrings.Perf_Label_Threads)),
@@ -94,7 +98,7 @@ public sealed class PerformanceDevicePresentationTests
                 L(nameof(AppStrings.Perf_Label_UpTime)),
                 L(nameof(AppStrings.Perf_Label_HighestRecordedSpeed))
             ],
-            statistics.Take(8).Select(static statistic => statistic.Label));
+            statistics.Take(9).Select(static statistic => statistic.Label));
         Assert.DoesNotContain(statistics, static statistic => statistic.Label is
             "Maximum speed" or "Cores" or "Logical cores" or "Highest logical core");
     }
