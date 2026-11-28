@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -112,6 +113,8 @@ public sealed class TaskManagerSavedSearchControllerTests
             window.Show();
             SetSearchText(searchBox, SavedQuery);
             window.UpdateLayout();
+            // Hit testing reads the composed scene, so commit a frame rather than rely on one an earlier test left
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
             Point saveButtonCenter = saveButton.TranslatePoint(
                 new Point(saveButton.Bounds.Width / 2, saveButton.Bounds.Height / 2),
                 window)!.Value;

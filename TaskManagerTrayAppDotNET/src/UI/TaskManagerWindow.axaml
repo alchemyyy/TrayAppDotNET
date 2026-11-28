@@ -246,6 +246,8 @@
   <Color x:Key="TaskManagerPerformance.MemoryAccentColor">#5883D0</Color>
   <Color x:Key="TaskManagerPerformance.GPUAccentColor">#A94FC4</Color>
   <Color x:Key="TaskManagerPerformance.GPUSecondaryAccentColor">#E06AC8</Color>
+  <!-- How far toward white a customized card color's second trace is, 0 to 1 -->
+  <sys:Double x:Key="TaskManagerPerformance.CustomAccentSecondaryLightening">0.4</sys:Double>
   <Color x:Key="TaskManagerPerformance.NetworkAccentColor">#D04780</Color>
   <Color x:Key="TaskManagerPerformance.DiskAccentColor">#8BAD3C</Color>
   <Thickness x:Key="TaskManagerPerformance.BodyMargin">8,8,16,16</Thickness>
@@ -376,6 +378,22 @@
   <CornerRadius x:Key="ProcessColumnProperties.RootCornerRadius">8</CornerRadius>
   <CornerRadius x:Key="ProcessColumnProperties.CardCornerRadius">6</CornerRadius>
   <Thickness x:Key="ProcessColumnProperties.TitleMargin">12,0,8,0</Thickness>
+
+  <!-- Performance device card customization -->
+  <sys:Double x:Key="PerformanceCardWindow.WindowWidth">540</sys:Double>
+  <sys:Double x:Key="PerformanceCardWindow.ControlWidth">190</sys:Double>
+  <sys:Double x:Key="PerformanceCardWindow.TitleBarHeight">32</sys:Double>
+  <sys:Double x:Key="PerformanceCardWindow.TitleFontSize">13</sys:Double>
+  <sys:Int32 x:Key="PerformanceCardWindow.TitleFontWeight">600</sys:Int32>
+  <sys:Double x:Key="PerformanceCardWindow.FormatRowSpacing">6</sys:Double>
+  <sys:Double x:Key="PerformanceCardWindow.FormatColumnSpacing">8</sys:Double>
+  <Thickness x:Key="PerformanceCardWindow.TitleMargin">12,0,8,0</Thickness>
+  <Thickness x:Key="PerformanceCardWindow.ContentPadding">16,8,16,16</Thickness>
+  <Thickness x:Key="PerformanceCardWindow.SectionContentMargin">0,8,0,0</Thickness>
+  <Thickness x:Key="PerformanceCardWindow.FooterMargin">0,8,0,0</Thickness>
+  <Thickness x:Key="PerformanceCardWindow.RootBorderThickness">1</Thickness>
+  <CornerRadius x:Key="PerformanceCardWindow.RootCornerRadius">8</CornerRadius>
+  <CornerRadius x:Key="PerformanceCardWindow.CardCornerRadius">6</CornerRadius>
 
   <!-- Process affinity -->
   <sys:Double x:Key="ProcessAffinity.WindowWidth">420</sys:Double>

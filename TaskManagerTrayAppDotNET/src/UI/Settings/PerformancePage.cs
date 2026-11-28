@@ -166,85 +166,21 @@ public sealed partial class TaskManagerSettingsWindow
                 UpdateHardwareNameReplacementDeviceKind(ruleIndex, kind);
         };
 
-        TextBox matchPattern = TrayAppDotNETSettingsUI.TextBox(
+        return ReplacementRuleRow.Build(
+            rule.MatchPattern,
+            rule.Replacement,
+            L(nameof(AppStrings.Settings_Performance_HardwareNameReplacements_MatchPattern_Tooltip)),
+            matchPattern => UpdateHardwareNameReplacementMatchPattern(ruleIndex, matchPattern),
+            replacement => UpdateHardwareNameReplacementValue(ruleIndex, replacement),
+            () => DeleteHardwareNameReplacementRule(ruleIndex),
+            new ReplacementRuleRowNodes(
+                ControlMap.Settings.PerformancePage.HardwareNameReplacements.Rule.ID,
+                ControlMap.Settings.PerformancePage.HardwareNameReplacements.Rule.MatchPattern,
+                ControlMap.Settings.PerformancePage.HardwareNameReplacements.Rule.Replacement,
+                ControlMap.Settings.PerformancePage.HardwareNameReplacements.Rule.Delete),
             palette,
-            double.NaN,
-            rule.MatchPattern).MapTo(ControlMap.Settings.PerformancePage.HardwareNameReplacements.Rule.MatchPattern);
-        matchPattern.MinWidth = _taskManagerResources.AxamlTaskManagerSettings
-            .HardwareNameRuleTextMinimumWidth;
-        matchPattern.PlaceholderText =
-            L(nameof(AppStrings.Settings_Performance_HardwareNameReplacements_MatchPattern_Placeholder));
-        matchPattern.TextChanged += (_, _) => UpdateHardwareNameReplacementMatchPattern(
-            ruleIndex,
-            matchPattern.Text ?? string.Empty);
-        TrayAppDotNETToolTip.SetTip(
-            matchPattern,
-            L(nameof(AppStrings.Settings_Performance_HardwareNameReplacements_MatchPattern_Tooltip)));
-
-        TextBox replacement = TrayAppDotNETSettingsUI.TextBox(
-            palette,
-            double.NaN,
-            rule.Replacement).MapTo(ControlMap.Settings.PerformancePage.HardwareNameReplacements.Rule.Replacement);
-        replacement.MinWidth = _taskManagerResources.AxamlTaskManagerSettings
-            .HardwareNameRuleTextMinimumWidth;
-        replacement.PlaceholderText =
-            L(nameof(AppStrings.Settings_Performance_HardwareNameReplacements_Replacement_Placeholder));
-        replacement.TextChanged += (_, _) => UpdateHardwareNameReplacementValue(
-            ruleIndex,
-            replacement.Text ?? string.Empty);
-        TrayAppDotNETToolTip.SetTip(
-            replacement,
-            L(nameof(AppStrings.Settings_Performance_HardwareNameReplacements_Replacement_Tooltip)));
-
-        SettingsButton deleteButton = new(
-            TaskManagerGlyphCatalog.CLOSE,
-            palette,
-            transparentBase: true)
-        {
-            Width = _taskManagerResources.AxamlTaskManagerSettings
-                .HardwareNameRuleDeleteButtonSize,
-            Height = _taskManagerResources.AxamlTaskManagerSettings
-                .HardwareNameRuleDeleteButtonSize,
-            MinHeight = _taskManagerResources.AxamlTaskManagerSettings
-                .HardwareNameRuleDeleteButtonSize,
-            Padding = _taskManagerResources.AxamlTaskManagerSettings
-                .HardwareNameRuleDeleteButtonPadding
-        };
-        deleteButton.MapTo(ControlMap.Settings.PerformancePage.HardwareNameReplacements.Rule.Delete);
-        deleteButton.Click += (_, _) => DeleteHardwareNameReplacementRule(ruleIndex);
-        TrayAppDotNETToolTip.SetTip(
-            deleteButton,
-            L(nameof(AppStrings.Settings_Performance_HardwareNameReplacements_Delete_Tooltip)));
-
-        Grid row = new()
-        {
-            ColumnSpacing = _taskManagerResources.AxamlTaskManagerSettings
-                .HardwareNameRuleColumnSpacing,
-            ColumnDefinitions =
-            {
-                new ColumnDefinition(GridLength.Auto),
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Star),
-                new ColumnDefinition(GridLength.Auto)
-            }
-        };
-        row.Children.Add(deviceKind);
-        Grid.SetColumn(matchPattern, value: 1);
-        row.Children.Add(matchPattern);
-        Grid.SetColumn(replacement, value: 2);
-        row.Children.Add(replacement);
-        Grid.SetColumn(deleteButton, value: 3);
-        row.Children.Add(deleteButton);
-
-        return new Border
-        {
-            Background = TrayAppDotNETSettingsUI.Brush(palette.ControlBackground),
-            CornerRadius = _taskManagerResources.AxamlTaskManagerSettings
-                .HardwareNameRuleRowCornerRadius,
-            Padding = _taskManagerResources.AxamlTaskManagerSettings
-                .HardwareNameRuleRowPadding,
-            Child = row
-        }.MapTo(ControlMap.Settings.PerformancePage.HardwareNameReplacements.Rule.ID);
+            _taskManagerResources,
+            deviceKind);
     }
 
     private void AddHardwareNameReplacementRule()

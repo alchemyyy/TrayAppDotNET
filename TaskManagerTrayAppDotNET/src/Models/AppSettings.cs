@@ -463,6 +463,14 @@ public sealed class AppSettings : AppSettingsCommon<HotkeyBinding, HotkeyAction>
         set => SetField(ref field, PerformanceHardwareNameReplacementRuleCollection.Normalize(value));
     } = [];
 
+    [XmlArray("PerformanceDeviceCards")]
+    [XmlArrayItem("Card")]
+    public List<PerformanceDeviceCardCustomization> PerformanceDeviceCards
+    {
+        get;
+        set => SetField(ref field, PerformanceDeviceCardCustomizationCollection.Normalize(value));
+    } = [];
+
     [XmlArray("GPUPowerLimits")]
     [XmlArrayItem("GPU")]
     public List<GPUPowerLimitRecord> GPUPowerLimits
@@ -508,6 +516,7 @@ public sealed class AppSettings : AppSettingsCommon<HotkeyBinding, HotkeyAction>
         PerformanceHardwareNameReplacementRules =
             PerformanceHardwareNameReplacementRuleCollection.Normalize(
                 PerformanceHardwareNameReplacementRules);
+        PerformanceDeviceCards = PerformanceDeviceCardCustomizationCollection.Normalize(PerformanceDeviceCards);
         GPUPowerLimits = GPUPowerLimitCollection.Normalize(GPUPowerLimits);
         ProcessGroupingStyle = NormalizeProcessGroupingStyle(ProcessGroupingStyle);
         ProcessTreeDefaultState = NormalizeProcessTreeDefaultState(ProcessTreeDefaultState);
@@ -663,6 +672,20 @@ public sealed class AppSettings : AppSettingsCommon<HotkeyBinding, HotkeyAction>
         ArgumentNullException.ThrowIfNull(rules);
         UpdateWithoutShellRefresh(() => PerformanceHardwareNameReplacementRules = rules);
         Save();
+    }
+
+    /// <summary>
+    /// Applies one Performance device card's customization, which the page shows at once, without rebuilding the app
+    /// shell. <paramref name="save"/> writes the settings even with <see cref="AppSettingsCommon.Autosave"/> off, as an
+    /// edit in the card's window is explicit; a color picker previews with it off and saves when it closes.
+    /// </summary>
+    internal void UpdatePerformanceDeviceCard(PerformanceDeviceCardCustomization card, bool save)
+    {
+        ArgumentNullException.ThrowIfNull(card);
+        List<PerformanceDeviceCardCustomization> cards =
+            PerformanceDeviceCardCustomizationCollection.Replace(PerformanceDeviceCards, card);
+        UpdateWithoutShellRefresh(() => PerformanceDeviceCards = cards);
+        if (save) Save();
     }
 
     /// <summary>Persists an already-applied grouping change without rebuilding the app shell.</summary>

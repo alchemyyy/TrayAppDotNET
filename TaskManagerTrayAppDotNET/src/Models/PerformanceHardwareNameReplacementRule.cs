@@ -59,14 +59,11 @@ internal static class PerformanceHardwareNameReplacementRuleCollection
 /// <summary>Applies compiled user regex replacements to Performance hardware names.</summary>
 internal sealed class PerformanceHardwareNameResolver
 {
-    private const int RegexTimeoutMilliseconds = 100;
+    private const string LogContext = "Performance hardware-name";
 
-    private static readonly TimeSpan RegexTimeout =
-        TimeSpan.FromMilliseconds(RegexTimeoutMilliseconds);
+    private readonly List<(PerformanceDeviceKind DeviceKind, CompiledRegexReplacement Rule)> _rules;
 
-    private readonly List<CompiledReplacementRule> _rules;
-
-    private PerformanceHardwareNameResolver(List<CompiledReplacementRule> rules) =>
+    private PerformanceHardwareNameResolver(List<(PerformanceDeviceKind, CompiledRegexReplacement)> rules) =>
         _rules = rules;
 
     public static PerformanceHardwareNameResolver Empty { get; } = new([]);
@@ -75,31 +72,21 @@ internal sealed class PerformanceHardwareNameResolver
     public static PerformanceHardwareNameResolver Create(
         IEnumerable<PerformanceHardwareNameReplacementRule?>? rules)
     {
-        List<CompiledReplacementRule> compiledRules = [];
+        List<(PerformanceDeviceKind, CompiledRegexReplacement)> compiledRules = [];
         if (rules == null) return new PerformanceHardwareNameResolver(compiledRules);
 
         foreach (PerformanceHardwareNameReplacementRule? rule in rules)
         {
             if (rule == null
                 || !PerformanceHardwareNameReplacementRule.SupportsDeviceKind(rule.DeviceKind)
-                || string.IsNullOrEmpty(rule.MatchPattern))
+                || !CompiledRegexReplacement.TryCreate(
+                    rule.MatchPattern,
+                    rule.Replacement,
+                    LogContext,
+                    out CompiledRegexReplacement? compiled))
                 continue;
 
-            try
-            {
-                Regex regex = new(
-                    rule.MatchPattern,
-                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-                    RegexTimeout);
-                compiledRules.Add(new CompiledReplacementRule(
-                    rule.DeviceKind,
-                    regex,
-                    rule.Replacement));
-            }
-            catch (ArgumentException exception)
-            {
-                TADNLog.Log($"Performance hardware-name regex ignored: {exception.Message}");
-            }
+            compiledRules.Add((rule.DeviceKind, compiled));
         }
 
         return new PerformanceHardwareNameResolver(compiledRules);
@@ -111,44 +98,87 @@ internal sealed class PerformanceHardwareNameResolver
         string resolvedName = hardwareName ?? string.Empty;
         for (int ruleIndex = 0; ruleIndex < _rules.Count; ruleIndex++)
         {
-            CompiledReplacementRule rule = _rules[ruleIndex];
-            if (rule.DeviceKind != deviceKind || rule.IsDisabled) continue;
-
-            try
-            {
-                resolvedName = rule.Regex.Replace(resolvedName, rule.Replacement);
-            }
-            catch (RegexMatchTimeoutException exception)
-            {
-                rule.Disable(exception);
-            }
-            catch (ArgumentException exception)
-            {
-                rule.Disable(exception);
-            }
+            (PerformanceDeviceKind ruleKind, CompiledRegexReplacement rule) = _rules[ruleIndex];
+            if (ruleKind == deviceKind) resolvedName = rule.Apply(resolvedName);
         }
 
         return resolvedName;
     }
+}
 
-    private sealed class CompiledReplacementRule(
-        PerformanceDeviceKind deviceKind,
-        Regex regex,
-        string replacement)
+/// <summary>
+/// One user regex replacement, compiled case-insensitively with a match timeout. A rule that fails or times out
+/// while running is switched off, so a bad pattern costs one log line instead of a stall every sample.
+/// </summary>
+internal sealed class CompiledRegexReplacement
+{
+    private const int RegexTimeoutMilliseconds = 100;
+
+    private static readonly TimeSpan RegexTimeout =
+        TimeSpan.FromMilliseconds(RegexTimeoutMilliseconds);
+
+    private readonly Regex _regex;
+    private readonly string _replacement;
+    private readonly string _logContext;
+    private bool _isDisabled;
+
+    private CompiledRegexReplacement(Regex regex, string replacement, string logContext)
     {
-        public PerformanceDeviceKind DeviceKind { get; } = deviceKind;
+        _regex = regex;
+        _replacement = replacement;
+        _logContext = logContext;
+    }
 
-        public Regex Regex { get; } = regex;
+    /// <summary>Compiles a non-empty pattern; an invalid one is logged and yields no rule.</summary>
+    public static bool TryCreate(
+        string? matchPattern,
+        string? replacement,
+        string logContext,
+        [NotNullWhen(true)] out CompiledRegexReplacement? compiled)
+    {
+        compiled = null;
+        if (string.IsNullOrEmpty(matchPattern)) return false;
 
-        public string Replacement { get; } = replacement;
-
-        public bool IsDisabled { get; private set; }
-
-        /// <summary>Disables a rule after its first runtime failure to avoid repeated UI stalls or logs.</summary>
-        public void Disable(Exception exception)
+        try
         {
-            IsDisabled = true;
-            TADNLog.Log($"Performance hardware-name replacement disabled: {exception.Message}");
+            Regex regex = new(
+                matchPattern,
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+                RegexTimeout);
+            compiled = new CompiledRegexReplacement(regex, replacement ?? string.Empty, logContext);
+            return true;
         }
+        catch (ArgumentException exception)
+        {
+            TADNLog.Log($"{logContext} regex ignored: {exception.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>Returns <paramref name="text"/> with every match replaced, or unchanged once the rule is off.</summary>
+    public string Apply(string text)
+    {
+        if (_isDisabled) return text;
+
+        try
+        {
+            return _regex.Replace(text, _replacement);
+        }
+        catch (RegexMatchTimeoutException exception)
+        {
+            Disable(exception);
+        }
+        catch (ArgumentException exception)
+        {
+            Disable(exception);
+        }
+
+        return text;
+    }
+
+    private void Disable(Exception exception)
+    {
+        _isDisabled = true;
+        TADNLog.Log($"{_logContext} replacement disabled: {exception.Message}");
     }
 }

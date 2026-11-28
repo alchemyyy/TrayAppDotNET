@@ -24,6 +24,7 @@ internal sealed class CPUPerformanceDetailedView : Grid
     private int _sampleIntervalMilliseconds;
     private bool _showGraphUnderfill = true;
     private bool _hoverSnapsToSamples;
+    private Color _accent = PerformanceDevicePresentationFactory.GetAccent(PerformanceDeviceKind.CPU);
 
     public CPUPerformanceDetailedView(
         SettingsPalette palette,
@@ -76,7 +77,7 @@ internal sealed class CPUPerformanceDetailedView : Grid
             _resources.AxamlTaskManagerPerformance.DetailedCPUGraphSpacing);
         BuildGridDefinitions(columnCount, rowCount, graphSpacing);
 
-        Color accent = PerformanceDevicePresentationFactory.GetAccent(PerformanceDeviceKind.CPU);
+        Color accent = _accent;
         int graphIndex = 0;
         AddGraph(
             labelText: L(nameof(AppStrings.Perf_CPU_OverallUsage)),
@@ -123,6 +124,16 @@ internal sealed class CPUPerformanceDetailedView : Grid
 
         for (int graphIndex = 0; graphIndex < _graphs.Count; graphIndex++)
             _graphs[graphIndex].Refresh();
+    }
+
+    /// <summary>Draws every detailed CPU graph, now and after a rebuild, in <paramref name="accent"/>.</summary>
+    public void SetAccent(Color accent)
+    {
+        if (_accent == accent) return;
+
+        _accent = accent;
+        for (int graphIndex = 0; graphIndex < _graphs.Count; graphIndex++)
+            _graphs[graphIndex].SetAccent(accent);
     }
 
     /// <summary>Shows or hides the translucent area beneath every detailed CPU graph.</summary>

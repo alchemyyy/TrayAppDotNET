@@ -258,9 +258,9 @@
             </Scope>
             <Scope ID="DeviceList" Template="VerticalScrollViewport" Tab="Once" Arrows="Vertical"
                    Source="PerformancePage.PerformancePage">
-                <Leaf ID="Device" Kind="ListItem" IsRepeated="True" FocusKeys="Ctrl+Up;Ctrl+Down"
-                      Pointer="Click;Drag" Event="PointerReleased" Source="PerformanceDeviceColumn.AttachRow"
-                      Description="Shows the device's details; dragging or Ctrl+Up/Down moves it" />
+                <Leaf ID="Device" Kind="ListItem" IsRepeated="True" FocusKeys="Ctrl+Up;Ctrl+Down;Shift+F10;Apps"
+                      Pointer="Click;Drag;RightClick" Event="PointerReleased" Source="PerformanceDeviceColumn.AttachRow"
+                      Description="Shows the device's details; dragging or Ctrl+Up/Down moves it; right-click, Shift+F10 or Apps opens PerformanceDeviceCard" />
             </Scope>
             <Scope ID="Details" Source="PerformancePage.PerformancePage">
                 <Scope ID="MemoryErrors" Tab="Once" Arrows="Horizontal" Source="PerformancePage.PerformancePage"
@@ -488,6 +488,51 @@
         <Leaf ID="Close" Kind="Button" Event="Click" Source="MemoryErrorLogWindow.OnCloseClick" />
     </Surface>
 
+    <Surface ID="PerformanceDeviceCard" Source="PerformancePage.OnDeviceCustomizeRequested"
+             Description="Owned and non-modal, one per device card; every edit applies live">
+        <Leaf ID="Dismiss" Kind="Command" Keys="Escape" Event="MapCommand"
+              Source="PerformanceDeviceCardWindow.PerformanceDeviceCardWindow"
+              Description="Closes the window, like Close" />
+        <Scope ID="TitleBar" Tab="Once" Arrows="Horizontal" Source="PerformanceDeviceCardWindow.BuildTitleBar">
+            <Leaf ID="Move" Kind="Handle" IsTabStop="False" Pointer="Drag" Event="PointerPressed"
+                  Source="PerformanceDeviceCardWindow.OnTitleBarPointerPressed" />
+            <Leaf ID="Close" Kind="Button" Event="Click" Source="PerformanceDeviceCardWindow.OnCloseClick" />
+        </Scope>
+        <Leaf ID="Title" Kind="Text" Event="TextChanged" Source="PerformanceDeviceCardWindow.BuildContent"
+              Description="Blank shows the default title" />
+        <Leaf ID="Description" Kind="Text" Event="TextChanged"
+              Source="PerformanceDeviceCardWindow.BuildDescriptionCard"
+              Description="Blank shows the default description" />
+        <Scope ID="DescriptionReplacements" Source="PerformanceDeviceCardWindow.BuildDescriptionCard">
+            <Leaf ID="AddReplacement" Kind="Button" Event="Click"
+                  Source="PerformanceDeviceCardWindow.BuildDescriptionCard" />
+            <Scope ID="Rule" IsRepeated="True" Source="PerformanceDeviceCardWindow.RebuildRuleRows">
+                <Leaf ID="MatchPattern" Kind="Text" Event="TextChanged" Source="ReplacementRuleRow.Build" />
+                <Leaf ID="Replacement" Kind="Text" Event="TextChanged" Source="ReplacementRuleRow.Build" />
+                <Leaf ID="Delete" Kind="Button" Event="Click" Source="ReplacementRuleRow.Build" />
+            </Scope>
+        </Scope>
+        <Leaf ID="LineCount" Kind="Select" Event="SelectionChanged"
+              Source="PerformanceDeviceCardWindow.BuildLinesCard" />
+        <Leaf ID="FirstLineFormat" Kind="Text" Event="TextChanged"
+              Source="PerformanceDeviceCardWindow.BuildLinesCard" />
+        <Leaf ID="SecondLineFormat" Kind="Text" Event="TextChanged"
+              Source="PerformanceDeviceCardWindow.BuildLinesCard" />
+        <Leaf ID="LineFormatSuggestion" Kind="ListItem" IsRepeated="True" IsTabStop="False" Pointer="Click"
+              Event="PointerPressed" Source="SearchAutocompleteController.OnSuggestionPointerPressed"
+              Description="Autocomplete popup row under either line format; completes the value name at the caret" />
+        <Scope ID="GraphColor" Source="PerformanceDeviceCardWindow.BuildColorCard">
+            <Leaf ID="PickColor" Kind="Button" Event="Click" Source="PerformanceDeviceCardWindow.OnColorSwatchClick"
+                  Description="Swatch; opens ColorPicker, or brings back the one already open" />
+            <Leaf ID="Reset" Kind="Button" Event="Click" Source="PerformanceDeviceCardWindow.BuildColorCard" />
+        </Scope>
+        <Leaf ID="ResetCard" Kind="Button" Event="Click" Source="PerformanceDeviceCardWindow.BuildContent"
+              Description="Restores every default, without confirmation" />
+    </Surface>
+
+    <Surface ID="ColorPicker" Template="ColorPicker" Source="PerformanceDeviceCardWindow.OnColorSwatchClick"
+             Description="One per device card window, owned by it; previews live and saves when closed" />
+
     <Surface ID="Settings" Template="SettingsShell" Source="TaskManagerSettingsWindow.TaskManagerSettingsWindow">
         <Scope ID="GeneralPage" Source="TaskManagerSettingsWindow.BuildGeneralPage">
             <Scope ID="Language" Template="LanguageCard" Source="TaskManagerSettingsWindow.BuildGeneralPage" />
@@ -608,12 +653,9 @@
                        Source="TaskManagerSettingsWindow.BuildHardwareNameReplacementRow">
                     <Leaf ID="DeviceCategory" Kind="Select" Event="SelectionChanged"
                           Source="TaskManagerSettingsWindow.BuildHardwareNameReplacementRow" />
-                    <Leaf ID="MatchPattern" Kind="Text" Event="TextChanged"
-                          Source="TaskManagerSettingsWindow.BuildHardwareNameReplacementRow" />
-                    <Leaf ID="Replacement" Kind="Text" Event="TextChanged"
-                          Source="TaskManagerSettingsWindow.BuildHardwareNameReplacementRow" />
-                    <Leaf ID="Delete" Kind="Button" Event="Click"
-                          Source="TaskManagerSettingsWindow.BuildHardwareNameReplacementRow" />
+                    <Leaf ID="MatchPattern" Kind="Text" Event="TextChanged" Source="ReplacementRuleRow.Build" />
+                    <Leaf ID="Replacement" Kind="Text" Event="TextChanged" Source="ReplacementRuleRow.Build" />
+                    <Leaf ID="Delete" Kind="Button" Event="Click" Source="ReplacementRuleRow.Build" />
                 </Scope>
             </Scope>
         </Scope>

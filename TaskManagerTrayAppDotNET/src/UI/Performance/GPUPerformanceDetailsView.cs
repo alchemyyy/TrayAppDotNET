@@ -72,6 +72,7 @@ internal sealed class GPUPerformanceDetailsView : Grid
     private string? _powerStatus;
     private bool _hasPowerSample;
     private double _latestPowerPercent;
+    private PerformanceDeviceAccent _accent;
 
     public GPUPerformanceDetailsView(
         SettingsPalette palette,
@@ -94,8 +95,9 @@ internal sealed class GPUPerformanceDetailsView : Grid
         ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
         ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
 
-        Color accent = PerformanceDevicePresentationFactory.GetAccent(PerformanceDeviceKind.GPU);
-        Color secondaryAccent = resources.AxamlTaskManagerPerformance.GPUSecondaryAccentColor;
+        _accent = PerformanceDeviceAccent.Resolve(PerformanceDeviceKind.GPU, customAccent: null);
+        Color accent = _accent.Primary;
+        Color secondaryAccent = _accent.Secondary;
         for (int laneIndex = 0; laneIndex < EngineLaneCount; laneIndex++)
         {
             _engineHistories[laneIndex] = CreatePercentageHistory();
@@ -197,6 +199,26 @@ internal sealed class GPUPerformanceDetailsView : Grid
 
     /// <summary>Gets the device whose histories the view currently shows.</summary>
     public string? DeviceID => _deviceID;
+
+    /// <summary>
+    /// Draws every graph in the GPU's base color, and the paired engine cell's dashed second engine in its second
+    /// color.
+    /// </summary>
+    public void SetAccent(PerformanceDeviceAccent accent)
+    {
+        if (_accent == accent) return;
+
+        _accent = accent;
+        for (int cellIndex = 0; cellIndex < SingleEngineCellCount; cellIndex++)
+            _singleEngineGraphs[cellIndex].SetAccent(accent.Primary);
+
+        _pairedEngineGraph.SetAccent(accent.Primary);
+        _pairedEngineGraph.SetSecondaryLineColor(accent.Secondary);
+        _powerGraph.SetAccent(accent.Primary, accent.Primary);
+        _clockGraph.SetAccent(accent.Primary, accent.Primary);
+        _memoryClockGraph.SetAccent(accent.Primary, accent.Primary);
+        _memoryGraph.SetAccent(accent.Primary, accent.Primary);
+    }
 
     /// <summary>Shows or hides the translucent areas beneath every GPU graph.</summary>
     public void SetGraphUnderfillVisible(bool isVisible)

@@ -29,6 +29,34 @@ Devices you haven't moved yourself, including newly detected ones, are placed by
 
 **Note**: a drag saves the order of every device that's listed at that moment. After your first drag, the category priority only affects devices that show up later. Use **Clear dragged device order** if you want the priority to take over again.
 
+### Customizing a Device Card
+
+Right-click a device (or focus it and press ++shift+f10++ or the ++context-menu++ key) to open its card's window. It stays open beside Task Manager, and every change shows on the card as you make it. Each card is customized on its own, and the changes are saved for that device.
+
+Every card has the same layout: a title, then up to two lines under it. By default the CPU shows one line and every other device two.
+
+- **Title**: replaces the card's title, e.g. `CPU` or `Disk 0 (C:)`. The details on the right use it too. Leave it empty for the default.
+- **Description**: replaces the device's description, the hardware name a card line shows (the adapter name and description for network). Below it, **+ Add replacement** adds regex rules that rewrite the description, the same way [Hardware Name Replacements](#hardware-name-replacements) do, but for this card only. Once you rename or rewrite the description, the details show it beside the title instead of the hardware name.
+- **Lines**: how many lines the card shows under its title (none, 1 or 2), and a format for each line.
+- **Graph color**: the base color of the card's graph and of the device's graphs in the details. Where a graph draws a second trace in another color (disk writes, a GPU's paired video engines), that trace uses a lighter shade of it. **Reset** goes back to the default color.
+- **Reset card** puts every setting of the card back to its default.
+
+A line format is text with values in braces. Type `{` and a list of the device's values opens at the caret, as in the table search boxes: keep typing to narrow it, use ++up++ and ++down++ to pick, and ++enter++ or ++tab++ (or a click) to insert it; ++escape++ closes it. The window also lists every value the device has:
+
+| Device | Values |
+| --- | --- |
+| All | `{description}`, `{status}` (e.g. `Collecting throughput...`, only while the device has no sample yet) |
+| CPU | `{utilization}`, `{speed}`, `{baseSpeed}`, `{power}`, `{highestProcessor}`, `{processes}`, `{threads}`, `{handles}`, `{uptime}` |
+| Memory | `{used}`, `{total}`, `{available}`, `{utilization}`, `{compressed}`, `{committed}`, `{cached}` |
+| GPU | `{utilization}`, `{temperature}`, `{power}`, `{clock}`, `{memoryClock}`, `{dedicatedMemory}`, `{sharedMemory}` |
+| Network | `{send}`, `{receive}`, `{linkSpeed}`, `{interface}`, `{adapter}`, `{totalSent}`, `{totalReceived}` |
+| Disk | `{activeTime}`, `{read}`, `{write}`, `{responseTime}`, `{capacity}`, `{volumes}`, `{type}` |
+
+- A value Windows doesn't report shows as `Unavailable`.
+- Text in square brackets only shows when every value inside it is reported. The CPU's default line, `{utilization}[  {speed}]`, leaves the speed out instead of showing `Unavailable`.
+- `{{`, `}}`, `[[` and `]]` write the character itself. A name the device doesn't have stays as you typed it, so a typo is easy to spot.
+- Clear a line's format to go back to its default.
+
 ## Graphs
 
 Every graph shows the last **History length** of data, 1 minute by default. The label above the graph says what it measures (e.g. `% Utilization over 1 minute`), with the scale on the right and the time span below.
@@ -219,7 +247,7 @@ Click **+ Add replacement**, then fill in the row:
 
 Rules run top to bottom, and each one works on the result of the previous one. Changes show up on the Performance page as you type. Delete a rule with the X at the end of its row.
 
-What gets renamed is the hardware name: the processor name, the GPU name, the adapter description for network, and the drive model for disks. Memory has no hardware name (its header shows the memory error count), so there are no memory rules. The `CPU` / `GPU 0` / `Disk 0 (C:)` titles stay as they are.
+What gets renamed is the hardware name: the processor name, the GPU name, the adapter description for network, and the drive model for disks. Memory has no hardware name (its header shows the memory error count), so there are no memory rules. The `CPU` / `GPU 0` / `Disk 0 (C:)` titles stay as they are; to rename one device, or to rewrite only its description, see [Customizing a Device Card](#customizing-a-device-card). A card's own replacements run after these.
 
 **Note**: a rule with an invalid regex is ignored, and a rule that fails or times out while running is switched off until the rules change. Both are written to the Task Manager log.
 
@@ -231,6 +259,7 @@ What gets renamed is the hardware name: the processor name, the GPU name, the ad
 | Device list | Drag | Move the device |
 | Device list | ++enter++ or ++space++ | Show the focused device's details |
 | Device list | ++ctrl+up++ / ++ctrl+down++ | Move the focused device up or down |
+| Device list | Right-click, ++shift+f10++ or ++context-menu++ | Customize the device's card |
 | CPU graph | Right-click | Pick the CPU graph view |
 | Memory layout | Scroll wheel | Scroll the memory cards |
 | Any graph | Hover | Live cursor |

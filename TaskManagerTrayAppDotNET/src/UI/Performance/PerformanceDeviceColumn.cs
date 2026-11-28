@@ -95,6 +95,7 @@ internal sealed class PerformanceDeviceColumn : StackPanel, IDisposable
 {
     private readonly Action<string> _selectionRequested;
     private readonly Action<IReadOnlyList<string>> _orderChanged;
+    private readonly Action<string> _customizeRequested;
     private readonly List<RowEntry> _rows = [];
     private IPointer? _capturedPointer;
     private RowEntry? _pressedRow;
@@ -107,13 +108,16 @@ internal sealed class PerformanceDeviceColumn : StackPanel, IDisposable
 
     internal PerformanceDeviceColumn(
         Action<string> selectionRequested,
-        Action<IReadOnlyList<string>> orderChanged)
+        Action<IReadOnlyList<string>> orderChanged,
+        Action<string> customizeRequested)
     {
         ArgumentNullException.ThrowIfNull(selectionRequested);
         ArgumentNullException.ThrowIfNull(orderChanged);
+        ArgumentNullException.ThrowIfNull(customizeRequested);
 
         _selectionRequested = selectionRequested;
         _orderChanged = orderChanged;
+        _customizeRequested = customizeRequested;
         Orientation = Avalonia.Layout.Orientation.Vertical;
     }
 
@@ -238,6 +242,13 @@ internal sealed class PerformanceDeviceColumn : StackPanel, IDisposable
         if (row == null) return;
 
         PointerPoint point = eventArgs.GetCurrentPoint(host);
+        // A right press only marks the row handled, so its release opens the card's customization window
+        if (point.Properties.IsRightButtonPressed && _capturedPointer == null)
+        {
+            eventArgs.Handled = true;
+            return;
+        }
+
         if (!point.Properties.IsLeftButtonPressed) return;
         if (_capturedPointer != null)
         {
@@ -302,9 +313,20 @@ internal sealed class PerformanceDeviceColumn : StackPanel, IDisposable
 
     private void OnRowPointerReleased(object? sender, PointerReleasedEventArgs eventArgs)
     {
-        if (_disposed
-            || sender is not Grid host
-            || !ReferenceEquals(_capturedPointer, eventArgs.Pointer)
+        if (_disposed || sender is not Grid host) return;
+
+        if (eventArgs.InitialPressMouseButton == MouseButton.Right && _capturedPointer == null)
+        {
+            RowEntry? row = FindRow(host);
+            Point rightReleasePosition = eventArgs.GetPosition(host);
+            if (row != null && new Rect(host.Bounds.Size).Contains(rightReleasePosition))
+                _customizeRequested(row.StableID);
+
+            eventArgs.Handled = true;
+            return;
+        }
+
+        if (!ReferenceEquals(_capturedPointer, eventArgs.Pointer)
             || _pressedRow is not { } pressedRow
             || !ReferenceEquals(pressedRow.Host, host))
             return;
@@ -367,6 +389,14 @@ internal sealed class PerformanceDeviceColumn : StackPanel, IDisposable
             })
         {
             _selectionRequested(row.StableID);
+            eventArgs.Handled = true;
+            return;
+        }
+
+        if (eventArgs is { KeyModifiers: KeyModifiers.None, Key: Key.Apps }
+            or { KeyModifiers: KeyModifiers.Shift, Key: Key.F10 })
+        {
+            _customizeRequested(row.StableID);
             eventArgs.Handled = true;
         }
     }

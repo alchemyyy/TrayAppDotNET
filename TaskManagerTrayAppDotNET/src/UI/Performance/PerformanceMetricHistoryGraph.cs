@@ -13,7 +13,11 @@ internal sealed class PerformanceMetricHistoryGraph : Control
     private readonly Pen _borderPen;
     private readonly Pen _gridPen;
     private readonly PerformanceGraphHoverPresenter _hover;
-    private readonly IBrush _underfillBrush;
+    private readonly SolidColorBrush _underfillBrush;
+    private readonly SolidColorBrush _primaryBrush;
+    private readonly SolidColorBrush _secondaryBrush;
+    private readonly double _underfillOpacity;
+    private readonly int _underfillDarkenAmount;
     private readonly double _hoverTextInset;
     private readonly int _gridColumns;
     private readonly int _gridRows;
@@ -59,21 +63,21 @@ internal sealed class PerformanceMetricHistoryGraph : Control
         _gridPen = new Pen(
             new SolidColorBrush(gridColor),
             resources.AxamlTaskManagerPerformance.GraphGridLineThickness);
-        IBrush accentBrush = new SolidColorBrush(accent);
+        _primaryBrush = new SolidColorBrush(accent);
+        _secondaryBrush = new SolidColorBrush(accent);
         PrimaryPen = new Pen(
-            accentBrush,
+            _primaryBrush,
             resources.AxamlTaskManagerPerformance.GraphLineThickness);
         // AXAML hot-reload exception: DashStyle is not a linker-supported AXAML primitive, so
         // the immutable Pens retain Avalonia's built-in Dash preset
         SecondaryPen = new Pen(
-            accentBrush,
+            _secondaryBrush,
             resources.AxamlTaskManagerPerformance.GraphLineThickness,
             DashStyle.Dash);
+        _underfillOpacity = resources.AxamlTaskManagerPerformance.GraphUnderfillOpacity;
+        _underfillDarkenAmount = resources.AxamlTaskManagerPerformance.GraphUnderfillDarkenAmount;
         _underfillBrush = new SolidColorBrush(
-            PerformanceGraphRendering.CreateUnderfillColor(
-                accent,
-                resources.AxamlTaskManagerPerformance.GraphUnderfillOpacity,
-                resources.AxamlTaskManagerPerformance.GraphUnderfillDarkenAmount));
+            PerformanceGraphRendering.CreateUnderfillColor(accent, _underfillOpacity, _underfillDarkenAmount));
         Color configuredHoverLineColor = resources.GraphHoverLineColor(isLightTheme);
         byte hoverLineAlpha = (byte)Math.Round(
             configuredHoverLineColor.A * Math.Clamp(
@@ -138,6 +142,20 @@ internal sealed class PerformanceMetricHistoryGraph : Control
         if (_showUnderfill == isVisible) return;
 
         _showUnderfill = isVisible;
+        InvalidateVisual();
+    }
+
+    /// <summary>Changes the solid primary trace's color and the dashed secondary trace's color.</summary>
+    public void SetAccent(Color primary, Color secondary)
+    {
+        if (_primaryBrush.Color == primary && _secondaryBrush.Color == secondary) return;
+
+        _primaryBrush.Color = primary;
+        _secondaryBrush.Color = secondary;
+        _underfillBrush.Color = PerformanceGraphRendering.CreateUnderfillColor(
+            primary,
+            _underfillOpacity,
+            _underfillDarkenAmount);
         InvalidateVisual();
     }
 

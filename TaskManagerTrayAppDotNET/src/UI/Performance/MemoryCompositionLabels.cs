@@ -22,6 +22,7 @@ internal sealed class MemoryCompositionLabels : Control
     private readonly double[] _lefts = new double[SegmentCount];
     private readonly int[] _visibleSegments = new int[SegmentCount];
     private readonly IBrush _textBrush;
+    private readonly SolidColorBrush _tickBrush;
     private readonly Pen _tickPen;
     private readonly Typeface _typeface;
     private readonly double _fontSize;
@@ -37,8 +38,9 @@ internal sealed class MemoryCompositionLabels : Control
         Color tickColor)
     {
         _textBrush = TrayAppDotNETSettingsUI.Brush(palette.Foreground);
+        _tickBrush = new SolidColorBrush(tickColor);
         _tickPen = new Pen(
-            new SolidColorBrush(tickColor),
+            _tickBrush,
             resources.AxamlTaskManagerPerformance.MemoryCompositionTickThickness);
         _typeface = new Typeface(
             TrayAppDotNETSettingsUI.UIFont,
@@ -56,6 +58,13 @@ internal sealed class MemoryCompositionLabels : Control
             L(nameof(AppStrings.Perf_Memory_SegmentModified)),
             L(nameof(AppStrings.Perf_Memory_SegmentStandby)),
             L(nameof(AppStrings.Perf_Memory_SegmentFree)));
+    }
+
+    /// <summary>Changes the color of the ticks that point at the segments.</summary>
+    public void SetTickColor(Color tickColor)
+    {
+        _tickBrush.Color = tickColor;
+        InvalidateVisual();
     }
 
     /// <summary>Sets the segment names in bar order: in use, modified, standby, free.</summary>

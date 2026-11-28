@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using TrayAppDotNETCommon.Localization;
 using TrayAppDotNETCommon.UI.ControlMapping;
 using TrayAppDotNETCommon.Visuals;
 
@@ -53,7 +54,25 @@ public sealed record TrayAppDotNETColorPickerStrings(
     string RgbaHexLabel,
     string ArgbHexLabel,
     string DefaultButton,
-    string ResetButton);
+    string ResetButton)
+{
+    /// <summary>The shared color picker text in the current language.</summary>
+    public static TrayAppDotNETColorPickerStrings Localized() =>
+        new(
+            L(nameof(CommonStrings.ColorPicker_DefaultTitle)),
+            L(nameof(CommonStrings.ColorPicker_CloseTooltip)),
+            L(nameof(CommonStrings.ColorPicker_ChannelLabel_Hue)),
+            L(nameof(CommonStrings.ColorPicker_ChannelLabel_Alpha)),
+            L(nameof(CommonStrings.ColorPicker_ChannelLabel_R)),
+            L(nameof(CommonStrings.ColorPicker_ChannelLabel_G)),
+            L(nameof(CommonStrings.ColorPicker_ChannelLabel_B)),
+            L(nameof(CommonStrings.ColorPicker_RGBAHexLabel)),
+            L(nameof(CommonStrings.ColorPicker_ARGBHexLabel)),
+            L(nameof(CommonStrings.ColorPicker_DefaultButton)),
+            L(nameof(CommonStrings.ColorPicker_ResetButton)));
+
+    private static string L(string key) => LocalizationManager.Instance[key];
+}
 
 public sealed class TrayAppDotNETColorPickerWindow : Window, IDisposable
 {

@@ -80,6 +80,10 @@ internal sealed class DiskPerformanceDetailsView : StackPanel
         Children.Add(CreateScaleRow(_historyWindowLabel, minimumLabel));
     }
 
+    /// <summary>Draws reads in the disk's base color and writes, dashed, in its second color.</summary>
+    public void SetAccent(PerformanceDeviceAccent accent) =>
+        _graph.SetAccent(accent.Primary, accent.Secondary);
+
     /// <summary>Shows or hides the translucent areas beneath the disk transfer traces.</summary>
     public void SetGraphUnderfillVisible(bool isVisible) =>
         _graph.SetUnderfillVisible(isVisible);

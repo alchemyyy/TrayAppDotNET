@@ -1509,8 +1509,9 @@
   <data name="Perf_PageFile_LegendFormat" xml:space="preserve">
     <value>Pagefile {0}: {1} / {2}GB</value>
   </data>
-  <data name="Perf_Memory_DeviceFreeFormat" xml:space="preserve">
-    <value>{0} free ({1} used)</value>
+  <data name="Perf_Card_MemoryFreeFormat" xml:space="preserve">
+    <value>[{available} free ({utilization} used)]</value>
+    <comment>Memory card line format, not a format string: keep {available} and {utilization} as they are</comment>
   </data>
   <data name="Perf_Graph_LinkUtilizationOverFormat" xml:space="preserve">
     <value>% Link utilization over {0}</value>
@@ -1738,7 +1739,68 @@
     <value>No devices</value>
   </data>
   <data name="Perf_DeviceColumn_ReorderTip" xml:space="preserve">
-    <value>Select or drag to reorder, or press Ctrl+Up/Ctrl+Down.</value>
+    <value>Select or drag to reorder, or press Ctrl+Up/Ctrl+Down. Right-click to customize.</value>
+  </data>
+  <data name="PerfCard_WindowTitleFormat" xml:space="preserve">
+    <value>Customize {0}</value>
+    <comment>{0} is the card's default title, e.g. GPU 0</comment>
+  </data>
+  <data name="PerfCard_Title_Title" xml:space="preserve">
+    <value>Title</value>
+  </data>
+  <data name="PerfCard_Title_Description" xml:space="preserve">
+    <value>Shown at the top of the card and of the device's details. Leave empty for the default.</value>
+  </data>
+  <data name="PerfCard_Description_Title" xml:space="preserve">
+    <value>Description</value>
+  </data>
+  <data name="PerfCard_Description_Description" xml:space="preserve">
+    <value>The device name a line shows with {description}, and the details show beside the title. Leave empty for the default. Replacements are case-insensitive .NET regular expressions, run from top to bottom; $1 and ${name} insert captures.</value>
+    <comment>Not a format string: {description}, $1 and ${name} are literal</comment>
+  </data>
+  <data name="PerfCard_DescriptionReplacements_MatchPattern_Tooltip" xml:space="preserve">
+    <value>Case-insensitive .NET regular expression matched against the description.</value>
+  </data>
+  <data name="PerfCard_Lines_Title" xml:space="preserve">
+    <value>Lines</value>
+  </data>
+  <data name="PerfCard_Lines_Description" xml:space="preserve">
+    <value>How many lines the card shows under its title, and what each one shows.</value>
+  </data>
+  <data name="PerfCard_LineCount_None" xml:space="preserve">
+    <value>No lines</value>
+  </data>
+  <data name="PerfCard_LineCount_One" xml:space="preserve">
+    <value>1 line</value>
+  </data>
+  <data name="PerfCard_LineCount_Two" xml:space="preserve">
+    <value>2 lines</value>
+  </data>
+  <data name="PerfCard_FirstLine_Label" xml:space="preserve">
+    <value>Line 1</value>
+  </data>
+  <data name="PerfCard_SecondLine_Label" xml:space="preserve">
+    <value>Line 2</value>
+  </data>
+  <data name="PerfCard_LineFormat_Help" xml:space="preserve">
+    <value>{name} inserts a value, or Unavailable when the device doesn't report it; type { to pick one from a list. Text in [ ] only shows when every value in it is reported. Write {{, }}, [[ or ]] for the character itself. Clear a line to go back to its default.</value>
+    <comment>Not a format string: the braces and brackets are literal line format syntax</comment>
+  </data>
+  <data name="PerfCard_Values_Label" xml:space="preserve">
+    <value>Values:</value>
+  </data>
+  <data name="PerfCard_Color_Title" xml:space="preserve">
+    <value>Graph color</value>
+  </data>
+  <data name="PerfCard_Color_Description" xml:space="preserve">
+    <value>The base color of the card's graph and the device's detail graphs. A second trace, such as disk writes, uses a lighter shade of it.</value>
+  </data>
+  <data name="PerfCard_Color_PickerTitleFormat" xml:space="preserve">
+    <value>{0} graph color</value>
+    <comment>{0} is the card's title, e.g. GPU 0</comment>
+  </data>
+  <data name="PerfCard_ResetCard" xml:space="preserve">
+    <value>Reset card</value>
   </data>
   <data name="Table_NoItems" xml:space="preserve">
     <value>No items to display.</value>

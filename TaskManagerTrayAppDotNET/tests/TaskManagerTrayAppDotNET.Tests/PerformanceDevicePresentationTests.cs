@@ -11,6 +11,9 @@ public sealed class PerformanceDevicePresentationTests
 {
     private static string Unavailable => L(nameof(AppStrings.Perf_Unavailable));
 
+    private static PerformanceDeviceCardText DefaultCard(PerformanceDevicePresentation device) =>
+        PerformanceDeviceCardLayout.Create(device.Kind, customization: null).Format(device);
+
     [Fact]
     public void EmptySnapshotStillExposesCPUAndMemoryRowsAsUnavailable()
     {
@@ -38,18 +41,30 @@ public sealed class PerformanceDevicePresentationTests
         PerformanceDevicePresentation device = PerformanceDevicePresentationFactory.Create(snapshot)
             .Single(static candidate => candidate.Kind == PerformanceDeviceKind.Memory);
 
+        PerformanceDeviceCardText card = DefaultCard(device);
         Assert.Equal(
             expected: string.Concat(
                 PerformanceDevicePresentationFactory.FormatBytes(memory.UsedPhysicalBytes),
                 " / ",
                 PerformanceDevicePresentationFactory.FormatBytes(memory.TotalPhysicalBytes)),
-            device.Subtitle);
+            card.FirstLine);
         Assert.Equal(
-            expected: F(
-                nameof(AppStrings.Perf_Memory_DeviceFreeFormat),
+            expected: string.Concat(
                 PerformanceDevicePresentationFactory.FormatBytes(memory.AvailablePhysicalBytes),
-                "39%"),
-            device.Summary);
+                " free (39% used)"),
+            card.SecondLine);
+    }
+
+    [Fact]
+    public void MemoryRowWithoutDataShowsOnlyUnavailable()
+    {
+        PerformanceDevicePresentation device = PerformanceDevicePresentationFactory.Create(PerformanceSnapshot.Empty)
+            .Single(static candidate => candidate.Kind == PerformanceDeviceKind.Memory);
+
+        PerformanceDeviceCardText card = DefaultCard(device);
+
+        Assert.Equal(Unavailable, card.FirstLine);
+        Assert.Equal(string.Empty, card.SecondLine);
     }
 
     [Fact]
@@ -78,7 +93,9 @@ public sealed class PerformanceDevicePresentationTests
             static statistic => statistic.Label,
             static statistic => statistic.Value);
 
-        Assert.Equal(expected: "42%  5.40 GHz", device.Summary);
+        PerformanceDeviceCardText card = DefaultCard(device);
+        Assert.Equal(expected: "42%  5.40 GHz", card.FirstLine);
+        Assert.Equal(expected: string.Empty, card.SecondLine);
         Assert.Equal(expected: "5.40 GHz", valuesByLabel[L(nameof(AppStrings.Perf_Label_Speed))]);
         Assert.Equal(expected: "5.70 GHz", valuesByLabel[L(nameof(AppStrings.Perf_Label_HighestRecordedSpeed))]);
         Assert.Equal(expected: "4.20 GHz", valuesByLabel[L(nameof(AppStrings.Perf_Label_BaseSpeed))]);
@@ -168,7 +185,7 @@ public sealed class PerformanceDevicePresentationTests
         Assert.True(device.HasUtilizationSample);
         Assert.Equal(expected: 40, device.UtilizationPercent, precision: 8);
         Assert.Equal(expected: "Ethernet", device.Title);
-        Assert.Equal(expected: "Ethernet 3 - Test adapter", device.Subtitle);
+        Assert.Equal(expected: "Ethernet 3 - Test adapter", DefaultCard(device).FirstLine);
         Assert.Equal(expected: "Test adapter", device.HardwareName);
     }
 
@@ -209,7 +226,7 @@ public sealed class PerformanceDevicePresentationTests
                 resolver)
             .Single(static candidate => candidate.DeviceID == "network:test");
 
-        Assert.Equal(expected: "Ethernet 3 - Intel Ethernet X540-T2", device.Subtitle);
+        Assert.Equal(expected: "Ethernet 3 - Intel Ethernet X540-T2", DefaultCard(device).FirstLine);
         Assert.Equal(expected: "Intel Ethernet X540-T2", device.HardwareName);
     }
 
@@ -290,10 +307,11 @@ public sealed class PerformanceDevicePresentationTests
             .Single(static candidate => candidate.DeviceID == "disk:test");
 
         Assert.Equal(expected: F(nameof(AppStrings.Perf_Title_DiskWithVolumesFormat), 12, "C:, D:"), device.Title);
-        Assert.Equal(expected: "Samsung SSD 990 PRO 4TB", device.Subtitle);
+        PerformanceDeviceCardText card = DefaultCard(device);
+        Assert.Equal(expected: "Samsung SSD 990 PRO 4TB", card.FirstLine);
         Assert.Equal(expected: "Samsung SSD 990 PRO 4TB", device.HardwareName);
-        Assert.Equal(expected: "25%", device.Summary);
-        Assert.DoesNotContain(expectedSubstring: "NVMe", device.Subtitle, StringComparison.Ordinal);
+        Assert.Equal(expected: "25%", card.SecondLine);
+        Assert.DoesNotContain(expectedSubstring: "NVMe", card.FirstLine, StringComparison.Ordinal);
         Dictionary<string, string> valuesByLabel = device.Statistics.ToArray().ToDictionary(
             static statistic => statistic.Label,
             static statistic => statistic.Value);
@@ -443,7 +461,9 @@ public sealed class PerformanceDevicePresentationTests
             .Single(static candidate => candidate.DeviceID == "disk:test");
 
         Assert.Equal(expected: F(nameof(AppStrings.Perf_Title_DiskFormat), 4), device.Title);
-        Assert.Equal(expected: "Microsoft Storage Space Device", device.Subtitle);
+        PerformanceDeviceCardText card = DefaultCard(device);
+        Assert.Equal(expected: "Microsoft Storage Space Device", card.FirstLine);
+        Assert.Equal(expected: L(nameof(AppStrings.Perf_CollectingDiskCounters)), card.SecondLine);
         Assert.Equal(expected: "Microsoft Storage Space Device", device.HardwareName);
         Dictionary<string, string> valuesByLabel = device.Statistics.ToArray().ToDictionary(
             static statistic => statistic.Label,

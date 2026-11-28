@@ -933,6 +933,45 @@ public sealed class AppSettingsTests
     }
 
     [Fact]
+    public void PerformanceDeviceCardCustomizationsRoundTripAndDropDefaults()
+    {
+        using TempDirectory temp = new();
+        string path = Path.Combine(temp.Combine("settings"), "settings.xml");
+        AppSettings settings = AppSettings.LoadOrDefault(path);
+        settings.Autosave = false;
+        settings.UpdatePerformanceDeviceCard(
+            new PerformanceDeviceCardCustomization
+            {
+                DeviceID = "gpu:0",
+                Title = "Main GPU",
+                LineCount = 1,
+                SecondLineFormat = "{power}",
+                AccentColor = "#112233",
+                DescriptionReplacements = [new PerformanceTextReplacementRule { MatchPattern = "^NVIDIA ", Replacement = "" }]
+            },
+            save: false);
+        settings.UpdatePerformanceDeviceCard(
+            new PerformanceDeviceCardCustomization { DeviceID = "cpu", Title = "Processor" },
+            save: false);
+        // A card reset to its defaults is removed rather than stored
+        settings.UpdatePerformanceDeviceCard(new PerformanceDeviceCardCustomization { DeviceID = "cpu" }, save: true);
+        settings.Store!.Flush();
+
+        AppSettings restarted = AppSettings.LoadOrDefault(path);
+
+        PerformanceDeviceCardCustomization card = Assert.Single(restarted.PerformanceDeviceCards);
+        Assert.Equal(expected: "gpu:0", card.DeviceID);
+        Assert.Equal(expected: "Main GPU", card.Title);
+        Assert.Equal(expected: 1, card.LineCount);
+        Assert.Equal(expected: string.Empty, card.FirstLineFormat);
+        Assert.Equal(expected: "{power}", card.SecondLineFormat);
+        Assert.Equal(expected: "#112233", card.AccentColor);
+        PerformanceTextReplacementRule rule = Assert.Single(card.DescriptionReplacements);
+        Assert.Equal(expected: "^NVIDIA ", rule.MatchPattern);
+        Assert.Equal(expected: string.Empty, rule.Replacement);
+    }
+
+    [Fact]
     public void LiveHardwareNameRuleUpdatesAvoidAGlobalSettingsRefresh()
     {
         AppSettings settings = new() { Autosave = false };

@@ -162,7 +162,7 @@ public abstract partial class SettingsWindowCommon<TPageKey>
                 currentValue,
                 defaultColor,
                 palette.Snapshot(),
-                ColorPickerStrings(),
+                TrayAppDotNETColorPickerStrings.Localized(),
                 EnableRoundedCorners) { WindowStartupLocation = WindowStartupLocation.CenterOwner };
 
             picker.ColorChanged += (_, color) =>
@@ -290,7 +290,7 @@ public abstract partial class SettingsWindowCommon<TPageKey>
             initial,
             fallback,
             palette.Snapshot(),
-            ColorPickerStrings(),
+            TrayAppDotNETColorPickerStrings.Localized(),
             EnableRoundedCorners) { WindowStartupLocation = WindowStartupLocation.CenterOwner };
 
         picker.ColorChanged += (_, editedColor) =>
@@ -343,18 +343,4 @@ public abstract partial class SettingsWindowCommon<TPageKey>
             L(isLight
                 ? nameof(CommonStrings.Settings_Theme_PickerTitle_LightVariant)
                 : nameof(CommonStrings.Settings_Theme_PickerTitle_DarkVariant)));
-
-    private static TrayAppDotNETColorPickerStrings ColorPickerStrings() =>
-        new(
-            L(nameof(CommonStrings.ColorPicker_DefaultTitle)),
-            L(nameof(CommonStrings.ColorPicker_CloseTooltip)),
-            L(nameof(CommonStrings.ColorPicker_ChannelLabel_Hue)),
-            L(nameof(CommonStrings.ColorPicker_ChannelLabel_Alpha)),
-            L(nameof(CommonStrings.ColorPicker_ChannelLabel_R)),
-            L(nameof(CommonStrings.ColorPicker_ChannelLabel_G)),
-            L(nameof(CommonStrings.ColorPicker_ChannelLabel_B)),
-            L(nameof(CommonStrings.ColorPicker_RGBAHexLabel)),
-            L(nameof(CommonStrings.ColorPicker_ARGBHexLabel)),
-            L(nameof(CommonStrings.ColorPicker_DefaultButton)),
-            L(nameof(CommonStrings.ColorPicker_ResetButton)));
 }

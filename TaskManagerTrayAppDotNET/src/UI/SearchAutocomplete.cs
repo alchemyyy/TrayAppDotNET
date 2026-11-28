@@ -218,6 +218,7 @@ internal sealed class SearchAutocompleteController : IDisposable
     private int _selectedIndex;
     private bool _updateScheduled;
     private bool _suppressUpdate;
+    private bool _completedOnEnterDown;
 #if DEBUG
     private bool _hotReloadAttached;
 #endif
@@ -259,6 +260,7 @@ internal sealed class SearchAutocompleteController : IDisposable
 
         _textBox.TextChanged += OnTextChanged;
         _textBox.KeyDown += OnKeyDown;
+        _textBox.AddHandler(InputElement.KeyUpEvent, OnPreviewKeyUp, RoutingStrategies.Tunnel);
         _textBox.PointerReleased += OnPointerReleased;
         _textBox.PropertyChanged += OnTextBoxPropertyChanged;
         _textBox.LostFocus += OnLostFocus;
@@ -324,6 +326,7 @@ internal sealed class SearchAutocompleteController : IDisposable
                 break;
             case Key.Enter or Key.Tab when Popup.IsOpen && _suggestions.Length > 0:
                 CompleteSelectedSuggestion();
+                _completedOnEnterDown = eventArgs.Key == Key.Enter;
                 eventArgs.Handled = true;
                 break;
             case Key.Escape when Popup.IsOpen:
@@ -331,6 +334,15 @@ internal sealed class SearchAutocompleteController : IDisposable
                 eventArgs.Handled = true;
                 break;
         }
+    }
+
+    // Runs before the box's own key-up handlers, so an Enter that completed a token does not also commit the box
+    private void OnPreviewKeyUp(object? sender, KeyEventArgs eventArgs)
+    {
+        if (eventArgs.Key != Key.Enter || !_completedOnEnterDown) return;
+
+        _completedOnEnterDown = false;
+        eventArgs.Handled = true;
     }
 
     private void ScheduleUpdate()
@@ -555,6 +567,7 @@ internal sealed class SearchAutocompleteController : IDisposable
         _disposed = true;
         _textBox.TextChanged -= OnTextChanged;
         _textBox.KeyDown -= OnKeyDown;
+        _textBox.RemoveHandler(InputElement.KeyUpEvent, OnPreviewKeyUp);
         _textBox.PointerReleased -= OnPointerReleased;
         _textBox.PropertyChanged -= OnTextBoxPropertyChanged;
         _textBox.LostFocus -= OnLostFocus;

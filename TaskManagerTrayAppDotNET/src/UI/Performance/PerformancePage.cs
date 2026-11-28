@@ -33,6 +33,15 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
     private readonly Dictionary<string, PerformanceDeviceCard> _deviceCards =
         new(StringComparer.Ordinal);
 
+    // Card layouts of the devices the user customized; every other device uses its kind's default layout
+    private readonly Dictionary<string, PerformanceDeviceCardLayout> _customCardLayouts =
+        new(StringComparer.Ordinal);
+
+    private readonly Dictionary<PerformanceDeviceKind, PerformanceDeviceCardLayout> _defaultCardLayouts = [];
+
+    private readonly Dictionary<string, PerformanceDeviceCardWindow> _cardWindows =
+        new(StringComparer.Ordinal);
+
     private readonly Dictionary<string, PerformanceHistory> _histories =
         new(StringComparer.Ordinal);
 
@@ -137,7 +146,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             new GridLength(resources.AxamlTaskManagerPerformance.DeviceColumnWidth)));
         MainContent.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
 
-        _deviceColumn = new PerformanceDeviceColumn(OnDeviceSelected, OnDeviceOrderChanged);
+        _deviceColumn = new PerformanceDeviceColumn(OnDeviceSelected, OnDeviceOrderChanged, OnDeviceCustomizeRequested);
+        RebuildCardLayouts();
         _deviceScrollViewport = new SettingsVerticalScrollViewport(
             _deviceColumn,
             resources.AxamlTaskManagerPerformance.DeviceColumnPadding,
@@ -528,6 +538,13 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             return;
         }
 
+        if (eventArgs.PropertyName == nameof(AppSettings.PerformanceDeviceCards))
+        {
+            RebuildCardLayouts();
+            ApplySnapshotPresentation(_snapshotService.GetLatestSnapshot());
+            return;
+        }
+
         if (eventArgs.PropertyName == nameof(AppSettings.GPUPowerLimits))
         {
             ApplySnapshotPresentation(_snapshotService.GetLatestSnapshot());
@@ -855,11 +872,15 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             PerformanceDeviceOrderItem orderItem = orderedItems[orderedIndex];
             PerformanceDevicePresentation device = _devices[orderItem.ID];
             PerformanceHistory history = _histories[orderItem.ID];
+            PerformanceDeviceCardLayout layout = GetCardLayout(device);
+            PerformanceDeviceCardText text = layout.Format(device);
+            Color accent = PerformanceDeviceAccent.Resolve(device.Kind, layout.Accent).Primary;
             if (!_deviceCards.TryGetValue(orderItem.ID, out PerformanceDeviceCard? card))
             {
                 string deviceID = device.DeviceID;
                 card = new PerformanceDeviceCard(
-                    device,
+                    text,
+                    accent,
                     history,
                     _palette,
                     _resources,
@@ -870,7 +891,10 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                 _deviceCards.Add(orderItem.ID, card);
             }
             else
-                card.Update(device, history);
+                card.Update(text, accent, history);
+
+            if (_cardWindows.TryGetValue(orderItem.ID, out PerformanceDeviceCardWindow? cardWindow))
+                cardWindow.UpdateDevice(device);
 
             card.SetSecondaryHistory(
                 device.Kind == PerformanceDeviceKind.CPU
@@ -887,6 +911,10 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         if (_selectedDeviceID == null || !_devices.ContainsKey(_selectedDeviceID))
             _selectedDeviceID = orderedItems.Count == 0 ? null : orderedItems[0].ID;
 
+        // The memory views only ever show memory, so they keep its color whichever device is selected
+        Color memoryAccent = GetDeviceAccent(snapshot.Memory.DeviceID, PerformanceDeviceKind.Memory).Primary;
+        _memoryCompositionView.SetAccent(memoryAccent);
+        _pageFileView.SetAccent(memoryAccent);
         _pageFileView.UpdatePresentation(snapshot.Memory.PageFiles.Span);
         UpdateSelectionAndDetails();
         RefreshVisibleCPUGraphs();
@@ -1210,7 +1238,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             }
         }
 
-        Color accent = PerformanceDevicePresentationFactory.GetAccent(PerformanceDeviceKind.CPU);
+        Color accent = GetDeviceAccent(CPUPerformanceSnapshot.StableDeviceID, PerformanceDeviceKind.CPU).Primary;
         for (int processorIndex = 0; processorIndex < processorCount; processorIndex++)
         {
             PerformanceHistory history = CreateHistory();
@@ -1535,6 +1563,98 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         _settings.UpdatePerformanceDeviceOrder(mergedOrder);
     }
 
+    /// <summary>Drops compiled card customizations, which compile again on use, and rebuilds the kind defaults.</summary>
+    private void RebuildCardLayouts()
+    {
+        _customCardLayouts.Clear();
+
+        _defaultCardLayouts.Clear();
+        foreach (PerformanceDeviceKind kind in Enum.GetValues<PerformanceDeviceKind>())
+            _defaultCardLayouts[kind] = PerformanceDeviceCardLayout.Create(kind, customization: null);
+    }
+
+    /// <summary>Returns a device's card layout, compiling a customization saved before the device was listed.</summary>
+    private PerformanceDeviceCardLayout GetCardLayout(PerformanceDevicePresentation device)
+    {
+        if (_customCardLayouts.TryGetValue(device.DeviceID, out PerformanceDeviceCardLayout? layout)) return layout;
+
+        PerformanceDeviceCardCustomization? customization = PerformanceDeviceCardCustomizationCollection.Find(
+            _settings.PerformanceDeviceCards,
+            device.DeviceID);
+        if (customization == null) return _defaultCardLayouts[device.Kind];
+
+        layout = PerformanceDeviceCardLayout.Create(device.Kind, customization);
+        _customCardLayouts.Add(device.DeviceID, layout);
+        return layout;
+    }
+
+    private PerformanceDeviceAccent GetDeviceAccent(string deviceID, PerformanceDeviceKind kind) =>
+        PerformanceDeviceAccent.Resolve(
+            kind,
+            _devices.TryGetValue(deviceID, out PerformanceDevicePresentation? device)
+                ? GetCardLayout(device).Accent
+                : null);
+
+    /// <summary>Colors every detail graph after the selected device; only the selected device's view shows.</summary>
+    private void ApplyDetailAccent(PerformanceDeviceAccent accent)
+    {
+        _detailGraph.SetAccent(accent.Primary);
+        for (int graphIndex = 0; graphIndex < _cpuLogicalProcessorGraphs.Count; graphIndex++)
+            _cpuLogicalProcessorGraphs[graphIndex].SetAccent(accent.Primary);
+
+        _cpuDetailedView.SetAccent(accent.Primary);
+        _gpuPerformanceDetailsView.SetAccent(accent);
+        _diskPerformanceDetailsView.SetAccent(accent);
+    }
+
+    /// <summary>Opens the customization window of a device's card, or brings back the one already open.</summary>
+    private void OnDeviceCustomizeRequested(string deviceID)
+    {
+        if (_disposed || !_devices.TryGetValue(deviceID, out PerformanceDevicePresentation? device)) return;
+
+        if (_cardWindows.TryGetValue(deviceID, out PerformanceDeviceCardWindow? existing))
+        {
+            if (existing.WindowState == WindowState.Minimized) existing.WindowState = WindowState.Normal;
+            existing.Activate();
+            return;
+        }
+
+        PerformanceDeviceCardCustomization customization =
+            PerformanceDeviceCardCustomizationCollection.Find(_settings.PerformanceDeviceCards, deviceID)?.Clone()
+            ?? new PerformanceDeviceCardCustomization { DeviceID = deviceID };
+        PerformanceDeviceCardWindow window = new(
+            device,
+            customization,
+            _palette,
+            _settings.EnableRoundedCorners,
+            _settings.UpdatePerformanceDeviceCard);
+        window.Closed += OnCardWindowClosed;
+        _cardWindows.Add(deviceID, window);
+        try
+        {
+            if (TopLevel.GetTopLevel(this) is Window owner)
+                window.Show(owner);
+            else
+                window.Show();
+        }
+        catch
+        {
+            _cardWindows.Remove(deviceID);
+            window.Closed -= OnCardWindowClosed;
+            throw;
+        }
+    }
+
+    private void OnCardWindowClosed(object? sender, EventArgs eventArgs)
+    {
+        if (sender is not PerformanceDeviceCardWindow window) return;
+
+        window.Closed -= OnCardWindowClosed;
+        if (_cardWindows.TryGetValue(window.DeviceID, out PerformanceDeviceCardWindow? open)
+            && ReferenceEquals(open, window))
+            _cardWindows.Remove(window.DeviceID);
+    }
+
     private void UpdateSelectionAndDetails()
     {
         foreach (KeyValuePair<string, PerformanceDeviceCard> pair in _deviceCards)
@@ -1565,13 +1685,17 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             return;
         }
 
-        _detailTitle.Text = selectedDevice.Title;
+        PerformanceDeviceCardLayout cardLayout = GetCardLayout(selectedDevice);
+        _detailTitle.Text = cardLayout.ResolveTitle(selectedDevice);
         bool isMemory = selectedDevice.Kind == PerformanceDeviceKind.Memory;
-        _detailHardwareName.Text = selectedDevice.HardwareName;
+        // A card whose description the user renamed shows that name here too; otherwise the hardware name
+        _detailHardwareName.Text = cardLayout.CustomizesDescription
+            ? cardLayout.ResolveDescription(selectedDevice)
+            : selectedDevice.HardwareName;
         _detailHardwareName.IsVisible = !isMemory;
         _memoryErrorPanel.IsVisible = isMemory;
         _detailGraphLabel.Text = selectedDevice.GraphLabel;
-        _detailGraph.SetAccent(selectedDevice.Accent);
+        ApplyDetailAccent(PerformanceDeviceAccent.Resolve(selectedDevice.Kind, cardLayout.Accent));
         _detailGraph.SetHistory(_histories[selectedDevice.DeviceID]);
         UpdateDetailGraphSecondaryHistory();
         bool showLogicalProcessors = selectedDevice.Kind == PerformanceDeviceKind.CPU
@@ -2040,6 +2164,9 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         _memoryErrorLogMonitor.Changed -= UpdateMemoryErrorDisplay;
         _memoryErrorLogMonitor.Dispose();
         _memoryErrorLogWindow?.Close();
+        foreach (PerformanceDeviceCardWindow cardWindow in _cardWindows.Values.ToArray())
+            cardWindow.Close();
+        _cardWindows.Clear();
         _memoryErrorInfoButton.Click -= OnMemoryErrorInfoClick;
         _memoryErrorInfoButton.Dispose();
         _memoryErrorResetButton.Click -= OnMemoryErrorResetClick;
@@ -2073,13 +2200,14 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         PerformanceMetricHistory Read,
         PerformanceMetricHistory Write);
 
+    /// <summary>One device in the device column: a preview graph beside the title and up to two lines.</summary>
     private sealed class PerformanceDeviceCard : Border
     {
         private readonly SettingsPalette _palette;
         private readonly Border _surface;
         private readonly TextBlock _title;
-        private readonly TextBlock _subtitle;
-        private readonly TextBlock _summary;
+        private readonly TextBlock _firstLine;
+        private readonly TextBlock _secondLine;
         private readonly PerformanceHistoryGraph _graph;
         private Color _accent;
         private IBrush _accentBrush;
@@ -2087,7 +2215,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         private bool _isSelected;
 
         public PerformanceDeviceCard(
-            PerformanceDevicePresentation device,
+            PerformanceDeviceCardText text,
+            Color accent,
             PerformanceHistory history,
             SettingsPalette palette,
             TaskManagerWindowResources resources,
@@ -2095,8 +2224,8 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             Func<long, string?> hoverMetricProvider)
         {
             _palette = palette;
-            _accent = device.Accent;
-            _accentBrush = new SolidColorBrush(device.Accent);
+            _accent = accent;
+            _accentBrush = new SolidColorBrush(accent);
             double trailingHitTestHeight = Math.Max(
                 val1: 0,
                 resources.AxamlTaskManagerPerformance.DeviceColumnSpacing);
@@ -2106,7 +2235,7 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
 
             _graph = new PerformanceHistoryGraph(
                 history,
-                device.Accent,
+                accent,
                 palette,
                 resources,
                 isLightTheme,
@@ -2118,29 +2247,28 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
                 VerticalAlignment = VerticalAlignment.Center
             };
             _title = TrayAppDotNETSettingsUI.Text(
-                device.Title,
+                text.Title,
                 palette,
                 resources.AxamlTaskManagerPerformance.DeviceTitleFontSize,
                 (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
             _title.TextTrimming = TextTrimming.CharacterEllipsis;
-            _subtitle = TrayAppDotNETSettingsUI.Text(
-                device.Subtitle,
+            _firstLine = TrayAppDotNETSettingsUI.Text(
+                string.Empty,
                 palette,
                 resources.AxamlTaskManagerPerformance.DeviceSubtitleFontSize,
                 (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
-            _subtitle.TextTrimming = TextTrimming.CharacterEllipsis;
-            _subtitle.IsVisible = ShouldShowSubtitle(device);
-            _summary = TrayAppDotNETSettingsUI.Text(
-                device.Summary,
+            _firstLine.TextTrimming = TextTrimming.CharacterEllipsis;
+            _secondLine = TrayAppDotNETSettingsUI.Text(
+                string.Empty,
                 palette,
                 resources.AxamlTaskManagerPerformance.DeviceSummaryFontSize,
                 (FontWeight)resources.AxamlTaskManagerPerformance.TextFontWeight);
-            _summary.TextTrimming = TextTrimming.CharacterEllipsis;
-            _summary.IsVisible = !string.IsNullOrWhiteSpace(device.Summary);
+            _secondLine.TextTrimming = TextTrimming.CharacterEllipsis;
+            SetLines(text);
 
             StackPanel labels = new()
             {
-                VerticalAlignment = VerticalAlignment.Center, Children = { _title, _subtitle, _summary }
+                VerticalAlignment = VerticalAlignment.Center, Children = { _title, _firstLine, _secondLine }
             };
             Grid content = new()
             {
@@ -2167,23 +2295,30 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
         }
 
         public void Update(
-            PerformanceDevicePresentation device,
+            PerformanceDeviceCardText text,
+            Color accent,
             PerformanceHistory history)
         {
-            if (_accent != device.Accent)
+            if (_accent != accent)
             {
-                _accent = device.Accent;
-                _accentBrush = new SolidColorBrush(device.Accent);
+                _accent = accent;
+                _accentBrush = new SolidColorBrush(accent);
             }
 
-            _title.Text = device.Title;
-            _subtitle.Text = device.Subtitle;
-            _subtitle.IsVisible = ShouldShowSubtitle(device);
-            _summary.Text = device.Summary;
-            _summary.IsVisible = !string.IsNullOrWhiteSpace(device.Summary);
-            _graph.SetAccent(device.Accent);
+            _title.Text = text.Title;
+            SetLines(text);
+            _graph.SetAccent(accent);
             _graph.SetHistory(history);
             UpdateSurface();
+        }
+
+        /// <summary>Shows each line that has text; a line the layout leaves out arrives empty.</summary>
+        private void SetLines(PerformanceDeviceCardText text)
+        {
+            _firstLine.Text = text.FirstLine;
+            _firstLine.IsVisible = !string.IsNullOrWhiteSpace(text.FirstLine);
+            _secondLine.Text = text.SecondLine;
+            _secondLine.IsVisible = !string.IsNullOrWhiteSpace(text.SecondLine);
         }
 
         /// <summary>Forwards an optional aggregate overlay to the card graph.</summary>
@@ -2204,10 +2339,6 @@ internal sealed class PerformancePage : TaskManagerPageLayout, IDisposable
             _isSelected = isSelected;
             UpdateSurface();
         }
-
-        private static bool ShouldShowSubtitle(PerformanceDevicePresentation device) =>
-            device.Kind is not PerformanceDeviceKind.CPU
-            && !string.IsNullOrWhiteSpace(device.Subtitle);
 
         private void OnPointerEntered(object? sender, PointerEventArgs eventArgs)
         {

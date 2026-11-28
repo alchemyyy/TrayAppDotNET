@@ -24,6 +24,9 @@ internal sealed class MemoryCompositionView : StackPanel
     private readonly TextBlock _standbyTooltip;
     private readonly TextBlock _freeTooltip;
     private readonly MemoryCompositionLabels _segmentLabels;
+    private readonly SolidColorBrush _accentBrush;
+    private readonly SolidColorBrush _inUseBrush;
+    private readonly SolidColorBrush _modifiedBrush;
 
     public MemoryCompositionView(
         SettingsPalette palette,
@@ -42,12 +45,12 @@ internal sealed class MemoryCompositionView : StackPanel
         Children.Add(label);
 
         Color accent = PerformanceDevicePresentationFactory.GetAccent(PerformanceDeviceKind.Memory);
-        SolidColorBrush accentBrush = new(accent);
-        SolidColorBrush inUseBrush = new(accent)
+        _accentBrush = new SolidColorBrush(accent);
+        _inUseBrush = new SolidColorBrush(accent)
         {
             Opacity = resources.AxamlTaskManagerPerformance.MemoryCompositionFillOpacity
         };
-        SolidColorBrush modifiedBrush = new(accent)
+        _modifiedBrush = new SolidColorBrush(accent)
         {
             Opacity = resources.AxamlTaskManagerPerformance.MemoryCompositionModifiedOpacity
         };
@@ -57,20 +60,20 @@ internal sealed class MemoryCompositionView : StackPanel
         };
         Children.Add(_segmentLabels);
         Border inUseSegment = CreateSegment(
-            inUseBrush,
-            accentBrush,
+            _inUseBrush,
+            _accentBrush,
             resources.AxamlTaskManagerPerformance.MemoryCompositionSegmentBorderThickness);
         _modifiedSegment = CreateSegment(
-            modifiedBrush,
-            accentBrush,
+            _modifiedBrush,
+            _accentBrush,
             resources.AxamlTaskManagerPerformance.MemoryCompositionSegmentBorderThickness);
         _standbySegment = CreateSegment(
             Brushes.Transparent,
-            accentBrush,
+            _accentBrush,
             resources.AxamlTaskManagerPerformance.MemoryCompositionSegmentBorderThickness);
         _freeSegment = CreateSegment(
             Brushes.Transparent,
-            accentBrush,
+            _accentBrush,
             borderThickness: default);
         _inUseTooltip = CreateTooltip();
         _modifiedTooltip = CreateTooltip();
@@ -93,12 +96,23 @@ internal sealed class MemoryCompositionView : StackPanel
         Border frame = new()
         {
             Height = resources.AxamlTaskManagerPerformance.MemoryCompositionHeight,
-            BorderBrush = accentBrush,
+            BorderBrush = _accentBrush,
             BorderThickness = resources.AxamlTaskManagerPerformance.MemoryCompositionFrameBorderThickness,
             Background = TrayAppDotNETSettingsUI.Brush(palette.Background),
             Child = segments
         };
         Children.Add(frame);
+    }
+
+    /// <summary>Draws the bar, its segments and its label ticks in shades of <paramref name="accent"/>.</summary>
+    public void SetAccent(Color accent)
+    {
+        if (_accentBrush.Color == accent) return;
+
+        _accentBrush.Color = accent;
+        _inUseBrush.Color = accent;
+        _modifiedBrush.Color = accent;
+        _segmentLabels.SetTickColor(accent);
     }
 
     /// <summary>Updates segment widths and the segment-specific explanatory tooltips.</summary>

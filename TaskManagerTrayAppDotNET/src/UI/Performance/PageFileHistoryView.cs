@@ -35,6 +35,7 @@ internal sealed class PageFileHistoryView : Grid
     private int _sampleIntervalMilliseconds;
     private long _lastTimestamp;
     private double _minimumHeight = -1;
+    private Color _accent = PerformanceDevicePresentationFactory.GetAccent(PerformanceDeviceKind.Memory);
 
     public PageFileHistoryView(
         SettingsPalette palette,
@@ -126,6 +127,19 @@ internal sealed class PageFileHistoryView : Grid
 
     /// <summary>Locks the page file graph's hover line to samples, or lets it follow the pointer.</summary>
     public void SetGraphHoverSnapsToSamples(bool snapsToSamples) => _graph.SetHoverSnapsToSamples(snapsToSamples);
+
+    /// <summary>
+    /// Draws the first page file in <paramref name="accent"/> and later ones in lighter shades of it, from the next
+    /// <see cref="UpdatePresentation"/>.
+    /// </summary>
+    public void SetAccent(Color accent)
+    {
+        if (_accent == accent) return;
+
+        _accent = accent;
+        _graph.SetAccent(accent);
+        _shownPaths.Clear();
+    }
 
     /// <summary>Drops every history so the page can replay its snapshot archive with new sampling settings.</summary>
     public void Reset(int historyLengthMinutes, int sampleIntervalMilliseconds)
@@ -229,7 +243,7 @@ internal sealed class PageFileHistoryView : Grid
         _shownPaths.Clear();
         _legendTexts.Clear();
         _legend.Children.Clear();
-        Color accent = PerformanceDevicePresentationFactory.GetAccent(PerformanceDeviceKind.Memory);
+        Color accent = _accent;
         List<PerformanceGraphSeries> additionalSeries = [];
         PerformanceHistory primaryHistory = _emptyHistory;
         for (int pageFileIndex = 0; pageFileIndex < pageFiles.Length; pageFileIndex++)
